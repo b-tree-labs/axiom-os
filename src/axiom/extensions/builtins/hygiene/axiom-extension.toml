@@ -1,0 +1,170 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "hygiene"
+version = "0.5.0"
+description = "Resource stewardship, vitals monitoring, retention, infra cleanup. CLI noun is `hygiene` (purpose); TIDY remains the LLM persona for reasoning over irregularities."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# TIDY — agent persona (LLM character). Used for diagnose / troubleshoot
+# reasoning when the deterministic checks find irregularities. The
+# persona is NOT the CLI noun (per ADR-056 §"Layering"; the CLI noun
+# is `hygiene` — the deterministic 'arms and legs' surface).
+[[extension.provides]]
+kind = "agent"
+name = "tidy"
+entry = "axiom.extensions.builtins.hygiene.cli:main"
+persona = "agents/tidy/persona.md"
+description = "TIDY — infrastructure steward: vitals monitoring, retention, and guarded, reversible resource cleanup"
+
+# `axi hygiene` — the deterministic CLI surface (purpose-named per the
+# 2026-05-30 noun-convention policy; was `axi tidy` pre-migration).
+# Each verb is a thin wrapper that invokes a registered skill function
+# per ADR-056.
+[[extension.provides]]
+kind = "cmd"
+noun = "hygiene"
+entry = "axiom.extensions.builtins.hygiene.cli:main"
+description = "Hygiene: status / list / stat / clean / purge / diagnose / discover / propose / approve / deny"
+tier = "core"
+intent_groups = ["maintain"]
+verb_overrides = { purge = { tier = "advanced" }, diagnose = { tier = "internal" } }
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per
+# ADR-056. CLI verbs (above) are 1:1 thin wrappers. Namespace = CLI
+# noun (`hygiene`) → skill names `hygiene.<verb>`.
+
+[[extension.provides]]
+kind = "skill"
+name = "status"
+entry = "axiom.extensions.builtins.hygiene.skills:status"
+path = "agents/tidy/skills/status.md"
+description = "Snapshot: base path, disk free, active entries, pressure"
+
+[[extension.provides]]
+kind = "skill"
+name = "ls"
+entry = "axiom.extensions.builtins.hygiene.skills:ls"
+path = "agents/tidy/skills/ls.md"
+description = "Table of all tracked entries"
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+entry = "axiom.extensions.builtins.hygiene.skills:list_"
+path = "agents/tidy/skills/list.md"
+description = "List worktrees / branches (positional resource)"
+
+[[extension.provides]]
+kind = "skill"
+name = "stat"
+entry = "axiom.extensions.builtins.hygiene.skills:stat"
+path = "agents/tidy/skills/stat.md"
+description = "Stat vitals / health / ci / drift / retention (positional resource)"
+
+[[extension.provides]]
+kind = "skill"
+name = "clean"
+entry = "axiom.extensions.builtins.hygiene.skills:clean"
+path = "agents/tidy/skills/clean.md"
+description = "Sweep expired + orphaned entries"
+
+[[extension.provides]]
+kind = "skill"
+name = "purge"
+entry = "axiom.extensions.builtins.hygiene.skills:purge"
+path = "agents/tidy/skills/purge.md"
+description = "Delete all scratch entries (confirmation prompt)"
+
+[[extension.provides]]
+kind = "skill"
+name = "diagnose"
+entry = "axiom.extensions.builtins.hygiene.skills:diagnose"
+path = "agents/tidy/skills/diagnose.md"
+description = "Trigger LLM diagnosis (TIDY persona; requires gateway)"
+
+[[extension.provides]]
+kind = "skill"
+name = "discover"
+entry = "axiom.extensions.builtins.hygiene.skills:discover"
+path = "agents/tidy/skills/discover.md"
+description = "Discover hygiene candidates needing approval"
+
+[[extension.provides]]
+kind = "skill"
+name = "propose"
+entry = "axiom.extensions.builtins.hygiene.skills:propose"
+path = "agents/tidy/skills/propose.md"
+description = "Propose a hygiene action for RACI approval"
+
+[[extension.provides]]
+kind = "skill"
+name = "approve"
+entry = "axiom.extensions.builtins.hygiene.skills:approve"
+path = "agents/tidy/skills/approve.md"
+description = "Approve a pending hygiene proposal"
+
+[[extension.provides]]
+kind = "skill"
+name = "deny"
+entry = "axiom.extensions.builtins.hygiene.skills:deny"
+path = "agents/tidy/skills/deny.md"
+description = "Deny a pending hygiene proposal"
+
+# Pre-existing skill specs (kept; renamed from `worktree-hygiene` /
+# `branch-hygiene` to align with the verb-resource grammar).
+[[extension.provides]]
+kind = "skill"
+name = "worktree-hygiene"
+path = "agents/tidy/skills/worktree-hygiene.md"
+description = "TIDY: identify and propose removal of stale git worktrees with cited evidence"
+
+[[extension.provides]]
+kind = "skill"
+name = "branch-hygiene"
+path = "agents/tidy/skills/branch-hygiene.md"
+description = "TIDY: prune merged local/remote branches; archive-before-delete (reversible)"
+
+# Hooks
+[[extension.provides]]
+kind = "hook"
+events = ["tidy.pressure_critical"]
+entry = "axiom.extensions.builtins.hygiene.subscriber:handle_pressure"
+fail_mode = "warn"
+description = "TIDY: diagnose critical pressure events"
+
+[[extension.provides]]
+kind = "hook"
+events = ["tidy.leak_detected"]
+entry = "axiom.extensions.builtins.hygiene.subscriber:handle_leak"
+fail_mode = "warn"
+description = "TIDY: diagnose leak events"
+
+[[extension.provides]]
+kind = "hook"
+events = ["tidy.sweep_failed"]
+entry = "axiom.extensions.builtins.hygiene.subscriber:handle_sweep_failure"
+fail_mode = "warn"
+description = "TIDY: diagnose cleanup failures"
+
+# Pre-AEOS bridge sections.
+[agent]
+heartbeat_interval = 300
+startup = "daemon"
+heartbeat_command = "hygiene stat health --json"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's TIDY {version}")
+# on every channel. The canonical principal (@tidy:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "TIDY"

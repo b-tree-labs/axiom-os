@@ -1,0 +1,20 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "cred"
+version = "0.1.0"
+description = "Personal credential & secret fabric — axi cred, posture-gated, any credential any system (ADR-076)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.31"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "cred"
+entry = "axiom.extensions.builtins.cred.cli:main"
+description = "put / get / list / rm any credential, posture + MFA gated."

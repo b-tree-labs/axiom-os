@@ -1,0 +1,163 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""Bipartite access graphs + retrospective access check.
+
+Per Rezazadeh et al. 2025 (arXiv 2505.18279, Collaborative Memory
+§3.1/§3.3): memory access is controlled by two time-varying
+bipartite graphs:
+
+    G_UA(t) ⊆ U × A   (users × agents)
+    G_AR(t) ⊆ A × R   (agents × resources)
+
+A fragment `m` with immutable provenance `(T, U(m), A(m), R(m))` is
+visible to user `u` through querying agent `a` at time `t` iff:
+
+    A(m) ⊆ A(u,t)                            (all contributing agents reachable)
+    R(m) ⊆ R(a,t)                            (all touched resources reachable)
+    a ∈ A(u,t)                               (querying agent reachable)
+
+Revocation = edge removal. Fragments never mutate.
+
+Federation extends this (task #16, already built): a third bipartite
+U↔Node / Node↔Agent layer routes through the trust chain. The
+current module handles the local-node case; federation composes on
+top.
+
+Pure functional API — every transition returns a new AccessGraphs.
+Persistence is the caller's concern (DB-backed store in #41 extends
+this).
+"""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .fragment import MemoryFragment
+
+
+# ---------------------------------------------------------------------------
+# AccessGraphs data model
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AccessGraphs:
+    """Two bipartite edge sets representing G_UA and G_AR.
+
+    Edges stored as frozensets of (left, right) tuples for fast set
+    membership and clean immutability semantics across transitions.
+    """
+
+    user_agent: set[tuple[str, str]] = field(default_factory=set)
+    agent_resource: set[tuple[str, str]] = field(default_factory=set)
+
+
+# ---------------------------------------------------------------------------
+# Edge mutations (return new graphs)
+# ---------------------------------------------------------------------------
+
+
+def add_user_agent_edge(
+    graphs: AccessGraphs, user: str, agent: str
+) -> AccessGraphs:
+    g = deepcopy(graphs)
+    g.user_agent.add((user, agent))
+    return g
+
+
+def remove_user_agent_edge(
+    graphs: AccessGraphs, user: str, agent: str
+) -> AccessGraphs:
+    g = deepcopy(graphs)
+    g.user_agent.discard((user, agent))
+    return g
+
+
+def add_agent_resource_edge(
+    graphs: AccessGraphs, agent: str, resource: str
+) -> AccessGraphs:
+    g = deepcopy(graphs)
+    g.agent_resource.add((agent, resource))
+    return g
+
+
+def remove_agent_resource_edge(
+    graphs: AccessGraphs, agent: str, resource: str
+) -> AccessGraphs:
+    g = deepcopy(graphs)
+    g.agent_resource.discard((agent, resource))
+    return g
+
+
+# ---------------------------------------------------------------------------
+# Accessibility views
+# ---------------------------------------------------------------------------
+
+
+def agents_for_user(graphs: AccessGraphs, user: str) -> frozenset[str]:
+    """A(u,t): set of agents the user can reach at the current time."""
+    return frozenset(a for u, a in graphs.user_agent if u == user)
+
+
+def resources_for_agent(graphs: AccessGraphs, agent: str) -> frozenset[str]:
+    """R(a,t): set of resources the agent can reach at the current time."""
+    return frozenset(r for a_, r in graphs.agent_resource if a_ == agent)
+
+
+# ---------------------------------------------------------------------------
+# Retrospective access check (the paper's core operator)
+# ---------------------------------------------------------------------------
+
+
+def is_visible(
+    graphs: AccessGraphs,
+    user: str,
+    agent: str,
+    fragment: MemoryFragment,
+) -> bool:
+    """Retrospective access check per §3.3.
+
+    Returns True iff, *at the current state of the graphs*:
+    - The querying agent is itself reachable by the user.
+    - Every agent that contributed to the fragment is reachable by
+      the user.
+    - Every resource the fragment touched is reachable by the
+      querying agent.
+
+    Revocation happens by removing an edge; the fragment's stored
+    provenance never changes.
+    """
+    u_agents = agents_for_user(graphs, user)
+
+    # The querying agent must itself be accessible to the user.
+    if agent not in u_agents:
+        return False
+
+    # Every contributing agent must be in A(u,t).
+    if not fragment.provenance.agents.issubset(u_agents):
+        return False
+
+    # Every touched resource must be in R(a,t).
+    a_resources = resources_for_agent(graphs, agent)
+    if not fragment.provenance.resources.issubset(a_resources):
+        return False
+
+    return True
+
+
+def visible_fragments(
+    graphs: AccessGraphs,
+    user: str,
+    agent: str,
+    fragments: list[MemoryFragment],
+) -> list[MemoryFragment]:
+    """Filter a list of fragments to those currently visible.
+
+    The paper's `M(u, a, t)` operator realized as a list filter.
+    """
+    return [f for f in fragments if is_visible(graphs, user, agent, f)]

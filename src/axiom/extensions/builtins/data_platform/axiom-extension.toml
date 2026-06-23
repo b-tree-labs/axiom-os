@@ -1,0 +1,115 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "data_platform"
+version = "0.3.0"
+description = "Data-platform — DP-1 Box→bronze→RAG Dagster pipeline + generic installer (axi data) + PLINTH (LLM persona for install/diagnose reasoning). Skills are first-class invocable functions per ADR-056. Heavy lakehouse (pyiceberg + dbt) lives behind the [data-platform] extra."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# PLINTH — agent persona (LLM character). Used for install-irregularity
+# reasoning when the deterministic data.diagnose skill detects an
+# anomaly. The persona is NOT the CLI noun (the CLI noun is `data` —
+# the deterministic 'arms and legs' surface). Per ADR-056 §"Layering".
+[[extension.provides]]
+kind = "agent"
+name = "plinth"
+entry = "axiom.extensions.builtins.data_platform.agent:PlinthAgent"
+persona = "agents/plinth/persona.md"
+description = "PLINTH — data-platform orchestrator: ingestion dispatch, source-liveness monitoring, medallion pack-flow (bronze->silver->gold) with lineage-tracked watermarks"
+
+# `axi data` — the deterministic CLI surface (purpose-named per the
+# 2026-05-30 verb-grammar audit + Ben's policy decision). Each verb
+# below is a thin wrapper that invokes a registered skill function
+# (see [[skill]] blocks).
+#
+# CLI subprocess smokes live in tests/test_cli_subprocess.py per
+# feedback_cli_subprocess_smoke_required.
+[[extension.provides]]
+kind = "cmd"
+noun = "data"
+entry = "axiom.extensions.builtins.data_platform.cli:main"
+description = "Data-platform: install / diagnose / ingest / register / unregister / list connectors"
+tier = "advanced"
+intent_groups = ["compose"]
+
+# The orchestrator's long-running service home. Skeleton: no ports
+# wired yet; PLINTH's heartbeat fills in later.
+[[extension.provides]]
+kind = "service"
+name = "data_platform_orchestrator"
+entry = "axiom.extensions.builtins.data_platform.agent:PlinthAgent"
+description = "Scheduler daemon home for PLINTH's ingest / pack-flow dispatch"
+deployment_profile = "server"
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per
+# ADR-056. CLI verbs (above) are 1:1 thin wrappers; agent personas
+# reach the same surface; bidirectional A2A via ctx.registry.invoke.
+# Namespace is the CLI noun (`data`) → skill names `data.<verb>`.
+#
+# `entry` is the dotted "module:function" path the loader binds.
+# `path` is the SKILL.md AEOS markdown (human + persona spec).
+
+[[extension.provides]]
+kind = "skill"
+name = "install"
+entry = "axiom.extensions.builtins.data_platform.skills.install:run"
+path = "skills/install.md"
+description = "Provision the data-platform on K8s (helm + initContainer pip-install)"
+
+[[extension.provides]]
+kind = "skill"
+name = "diagnose"
+entry = "axiom.extensions.builtins.data_platform.skills.diagnose:run"
+path = "skills/diagnose.md"
+description = "Post-install deterministic health checks; invokes data.troubleshoot on irregularity"
+
+[[extension.provides]]
+kind = "skill"
+name = "ingest"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest:run"
+path = "skills/ingest.md"
+description = "Gated Box→bronze→RAG pass for a connector (guarded_act per ADR-045 D6)"
+
+[[extension.provides]]
+kind = "skill"
+name = "register"
+entry = "axiom.extensions.builtins.data_platform.skills.register:run"
+path = "skills/register.md"
+description = "Persist an IngestSource connector configuration"
+
+[[extension.provides]]
+kind = "skill"
+name = "unregister"
+entry = "axiom.extensions.builtins.data_platform.skills.unregister:run"
+path = "skills/unregister.md"
+description = "Remove a connector configuration"
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+entry = "axiom.extensions.builtins.data_platform.skills.list_connectors:run"
+path = "skills/list.md"
+description = "List registered connectors (default resource)"
+
+[[extension.provides]]
+kind = "skill"
+name = "troubleshoot"
+entry = "axiom.extensions.builtins.data_platform.skills.troubleshoot:run"
+path = "skills/troubleshoot.md"
+description = "PLINTH-persona reasoning over an install irregularity (LLM-mediated; deterministic stub today)"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's PLINTH {version}")
+# on every channel. The canonical principal (@plinth:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "PLINTH"

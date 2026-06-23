@@ -1,0 +1,55 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "axiom-ext-data-platform"
+version = "0.1.0"
+description = "Bronze/Silver/Gold data-platform backends for the Axiom platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "The University of Texas at Austin" },
+    { name = "B-Tree Labs", email = "engineering@b-tree-labs.dev" },
+]
+keywords = ["axiom", "data-platform", "medallion", "bronze", "duckdb", "iceberg"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering",
+]
+
+# Base install brings only the protocol re-exports + the in-memory test fixture.
+# Each real backend lives behind an extra so users only pull the deps they use.
+dependencies = [
+    "axiom-os-lm >= 0.12",
+]
+
+[project.optional-dependencies]
+duckdb = ["duckdb >= 1.3"]
+# Future extras land alongside their implementations:
+# iceberg = ["pyiceberg[s3fs] >= 0.8"]
+# seaweed = ["boto3 >= 1.34"]
+test = [
+    "pytest >= 7.0",
+    "duckdb >= 1.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axiom_ext_data_platform"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/axiom_ext_data_platform/tests"]
+pythonpath = ["src"]

@@ -1,0 +1,112 @@
+# LLM Provider Configuration
+# Copy to runtime/config/llm-providers.toml and fill in your keys.
+# (legacy name models.toml is still accepted)
+#
+# The gateway tries providers in priority order with automatic fallback.
+# All providers must speak the OpenAI chat completions format.
+#
+# ── Provider identity ─────────────────────────────────────────────────────────
+#
+# name  (REQUIRED, must be unique within this file)
+#   The stable identifier for this provider. Used as the primary key in all
+#   log records, audit trails, signal payloads, and cost attribution.
+#
+#   Rules:
+#     • Must be unique — two providers cannot share a name (second is skipped)
+#     • Should be stable — renaming a provider breaks historical log correlation
+#     • Use descriptive, lowercase, hyphenated names that survive config changes
+#
+#   Good examples:  "anthropic-sonnet-primary", "qwen-internal", "llama-local"
+#   Bad examples:   "provider1", "test", "qwen" (not specific enough)
+#
+#   The gateway also computes two additional identity fields automatically —
+#   you do not need to set these:
+#     config_hash    8-char SHA-256 of (endpoint + model + routing_tier).
+#                    Stable while config is unchanged. Changes on config drift.
+#                    Appears in routing audit records so you can detect silent
+#                    endpoint or model changes even if 'name' stays the same.
+#     instance_id    UUID4 assigned at each Gateway startup. NOT stable across
+#                    restarts — intentionally — so forensic traces can tell
+#                    "provider loaded in the 2pm session" from "reloaded at 4pm
+#                    after a config edit."
+#
+# ── Routing fields ────────────────────────────────────────────────────────────
+#
+# routing_tier  — three tiers
+#   "public"            → safe for cloud LLMs, no VPN needed
+#   "restricted"        → private-network LLM; sensitive content; falls back to cloud
+#   "export_controlled" → authorized environment only (future)
+#   "any"               → no restriction (default)
+#
+# routing_tags  (facility policy — additive, multiple providers can share tags)
+#   A list of strings. The gateway matches providers whose tag set is a
+#   superset of the tags requested by the caller.  Use for:
+#     - routing to a specific private-network LLM by capability
+#     - routing internal-only (non-EC) traffic away from the cloud
+#     - any workflow-level policy beyond the binary EC tier
+#
+#   Common tags:
+#     "private_network"   → any provider behind a VPN/intranet
+#     "export_controlled" → mirrors routing_tier for tag-based callers
+#     "internal_compute"  → facility intranet only, not export-controlled
+#     "domain_specific"  → provider tuned for domain-specific work
+#     "simulation"        → provider for simulation work
+#     "multimodal"        → supports image inputs
+#
+# requires_vpn = true  → TCP reachability check before each call
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+[gateway]
+format = "openai"
+
+# ── Cloud / public providers ──────────────────────────────────────────────────
+
+# [[gateway.providers]]
+# name = "anthropic"
+# endpoint = "https://api.anthropic.com/v1"
+# model = "claude-sonnet-4-20250514"
+# api_key_env = "ANTHROPIC_API_KEY"
+# priority = 10
+# routing_tier = "public"
+# routing_tags = ["public"]
+# use_for = ["extraction", "synthesis", "correlation", "fallback"]
+
+# [[gateway.providers]]
+# name = "openai"
+# endpoint = "https://api.openai.com/v1"
+# model = "gpt-4o"
+# api_key_env = "OPENAI_API_KEY"
+# priority = 20
+# routing_tier = "public"
+# routing_tags = ["public", "multimodal"]
+# use_for = ["multimodal", "fallback"]
+
+# ── Private-network providers (VPN required) ─────────────────────────────────
+# Each private-network provider declares requires_vpn = true so the gateway
+# checks TCP reachability before attempting a call and falls back gracefully.
+# Use routing_tags to distinguish between multiple private-network LLMs.
+
+# [[gateway.providers]]
+# name = "private-llm"
+# endpoint = "https://llm.internal.example:8443/v1"       # VPN required
+# model = "unsloth/Qwen3.5-122B-A10B-GGUF:Q4_K_M"        # 122B MoE / ~10B active, 256K ctx
+# api_key_env = "PRIVATE_LLM_API_KEY"                     # set to your provider's API key
+# priority = 1
+# routing_tier = "restricted"
+# routing_tags = ["restricted", "private_network"]
+# requires_vpn = true          # gateway does TCP check; skips if unreachable
+# verify_ssl = false           # self-signed cert
+# use_for = ["extraction", "synthesis", "fallback"]
+
+# Second private-network provider example — different capability tag:
+# [[gateway.providers]]
+# name = "llama-internal"
+# endpoint = "http://compute-01.facility.internal:8080/v1"
+# model = "llama3.1:70b"
+# api_key_env = "LLAMA_INTERNAL_API_KEY"
+# priority = 5
+# routing_tier = "any"
+# routing_tags = ["private_network", "internal_compute"]
+# requires_vpn = true
+# use_for = ["synthesis", "fallback"]

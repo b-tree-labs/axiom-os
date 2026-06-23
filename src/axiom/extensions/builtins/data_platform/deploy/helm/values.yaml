@@ -1,0 +1,110 @@
+# axiom-data-platform Helm chart — default values.
+#
+# Provider-driven by construction. The chart names no specific RDBMS
+# or vector store at runtime; values are organized by abstraction
+# (`database`, `vectorStore`) and the install command's
+# `DatabaseKindProvider` + `VectorStoreProvider`s render the
+# kind-specific image / DSN / extension wiring.
+#
+# DP-1 v1 reference impl: --db-kind postgres + --vector-kind pgvector
+# → one Postgres-with-pgvector instance (the providers collapse to
+# `database.internal.image = pgvector/pgvector:pg16` + skip a
+# separate vector-store deploy).
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------
+# Provenance rules (consumer-supplied; default = quarantine everything)
+# ------------------------------------------------------------------------
+# Mounted into the Dagster pods at /etc/axiom/rules/rules.toml.
+provenanceRulesToml: |
+  # No rules supplied. The bronze writer defaults to QUARANTINE for
+  # every item — safe-by-default, nothing reaches RAG.
+  # Supply rules via `axi data install --rules <file.toml>`.
+
+# ------------------------------------------------------------------------
+# Bronze layer storage (auto-defaulted; override for sizing/posture)
+# ------------------------------------------------------------------------
+bronze:
+  size: "100Gi"
+  storageClass: ""   # empty = cluster default
+  mountPath: "/var/lib/axiom/bronze"
+
+# ------------------------------------------------------------------------
+# Database (OLTP / Dagster meta) — DatabaseKindProvider supplies these
+# ------------------------------------------------------------------------
+# `kind` selects the provider (postgres / mysql / sqlite / …). DP-1
+# ships postgres as the only registered kind.
+#
+# `mode`:
+#   internal — chart deploys the bundled DB. Provider supplies the
+#              image (e.g. pgvector/pgvector:pg16 when co-located).
+#   external — chart provisions no DB; pods point at .external.dsn.
+database:
+  kind: "postgres"
+  mode: "internal"
+
+  internal:
+    # Provider-supplied. pgvector co-located with postgres overrides
+    # these to pgvector/pgvector:pg16.
+    image:
+      repository: "postgres"
+      tag: "16"
+    storage: "20Gi"
+    storageClass: ""
+    database: "axiom"
+    username: "axiom"
+    password: ""    # rendered by `axi data install --db-password`
+
+  external:
+    dsn: ""         # postgresql://user:pass@host:port/db
+
+  # Dagster's run + event + schedule storage lives in its own database
+  # inside the same Postgres (creation handled by the init Job).
+  dagsterDatabase: "dagster_meta"
+
+# ------------------------------------------------------------------------
+# Vector store — VectorStoreProvider supplies these
+# ------------------------------------------------------------------------
+# `kind` selects the provider (pgvector / qdrant / weaviate / …).
+# `colocated=true` means the vector store shares the database instance
+# (pgvector is a Postgres extension; the provider folded itself into
+# `database.internal.image`). When colocated, no separate vector
+# service is deployed.
+vectorStore:
+  kind: "pgvector"
+  colocated: true
+
+# ------------------------------------------------------------------------
+# Dagster (heavy tier — webserver + daemon)
+# ------------------------------------------------------------------------
+dagster:
+  # Baked image (deploy/docker/Dockerfile.dagster) with
+  # axiom-os-lm[data-platform] + OCR deps pre-installed. The axiom
+  # version is fixed at image-build time — encoded in the tag
+  # (…-axiom<ver>) — NOT installed at pod start. To roll a new
+  # axiom-os-lm into the pipeline: build a new image tag in CI and
+  # bump `tag` here (one line). Data refresh (Box deltas) is a Dagster
+  # schedule and needs no image change.
+  baseImage:
+    repository: axiom-dagster-k8s
+    tag: "1.13.7-py3.12-axiom0.30.5"
+  maxConcurrentRuns: 4
+  webserver:
+    serviceType: "ClusterIP"
+    nodePort: 0
+    resources:
+      requests: { memory: "512Mi", cpu: "250m" }
+      limits:   { memory: "2Gi",   cpu: "1000m" }
+  daemon:
+    resources:
+      requests: { memory: "512Mi", cpu: "250m" }
+      limits:   { memory: "2Gi",   cpu: "1000m" }
+
+# ------------------------------------------------------------------------
+# Image pull policy (applies to all pods unless overridden per-deploy)
+# ------------------------------------------------------------------------
+image:
+  pullPolicy: "IfNotPresent"
+  pullSecrets: []

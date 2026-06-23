@@ -1,0 +1,52 @@
+{
+  "_comment": "Domain-specific STT correction glossary. Add phonetic mishearings → correct terms.",
+  
+  "technical_terms": {
+    "new tronics": "neutronics",
+    "new tronic": "neutronic",
+    "nucular": "nuclear",
+    "flib": "FLiBe",
+    "flibe": "FLiBe",
+    "lif": "LiF",
+    "l i f": "LiF",
+    "b e f four": "BeF4",
+    "bef4": "BeF4",
+    "th f four": "ThF4"
+  },
+  
+  "programs_grants": {
+    "any u.p.": "NEUP",
+    "any up": "NEUP",
+    "n e u p": "NEUP",
+    "new up": "NEUP",
+    "nrc": "NRC",
+    "n r c": "NRC"
+  },
+  
+  "codes_software": {
+    "gen foam": "Genfoam",
+    "genfoam": "Genfoam",
+    "sam": "SAM",
+    "s a m": "SAM",
+    "syth": "SyTH",
+    "sith": "SyTH",
+    "moscato": "Moscato",
+    "m p act": "MPACT",
+    "mpact": "MPACT"
+  },
+  
+  "universities_labs": {
+    "u c b": "UCB",
+    "ucb": "UC Berkeley",
+    "a and m": "A&M",
+    "a&m": "Texas A&M",
+    "idaho": "INL/Idaho",
+    "oak ridge": "ORNL",
+    "argon": "Argonne"
+  },
+  
+  "facilities": {
+    "trigger": "TRIGA",
+    "tree ga": "TRIGA"
+  }
+}

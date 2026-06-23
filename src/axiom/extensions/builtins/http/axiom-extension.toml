@@ -1,0 +1,37 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "http"
+version = "0.2.0"
+description = "Axiom core HTTP surface — FastAPI app factory + threaded uvicorn runner + chat HTTP API. Base dependency for any extension that serves HTTP."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi serve` — chat HTTP API (zero-deps stdlib server, embeddable on any
+# web page). Absorbed from the deprecated `web_api/` extension.
+[[extension.provides]]
+kind = "cmd"
+noun = "serve"
+entry = "axiom.extensions.builtins.http.serve_cli:main"
+description = "Start the axi chat HTTP API server"
+tier = "core"
+intent_groups = ["build", "maintain"]
+
+# Library service — `create_app` / `ThreadedServer` for downstream
+# extensions that mount routes on a shared FastAPI app (classroom
+# coordinator today; federation peer service, memory API, and portal
+# next).
+[[extension.provides]]
+kind = "service"
+name = "fastapi_app"
+entry = "axiom.extensions.builtins.http.server:create_app"
+description = "FastAPI app factory + ThreadedServer runner for built-in extensions"
+deployment_profile = "server"

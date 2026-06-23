@@ -1,0 +1,58 @@
+# Data-platform — Dagster instance config (Postgres-backed run + event storage).
+# Referenced via DAGSTER_HOME → /opt/dagster/dagster_home/dagster.yaml.
+# Schema: https://docs.dagster.io/deployment/dagster-instance
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-dagster-config
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+data:
+  dagster.yaml: |
+    storage:
+      postgres:
+        postgres_db:
+          username:
+            env: DAGSTER_PG_USER
+          password:
+            env: DAGSTER_PG_PASSWORD
+          hostname:
+            env: DAGSTER_PG_HOST
+          port:
+            env: DAGSTER_PG_PORT
+          db_name:
+            env: DAGSTER_PG_DB
+    run_launcher:
+      module: dagster.core.launcher
+      class: DefaultRunLauncher
+    run_coordinator:
+      module: dagster.core.run_coordinator
+      class: QueuedRunCoordinator
+      config:
+        max_concurrent_runs: {{ .Values.dagster.maxConcurrentRuns | default 4 }}
+    telemetry:
+      enabled: false
+
+  workspace.yaml: |
+    # Tells Dagster which Definitions object to load. The Axiom
+    # data_platform extension exposes load_definitions().
+    load_from:
+      - python_module:
+          module_name: axiom.extensions.builtins.data_platform.dagster_app
+          attribute: load_definitions
+---
+# Provenance rules — the consumer layer supplies this; the bronze
+# writer reads it via DP1_PROVENANCE_RULES_FILE. Operators override
+# the inline value via `--set-file provenanceRulesToml=<path>` at
+# `axi data install` time, or via a values overlay.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-provenance-rules
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+data:
+  rules.toml: |
+{{ .Values.provenanceRulesToml | default "    # Default rule set: allow Reports/, quarantine everything else.\n    [[rule]]\n    pattern = \"/Reports/\"\n    disposition = \"allow\"\n    tier = \"rag-community\"\n    reason = \"reports folder\"\n" | indent 4 }}

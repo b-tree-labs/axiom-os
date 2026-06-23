@@ -1,0 +1,59 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "memory"
+version = "0.5.0"
+description = "Per-principal memory ledger (CompositionService-backed). Inspect, record, and migrate session memory. Surfaces a cross-tool MCP server so Claude Code / ChatGPT / Gemini / OpenCode / axi chat all converge on the same write path. Durable home for the memory subsystem as it grows — Cognee-inspired NodeSet + memify + tier-based storage will land here."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "memory"
+entry = "axiom.extensions.builtins.memory.cli:main"
+description = "Inspect, record, and migrate a principal's memory ledger."
+tier = "core"
+intent_groups = ["start"]
+
+# Pre-write semantic dedup at tool-dispatch (#202.3). Hooks onto
+# `tool.pre_invoke` and, for memory-write tools, denies near-duplicate
+# writes with a structured reason the LLM can act on. Priority 50 so
+# it runs before audit-only hooks (so audit doesn't log writes that
+# never happen). `fail_mode = "warn"` — dedup is an optimization,
+# never a hard gate; a hook error must not block dispatch. Threshold
+# tunable via AXIOM_MEMORY_DEDUP_THRESHOLD env (default 0.92).
+[[extension.provides]]
+kind = "hook"
+events = ["tool.pre_invoke"]
+entry = "axiom.policy.memory_dedup_hook:pre_invoke_handler"
+priority = 50
+fail_mode = "warn"
+description = "Pre-write semantic dedup for memory-write tools (#202.3)"
+
+# NOTE: spec-memory.md §9.1 calls for an `[extension.storage]` block
+# declaring memory_fragment_types + ephemeral_namespaces + extractors.
+# The AEOS manifest schema doesn't yet allow that block; per
+# spec-memory §9.1.7 migration path, the memory extension declares
+# `episodic` writes here as a comment until the schema lands the
+# storage section. Tracked alongside ADR-033 Stage 2.
+#
+#   memory_fragment_types  = ["episodic"]
+#   ephemeral_namespaces   = []
+#   extractors_registered  = []
+
+# Transitional pre-AEOS bridge — runtime MCP server discovery
+# (`axiom.extensions.mcp_generation`) reads this block. Migrating to a
+# canonical `[[extension.provides]]` mcp_server kind requires extending
+# the AEOS schema; tracked in docs/working/competitive-parity-gaps.md.
+[mcp_servers.axiom-memory]
+command = "python"
+args = ["-m", "axiom.extensions.builtins.memory.mcp_server"]
+description = "Cross-tool memory MCP server. Tools: axiom_memory_append (write), axiom_memory_show / axiom_memory_recent / axiom_memory_search (read). Carries `instructions` driving model discipline on append. Any MCP-aware client (Claude Code, ChatGPT, Gemini, OpenCode, axi chat) gets cross-session memory by registering this server."

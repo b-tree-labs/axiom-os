@@ -1,0 +1,38 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# Built-in root MCP server extension. One server per node, aggregating
+# every installed extension's MCP-exposed capabilities. Spec:
+# docs/specs/spec-builtin-mcp-server.md (ADR-038, PRD).
+
+[extension]
+name = "mcp"
+version = "0.1.0"
+description = "Node-level root MCP server. Aggregates platform primitives + every installed extension's [extension.mcp] block into a single MCP surface served over stdio (HTTP/SSE staged for Phase 5)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# This extension's own MCP block is `enabled = false`. The root server
+# *is* this extension; it has nothing to contribute back to itself.
+[extension.mcp]
+enabled = false
+
+[[extension.provides]]
+kind = "cmd"
+noun = "mcp"
+entry = "axiom.extensions.builtins.mcp.cli:main"
+description = "Manage the node-level root MCP server (serve, status, list-tools, regenerate, clients)."
+
+[[extension.provides]]
+kind = "hook"
+events = ["extension.post_install", "extension.post_uninstall", "extension.post_update"]
+entry = "axiom.extensions.builtins.mcp.subscriber:on_extension_changed"
+fail_mode = "warn"
+description = "Refresh MCP surface cache when the installed extension set changes."

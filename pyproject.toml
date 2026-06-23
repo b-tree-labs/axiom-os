@@ -1,0 +1,311 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "axiom-os-lm"
+version = "0.31.0"
+description = "Composable and Extensible Agent Operating System for Language Models"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{name = "Benjamin Booth", email = "no-reply@axiom-os.ai"}]
+keywords = ["llm", "rag", "ai-agents", "federation", "platform"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+]
+
+dependencies = [
+    "pyyaml>=6.0",
+    "argcomplete>=3.0",
+    "tomlkit>=0.13",
+    # Core runtime — needed for CLI rendering and network calls
+    "requests>=2.28",
+    "rich>=13.0",
+    # Model validation (Tier 0) and DB access for model registry
+    "jsonschema>=4.20",
+    # ADR-052: schema-per-extension DatabaseProvider is a platform-core
+    # contract — every extension that needs persistence consumes
+    # `axiom.infra.db.session_for(<ext>)`. The Postgres driver +
+    # migration framework are core deps, not extras.
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "alembic>=1.13",
+    # PULSE scheduler cadences: croniter for cron expressions, python-dateutil
+    # for iCalendar RRULE recurrence (the calendar-sync form).
+    "croniter>=2.0",
+    "python-dateutil>=2.8",
+    # Federation identity (Ed25519 keypairs, signatures, fingerprints)
+    # required by `axi federation init` and `axi nodes add` at runtime
+    "cryptography>=42.0",
+    # Core HTTP surface — `axiom.extensions.builtins.http` ships the
+    # FastAPI-based server that every HTTP-serving extension mounts on
+    # (classroom coordinator today; more to follow). Per the
+    # "Axiom core HTTP is FastAPI" decision.
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+calendar = [
+    # GoogleCalendarProvider (lazy-imported); other vendors add their own SDKs.
+    "google-api-python-client>=2.0",
+    "google-auth>=2.0",
+]
+m365 = [
+    # M365CalendarProvider (lazy-imported) — Graph auth via MSAL.
+    "msal>=1.28",
+]
+chat = [
+    "prompt-toolkit>=3.0",
+    "pygments>=2.17",
+]
+publisher = ["python-docx>=1.1"]
+rag = [
+    "psycopg2-binary>=2.9",
+    "watchdog>=3.0",
+]
+signal = [
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "pgvector>=0.2",
+]
+repos = [
+    "PyGithub>=2.0",
+    "python-gitlab>=4.0",
+]
+storage = [
+    "boto3>=1.28",
+    "jsonschema>=4.20",
+]
+browser = ["playwright>=1.40"]
+mcp = ["mcp>=1.0"]
+# Data-platform heavy lakehouse layer. NOT yet used by any code — the
+# `data_platform` builtin ships only the orchestrator skeleton +
+# contribution registry/protocols, which import none of these. These deps
+# are declared here so a future heavy layer (medallion tables, scheduled
+# pipelines, transforms, BI) installs them via `pip install
+# axiom-os-lm[data-platform]` without touching the light base install.
+# Versions are placeholders pending the heavy-layer spec.
+data-platform = [
+    "pyiceberg>=0.7",   # not-yet-used: medallion table format
+    "dagster>=1.7",     # not-yet-used: pipeline scheduling/orchestration
+    "dbt-core>=1.8",    # not-yet-used: medallion transforms
+    "duckdb>=1.0",      # not-yet-used: local query engine
+    # Apache Superset (BI) is not-yet-used and was pinned as
+    # `superset>=4.0` which resolves to an unrelated PyPI package
+    # (max version 0.30.1) and broke every fresh install of
+    # `axiom-os-lm[data-platform]`. The Apache Superset package on
+    # PyPI is `apache-superset`; re-add as that name when the BI
+    # layer actually consumes it.
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.5",
+    "pytest-timeout>=2.3",
+    # Cross-process file lock used by the RAG integration tests to bootstrap
+    # the pgvector schema exactly once across pytest-xdist workers. Was an
+    # undeclared (transitively-present) import that reddened CI's integration
+    # job; pinned here next to xdist so it always installs with [dev]/[all].
+    "filelock>=3",
+    # Real token counting for window/summarizer tests — without this, the
+    # word-based fallback in token_counter.py undercounts strings without
+    # spaces (e.g. "q0" * 50) and TestBuildWindow tests fail on clean CI.
+    "tiktoken>=0.7",
+    "ruff>=0.4",
+    "pyright>=1.1",
+    "moto[s3]>=5.0",
+]
+# runtime: everything needed to run axiom (no dev tools)
+runtime = [
+    "axiom-os-lm[chat,publisher,rag,signal,repos,storage,mcp]",
+]
+# all: full install including dev tools (for contributors)
+all = [
+    "axiom-os-lm[runtime,dev]",
+]
+
+[project.scripts]
+axi = "axiom.axiom_cli:main"
+axiom = "axiom.axiom_cli:main"
+# Brand-aware coordinator wrapper. macOS Login Items / Background Items
+# shows the binary name as-is, so a meaningful name (rather than `axi`)
+# tells the host admin who to call for help. A domain consumer adds its own
+# (e.g. a Consumer-Background-Service) in its own pyproject; both reuse the
+# same coordinator entrypoint. See ADR-036 §D3 + 2026-04-29 UX fix.
+"Axiom-Background-Service" = "axiom.agents.background_service:console_main"
+
+# Self-declaration as an Axiom portfolio member. Other portfolio packages
+# (a domain consumer, future X-Foo / Y-Bar) declare their own membership via this
+# group; axi-platform never needs to know about them. Used by the
+# Background Service cleanup pass to find cross-brand stale registrations
+# and by the brand-priority resolver. See `discover_portfolio_members()`.
+[project.entry-points."axiom.portfolio_member"]
+axiom-os-lm = "axiom.infra.branding:_portfolio_metadata"
+
+[project.urls]
+Homepage = "https://github.com/b-tree-labs/axiom-os"
+Repository = "https://github.com/b-tree-labs/axiom-os"
+"Bug Tracker" = "https://github.com/b-tree-labs/axiom-os/issues"
+
+[build-system]
+# Pin hatchling < 1.27 so wheels carry Metadata-Version 2.4. The
+# pypa/gh-action-pypi-publish action's bundled twine rejects 2.5
+# until twine ships the spec update. Revisit when the publish
+# action upgrades twine.
+requires = ["hatchling<1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axiom"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src/axiom/extensions/builtins"]
+pythonpath = ["src"]
+addopts = "-m 'not integration and not federation_lifecycle and not install_path and not classroom_e2e'"
+markers = [
+    "integration: marks tests that hit external services or require runtime config",
+    "slow: marks tests as slow",
+    "benchmark: marks benchmark tests",
+    "federation_lifecycle: multi-node federation lifecycle tests (require Docker; opt-in)",
+    "install_path: clean-install validation from PyPI inside Docker (opt-in; requires Docker + network)",
+    "classroom_e2e: full classroom journey tests (opt-in; exercises all modules end-to-end)",
+    "memory_compliance: marks tests in the memory compliance suite (spec-memory.md §12 + memory-benchmarks.md §2). CI gates merges on these.",
+    "accountability_compliance: marks tests in the accountability compliance suite (ADR-035 §D7 + Compliance gates). Every fragment carries a non-empty accountable_human_id; pre-bump fragments decode under the legacy sentinel.",
+    "pipeline_compliance: marks tests in the plan + agent pipeline compliance suite (ADR-034 compliance gates). Plan fixtures decode + round-trip; agent runs replay deterministically.",
+]
+filterwarnings = [
+    "ignore::pytest.PytestUnknownMarkWarning",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501", "SIM108", "SIM105", "SIM102", "SIM117", "SIM115",
+    "UP042", "B904", "B027", "B007", "B905", "B023", "SIM103",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["axiom"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "standard"
+reportMissingImports = "warning"
+reportMissingModuleSource = false
+# Alembic migration scripts run in a special execution context where `op` is
+# a runtime proxy object. Pyright can't statically type these files correctly.
+exclude = ["**/migrations/versions/**"]
+
+[tool.pylint.main]
+# Alembic migration files start with dates (e.g. 20260224_...) and use
+# lowercase module-level identifiers required by Alembic's runtime API.
+# Exclude entirely — these files run in a special Alembic execution context.
+ignore-paths = ["src/axiom/extensions/builtins/.*/migrations/versions"]
+
+[tool.pylint."messages_control"]
+disable = [
+    # Test methods use descriptive names, not docstrings
+    "missing-function-docstring",
+    # Lazy imports are intentional: optional deps, circular-import avoidance
+    "import-outside-toplevel",
+    # Duplicate code across adapters/providers is expected (similar patterns)
+    "duplicate-code",
+    # CLI files legitimately have many branches/statements/locals
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-locals",
+    "too-many-instance-attributes",
+    "too-many-arguments",
+    "too-many-return-statements",
+    "too-many-nested-blocks",
+    "too-many-public-methods",
+    "too-few-public-methods",
+    # Broad except is intentional in CLI/setup code (graceful degradation)
+    "broad-exception-caught",
+    # subprocess.run without check= is intentional (we check returncode)
+    "subprocess-run-check",
+    # Fixme/todo comments are tracked in issue tracker
+    "fixme",
+    # Internal modules access _private members across the axiom package
+    "protected-access",
+    # Tests and CLI handlers commonly shadow outer names
+    "redefined-outer-name",
+    # Interface compliance, event handlers, overrides
+    "unused-argument",
+    # Short variable names (e, f, i, k, v) are conventional in Python
+    "invalid-name",
+    # Ellipsis in abstract methods / protocol stubs
+    "unnecessary-ellipsis",
+    # Reimports in lazy-import patterns
+    "reimported",
+    # global is used intentionally for module-level state
+    "global-statement",
+    # Cyclic imports are resolved at runtime via lazy imports
+    "cyclic-import",
+    # no-else-return is style, not correctness
+    "no-else-return",
+    # CLI arg counts
+    "too-many-positional-arguments",
+    # Class docstrings — many small dataclasses/exceptions are self-documenting
+    "missing-class-docstring",
+    # open() encoding — most reads are UTF-8 default on modern Python
+    "unspecified-encoding",
+    # Dynamic attributes on proxy/mock objects
+    "no-member",
+    # raise X from Y — not always needed
+    "raise-missing-from",
+    # `if x == []` vs `if not x` — style preference
+    "use-implicit-booleaness-not-comparison",
+    # requests.get without timeout — handled by Gateway
+    "missing-timeout",
+    # consider-using-with for subprocess — not always appropriate
+    "consider-using-with",
+    # pass in except blocks
+    "unnecessary-pass",
+    # Attributes set in methods other than __init__
+    "attribute-defined-outside-init",
+    # Shadowing builtins (type, id, input) — common in CLI code
+    "redefined-builtin",
+    # Module too long — CLI files are intentionally large
+    "too-many-lines",
+    # Arguments renamed in overrides
+    "arguments-renamed",
+    # no-else-break
+    "no-else-break",
+    # useless-return at end of methods
+    "useless-return",
+    # Import order — handled by isort, not pylint
+    "wrong-import-order",
+    "wrong-import-position",
+    # Import errors from optional dependencies
+    "import-error",
+    # cell-var-from-loop — intentional closures
+    "cell-var-from-loop",
+    # no-name-in-module — dynamic modules
+    "no-name-in-module",
+    # Side-effect imports for provider registration / availability checks
+    "unused-import",
+    # Line length handled by formatter
+    "line-too-long",
+]
+
+[tool.pylint.format]
+max-line-length = 120

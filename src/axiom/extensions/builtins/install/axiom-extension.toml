@@ -1,0 +1,32 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "install"
+version = "0.1.0"
+description = "Environment-aware installation and setup — reads runtime/config/install.toml"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "install"
+entry = "axiom.extensions.builtins.install.cli:main"
+description = "Run environment setup steps from runtime/config/install.toml"
+tier = "starter"
+intent_groups = ["start"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "install-shim"
+entry = "axiom.extensions.builtins.install.shim_cli:main"
+description = "Drop a stable ~/.local/bin/axi shim for federation SSH peers"
+tier = "advanced"
+intent_groups = ["start"]

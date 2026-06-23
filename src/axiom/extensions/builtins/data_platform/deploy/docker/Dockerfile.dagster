@@ -1,0 +1,59 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+#
+# Baked Dagster image for the Axiom data platform (heavy tier).
+#
+# Replaces the previous boot-time `pip install axiom-os-lm[data-platform]`
+# init container, which installed from PyPI on every pod start — fragile
+# (needs pod egress DNS) and impossible for unpublished dev versions
+# (the pinned version may never exist on PyPI). Baking pins the runtime
+# at build time: reproducible, offline-capable, and crash-loop-proof.
+#
+# Build (run on a host with internet + the axiom-os-lm wheel staged):
+#   docker build \
+#     -f deploy/docker/Dockerfile.dagster \
+#     --build-arg DAGSTER_BASE=<py3.12 dagster base> \
+#     --build-arg AXIOM_WHEEL=axiom_os_lm-0.30.5-py3-none-any.whl \
+#     -t axiom-dagster-k8s:1.13.7-py3.12-axiom0.30.5 \
+#     <context-with-wheel>
+#
+# IMPORTANT: axiom-os-lm requires Python >= 3.11, but the stock
+# `dagster/dagster-k8s` images ship Python 3.10. DAGSTER_BASE must be a
+# py3.12 dagster image (the `axiom-dagster-k8s:*-py3.12` lineage already
+# carries the dagster batteries on py3.12). Building a py3.12 dagster
+# base from upstream is a documented follow-up (FOLLOWUP-dagster-py312).
+#
+# Code currency is intentional: a new axiom-os-lm release means a new
+# image tag (CI builds it) and a one-line chart `dagster.baseImage.tag`
+# bump — never a silent upgrade at pod start. Data currency (Box corpus
+# deltas) is handled separately by the Dagster schedule, no rebuild.
+ARG DAGSTER_BASE=axiom-dagster-k8s:1.13.7-py3.12-axiom0.29.3
+FROM ${DAGSTER_BASE}
+
+# axiom-os-lm wheel staged into the build context (not on PyPI).
+ARG AXIOM_WHEEL
+
+USER root
+
+# OCR / document-extraction system binaries (was apt-get in the init
+# container) + build headers for source-built deps (lxml needs
+# libxml2/libxslt dev packages on the older base image).
+RUN apt-get update -qq \
+    && apt-get install -yq --no-install-recommends \
+         tesseract-ocr poppler-utils \
+         gcc libxml2-dev libxslt1-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Bake axiom-os-lm[data-platform] + extraction deps into site-packages.
+# The [data-platform] extras + the pip deps resolve from PyPI at build
+# time (build host has DNS); the axiom wheel itself comes from context.
+# Upgrade pip first so it prefers manylinux wheels over source builds.
+COPY ${AXIOM_WHEEL} /tmp/${AXIOM_WHEEL}
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+      "/tmp/${AXIOM_WHEEL}[data-platform]" \
+      pypdf pypdfium2 pytesseract python-docx openpyxl requests \
+    && rm -f /tmp/${AXIOM_WHEEL}
+
+# Sanity: the data-platform entrypoints import cleanly at build time.
+RUN python -c "import axiom; from axiom.extensions.builtins.data_platform import dagster_app"
