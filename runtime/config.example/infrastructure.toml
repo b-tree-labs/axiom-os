@@ -1,0 +1,131 @@
+# Axiom Infrastructure Services Configuration
+#
+# Each section configures a provider for an infrastructure service.
+# The `type` field selects the backend implementation.
+# The `uid` field is auto-generated on first load — add it here to persist
+# across restarts (see ADR-012: Provider Identity).
+#
+# All self-hosted providers are pure OSS (Apache 2.0, MPL 2.0, LGPL 2.1).
+# No BSL or source-available dependencies.
+#
+# Deployment profiles:
+#   self-hosted  — Ceph, OpenBao, Prometheus/Loki/Grafana, Kafka, Kratos, OpenFGA
+#   aws          — S3/Glacier, KMS, CloudWatch, Kinesis, Cognito, IAM
+#
+# Generate a profile: axiom infra init --profile self-hosted
+
+# ── Object Storage ──────────────────────────────────────────────────
+# Used for: Iceberg data, backups, model artifacts, media assets
+# Interface: ObjectStorageProvider (S3-compatible API)
+#
+# Self-hosted: Ceph/Rook (LGPL 2.1, CNCF Graduated via Rook)
+# Cloud:       AWS S3 + Glacier
+
+[[infra.object_storage]]
+type = "ceph"                           # or "aws_s3"
+name = "Primary Object Storage"
+endpoint = "https://ceph.cluster.example"
+bucket = "axiom-lakehouse"
+access_key_env = "CEPH_ACCESS_KEY"
+secret_key_env = "CEPH_SECRET_KEY"
+# Cold-tier lifecycle: objects older than `cold_after_days` transition to cold storage class
+cold_after_days = 730       # 2 years → cold tier
+archive_after_days = 2555   # 7 years → archive tier (set 0 to disable)
+
+# ── Secrets & Encryption ────────────────────────────────────────────
+# Used for: Encryption keys, credential storage, key rotation
+# Interface: SecretProvider
+#
+# Self-hosted: OpenBao (MPL 2.0, Linux Foundation — Vault-API-compatible fork)
+# Cloud:       AWS KMS
+
+[[infra.secrets]]
+type = "openbao"                        # or "aws_kms", "keychain" (dev)
+name = "Production Secrets"
+endpoint = "https://openbao.cluster.example:8200"
+token_env = "BAO_TOKEN"
+transit_key = "axiom-data"              # OpenBao transit engine key name
+rotation_days = 90
+
+# ── Observability ───────────────────────────────────────────────────
+# Used for: Metrics, logs, traces, dashboards
+# Interface: ObservabilityProvider
+#
+# Self-hosted: Prometheus (Apache 2.0, CNCF Graduated) +
+#              Loki (AGPL 3.0, Grafana Labs) +
+#              Grafana (AGPL 3.0, Grafana Labs)
+#              Collected via OpenTelemetry (Apache 2.0, CNCF Graduated)
+# Cloud:       AWS CloudWatch
+
+[[infra.observability]]
+type = "plg"                            # or "aws_cloudwatch"
+name = "Facility Observability"
+loki_endpoint = "https://loki.cluster.example:3100"
+prometheus_endpoint = "https://prometheus.cluster.example:9090"
+grafana_endpoint = "https://grafana.cluster.example:3000"
+
+# ── Streaming ───────────────────────────────────────────────────────
+# Used for: Real-time event ingestion, Bronze layer streaming writes
+# Interface: StreamingProvider
+#
+# Self-hosted: Apache Kafka in KRaft mode (Apache 2.0, ASF)
+#              + Apache Flink (Apache 2.0, ASF) for stream processing
+# Cloud:       AWS Kinesis + Flink
+
+[[infra.streaming]]
+type = "kafka"                          # or "aws_kinesis"
+name = "Event Streaming"
+brokers = ["kafka-0.cluster.example:9092"]
+# schema_registry = "https://schema-registry.cluster.example:8081"
+# flink_endpoint = "https://flink.cluster.example:8081"
+
+# ── Alerting ────────────────────────────────────────────────────────
+# Used for: Operational alerts, compliance gap notifications
+# Interface: AlertProvider
+#
+# Self-hosted: Alertmanager (Apache 2.0, CNCF — Prometheus ecosystem)
+# Cloud:       AWS SNS
+
+[[infra.alerting]]
+type = "alertmanager"                   # or "aws_sns"
+name = "Facility Alerts"
+endpoint = "https://alertmanager.cluster.example:9093"
+# Routes configured in Alertmanager config, not here
+
+# ── Identity ────────────────────────────────────────────────────────
+# Used for: User authentication, session management, MFA, OIDC/SAML
+# Interface: IdentityProvider
+#
+# Self-hosted: Ory Kratos (Apache 2.0, Ory — committed OSS)
+# Cloud:       AWS Cognito
+
+[[infra.identity]]
+type = "kratos"                         # or "aws_cognito"
+name = "Facility Identity"
+public_endpoint = "https://kratos.cluster.example:4433"
+admin_endpoint = "https://kratos.cluster.example:4434"
+
+# ── Authorization ───────────────────────────────────────────────────
+# Used for: RBAC/ReBAC, row-level security, resource access control
+# Interface: AuthorizationProvider
+#
+# Self-hosted: OpenFGA (Apache 2.0, CNCF Incubation — Google Zanzibar model)
+# Cloud:       OpenFGA on EKS, or AWS IAM for coarse-grained
+
+[[infra.authorization]]
+type = "openfga"                        # same provider, different deployment target
+name = "Facility Authorization"
+endpoint = "https://openfga.cluster.example:8080"
+store_id = ""                           # Created on first init
+
+# ── Certificates ────────────────────────────────────────────────────
+# Used for: TLS termination, inter-service mTLS
+# Interface: CertProvider
+#
+# Self-hosted: cert-manager (Apache 2.0, CNCF Graduated)
+# Cloud:       AWS ACM
+
+[[infra.certificates]]
+type = "certmanager"                    # or "aws_acm"
+name = "Cluster Certificates"
+issuer = "letsencrypt-prod"             # or "internal-ca" for air-gapped

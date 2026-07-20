@@ -1,0 +1,151 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "diagnostics"
+version = "0.2.0"
+description = "Axiom diagnostics + system-health extension — houses the TRIAGE agent."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# TRIAGE — the diagnostics/integrity agent the extension exists to host.
+# Per AEOS §4.1 + the Axiomatic Way principle #7 (agent identity is
+# canonical; the face is rebrandable), the agent's persona lives inside
+# the extension at agents/triage/persona.md.
+#
+# TRIAGE is always-on: every 600s the heartbeat sweep runs all registered
+# safety checks (built-ins below + extension-contributed checks via the
+# safety_check provider type). Findings are aggregated into
+# ~/.axi/agents/triage/sweep.jsonl. Critical findings exit non-zero so
+# `axi agents logs diagnostics` surfaces them.
+[[extension.provides]]
+kind = "agent"
+name = "triage"
+entry = "axiom.extensions.builtins.diagnostics.agent:DoctorAgent"
+persona = "agents/triage/persona.md"
+description = "TRIAGE — diagnostics, integrity & security agent: safety checks, CLI-failure diagnosis, signature/TOFU guards; inbound reply classifier per ADR-067 (in-flight)"
+
+# `axi triage` — TRIAGE's user-facing CLI: heartbeat (daemon path), checks
+# (introspection), sweep (on-demand). Distinct from `axi doctor` which is
+# the legacy one-shot diagnostic command.
+[[extension.provides]]
+kind = "cmd"
+noun = "triage"
+entry = "axiom.extensions.builtins.diagnostics.agent_cli:main"
+description = "TRIAGE — diagnostics + integrity agent CLI"
+tier = "advanced"
+intent_groups = ["investigate", "maintain"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "doctor"
+entry = "axiom.extensions.builtins.diagnostics.cli:main"
+description = "System diagnostics and health checks (one-shot)"
+tier = "starter"
+intent_groups = ["start", "investigate"]
+
+# Built-in safety checks — TRIAGE ships its own contributions via the
+# same provider type extension authors will use. This is the dogfood:
+# there is exactly one path to add a safety check, and these built-ins
+# walk it.
+
+[[extension.provides]]
+kind = "safety_check"
+name = "diagnostics.state_dir_disk_space"
+entry = "axiom.extensions.builtins.diagnostics.safety:check_state_dir_disk_space"
+schedule = "every_heartbeat"
+severity_default = "warning"
+description = "Surface low disk space on the state-dir partition before audit gaps appear"
+
+[[extension.provides]]
+kind = "safety_check"
+name = "diagnostics.pending_patches_stale"
+entry = "axiom.extensions.builtins.diagnostics.safety:check_pending_patches_stale"
+schedule = "every_heartbeat"
+severity_default = "warning"
+description = "Warn on patches awaiting human review beyond the staleness threshold"
+
+[[extension.provides]]
+kind = "safety_check"
+name = "diagnostics.workload_crashloop"
+entry = "axiom.extensions.builtins.diagnostics.workload_health:check_workload_crashloops"
+schedule = "every_heartbeat"
+severity_default = "critical"
+description = "Detect k8s pods in CrashLoopBackOff/OOMKilled or restart-storms; stage a bounded, reversible memory-limit bump for OOM and notify sysadmins"
+
+[[extension.provides]]
+kind = "safety_check"
+name = "diagnostics.oom_killer"
+entry = "axiom.extensions.builtins.diagnostics.workload_health:check_oom_kills"
+schedule = "every_heartbeat"
+severity_default = "critical"
+description = "Detect kernel OOM-killer events for any process (host or cgroup) and notify sysadmins on repeated kills"
+
+# Hooks — manifest-driven discovery per spec-hooks.md §7. The platform
+# `HookRegistry` wires these at runtime startup; no boot-time
+# `bus.subscribe()` ceremony.
+
+[[extension.provides]]
+kind = "hook"
+events = ["cli.*"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:doctor_handler"
+fail_mode = "warn"
+description = "TRIAGE: diagnose+patch on cli.arg_error"
+
+[[extension.provides]]
+kind = "hook"
+events = ["doctor.patch_ready"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:review_handler"
+fail_mode = "warn"
+description = "TRIAGE: independent reviewer over patches"
+
+[[extension.provides]]
+kind = "hook"
+events = ["review.approved"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:commit_handler"
+fail_mode = "warn"
+description = "TRIAGE: commit approved patches"
+
+[[extension.provides]]
+kind = "hook"
+events = ["review.rejected"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:retry_handler"
+fail_mode = "warn"
+description = "TRIAGE: one retry on rejected review"
+
+[[extension.provides]]
+kind = "hook"
+events = ["connections.*"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:connection_health_handler"
+fail_mode = "warn"
+description = "TRIAGE: remediate unhealthy connections"
+
+[[extension.provides]]
+kind = "hook"
+events = ["doctor.patch_complete", "doctor.patch_failed", "doctor.rate_limited", "doctor.llm_unavailable"]
+entry = "axiom.extensions.builtins.diagnostics.subscriber:aar_handler"
+fail_mode = "warn"
+description = "TRIAGE: After Action Report on terminal events"
+
+# Always-on lifecycle. Sweep cadence is gentler than TIDY's (300s) since
+# safety/integrity checks don't need high frequency; 600s = 10 minutes.
+# Extensions registering their own safety_check providers will fire on
+# the same cadence.
+[agent]
+heartbeat_interval = 600
+startup = "daemon"
+heartbeat_command = "triage heartbeat"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's TRIAGE {version}")
+# on every channel. The canonical principal (@triage:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "TRIAGE"

@@ -1,0 +1,76 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "connect"
+version = "0.4.1"
+description = "Manage external connections and credentials"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "connect"
+entry = "axiom.extensions.builtins.connect.cli:main"
+description = "Add, test, and manage external connections"
+tier = "core"
+intent_groups = ["start"]
+
+# Registry Fabric (ADR-074) — `axi connector <verb>` command surface.
+[[extension.provides]]
+kind = "cmd"
+noun = "connector"
+entry = "axiom.extensions.builtins.connect.connector_cli:main"
+description = "Browse, install, enable/disable connectors (Registry Fabric)"
+tier = "core"
+intent_groups = ["start"]
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.list"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:list_connectors"
+path = "skills/connector-list.md"
+description = "List connectors (availability + on/off)"
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.show"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:show"
+path = "skills/connector-show.md"
+description = "Show one connector: descriptor, required secrets, setup deep-links"
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.install"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:install"
+path = "skills/connector-install.md"
+description = "Set up a connector (vendor app + connection; creds via secret_ref)"
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.enable"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:enable"
+path = "skills/connector-enable.md"
+description = "Switch a connector ON"
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.disable"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:disable"
+path = "skills/connector-disable.md"
+description = "Switch a connector OFF"
+
+[[extension.provides]]
+kind = "skill"
+name = "connector.status"
+entry = "axiom.extensions.builtins.connect.skills.registry_ops:status"
+path = "skills/connector-status.md"
+description = "Connection health/status"
+

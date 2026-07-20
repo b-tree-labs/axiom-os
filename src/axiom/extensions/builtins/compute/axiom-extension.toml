@@ -1,0 +1,21 @@
+# Copyright (c) 2026 B-Tree Ventures, LLC
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "compute"
+version = "0.1.0-phase-a"
+description = "Decompose, dispatch, and aggregate compute work (ADR-040 Phase A)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom  = ">= 0.10"
+
+[[extension.provides]]
+kind        = "cmd"
+noun        = "compute"
+entry       = "axiom.extensions.builtins.compute.cli:main"
+description = "Decompose, dispatch, and aggregate compute work."

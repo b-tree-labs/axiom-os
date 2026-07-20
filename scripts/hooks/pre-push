@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# pre-push hook — runs the EXACT same lint + test commands as GitHub Actions CI.
+# Catches failures BEFORE CI, not after.
+#
+# To install: cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# CI equivalence:
+#   Lint:  .github/workflows/ci.yml → lint job → ruff check src/ --select E,F,W --ignore E501
+#   Tests: .github/workflows/ci.yml → unit-tests job → pytest (matches pyproject testpaths)
+#
+# Layer 0 discipline (per docs/working/ci-hygiene-plan-2026-04-28.md):
+#   - Warns when origin/main's last CI run was a failure.
+#   - Refuses to push onto red main without an explicit override-reason.
+#
+# Override-reason mechanism (2026-06-01):
+#   When main is red, every commit being pushed MUST carry a `Bypass-Reason:`
+#   trailer. The path to get that trailer in is to commit with the env var
+#   AXI_OVERRIDE_REASON="why" set — the commit-msg hook stamps the trailer.
+#   This hook will, as a last-resort convenience, amend the trailer onto HEAD
+#   if AXI_OVERRIDE_REASON is set at push time AND only HEAD is missing the
+#   trailer. Every red-main push is logged to ~/.axi/pre-push-bypass.log.
+#
+#   `git push --no-verify` still skips this hook (Git can't prevent that
+#   locally). Server-side branch protection is the second line of defense
+#   and is tracked separately.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Activate venv if not already active
+if [ -z "${VIRTUAL_ENV:-}" ]; then
+  if [ -f "$REPO_ROOT/../.venv/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT/../.venv/bin/activate"
+  elif [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
+    source "$REPO_ROOT/.venv/bin/activate"
+  fi
+fi
+
+# ── helpers ────────────────────────────────────────────────────────────
+AXI_LOG_DIR="${HOME}/.axi"
+AXI_BYPASS_LOG="${AXI_LOG_DIR}/pre-push-bypass.log"
+
+log_bypass() {
+  # log_bypass <branch> <sha> <reason-or-no-reason>
+  mkdir -p "$AXI_LOG_DIR" 2>/dev/null || return 0
+  local ts user
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  user="$(git config user.email 2>/dev/null || echo unknown)"
+  printf '%s\tbranch=%s\tsha=%s\tuser=%s\treason=%s\n' \
+    "$ts" "$1" "$2" "$user" "$3" >> "$AXI_BYPASS_LOG" 2>/dev/null || true
+}
+
+commit_has_bypass_trailer() {
+  # commit_has_bypass_trailer <sha>
+  git log -1 --format=%B "$1" 2>/dev/null \
+    | git interpret-trailers --parse 2>/dev/null \
+    | grep -qiE '^Bypass-Reason:[[:space:]]*[^[:space:]]'
+}
+
+# ── determine refs being pushed (stdin from git) ───────────────────────
+# Format per githooks(5): <local-ref> <local-sha> <remote-ref> <remote-sha>
+PUSH_INPUT="$(cat || true)"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+HEAD_SHA="$(git rev-parse HEAD)"
+
+# ── CI status check on origin/main — Layer 0 discipline ────────────────
+MAIN_RED=0
+if command -v gh >/dev/null 2>&1; then
+  echo "▶ pre-push: checking origin/main CI status..."
+  last_status=$(gh run list --branch main --limit 1 --json conclusion --jq '.[0].conclusion' 2>/dev/null || echo "unknown")
+  if [ "$last_status" = "failure" ]; then
+    MAIN_RED=1
+    echo ""
+    echo "⚠ pre-push: origin/main is RED (last CI run failed)."
+    echo "   View: gh run list --branch main --limit 5"
+    echo ""
+    echo "   Per ci-hygiene-plan-2026-04-28.md Rule 1: never push onto red main."
+    echo "   Fix or revert is the next commit, not a new feature."
+    echo ""
+  elif [ "$last_status" = "success" ]; then
+    echo "✓ pre-push: origin/main is GREEN"
+  else
+    echo "  (origin/main status: ${last_status} — proceeding)"
+  fi
+fi
+
+# ── Override-reason enforcement when main is red ───────────────────────
+if [ "$MAIN_RED" = "1" ]; then
+  # Gather commits being pushed. If push stdin is empty (rare — direct hook
+  # invocation), fall back to HEAD only.
+  commits_to_check=""
+  if [ -n "$PUSH_INPUT" ]; then
+    while read -r local_ref local_sha remote_ref remote_sha; do
+      [ -z "$local_sha" ] && continue
+      # Zero sha means deletion; skip.
+      case "$local_sha" in
+        0000000000000000000000000000000000000000) continue ;;
+      esac
+      if [ "$remote_sha" = "0000000000000000000000000000000000000000" ] || [ -z "$remote_sha" ]; then
+        # New branch — walk only commits not already on any remote ref.
+        range_commits="$(git rev-list --max-count=50 "$local_sha" --not --remotes 2>/dev/null || true)"
+      else
+        range_commits="$(git rev-list "${remote_sha}..${local_sha}" 2>/dev/null || true)"
+      fi
+      commits_to_check="${commits_to_check}${range_commits}
+"
+    done <<< "$PUSH_INPUT"
+  fi
+  if [ -z "${commits_to_check//[[:space:]]/}" ]; then
+    commits_to_check="$HEAD_SHA"
+  fi
+
+  missing=""
+  while IFS= read -r sha; do
+    [ -z "$sha" ] && continue
+    if ! commit_has_bypass_trailer "$sha"; then
+      missing="${missing}${sha}\n"
+    fi
+  done <<< "$commits_to_check"
+
+  if [ -n "$missing" ]; then
+    if [ -n "${AXI_OVERRIDE_REASON:-}" ]; then
+      # Convenience path: if ONLY HEAD is missing the trailer, amend it in.
+      missing_count=$(printf '%b' "$missing" | grep -c . || true)
+      if [ "$missing_count" = "1" ] && printf '%b' "$missing" | grep -q "^${HEAD_SHA}$"; then
+        echo "▶ pre-push: stamping Bypass-Reason trailer onto HEAD from AXI_OVERRIDE_REASON"
+        git commit --amend --no-edit \
+          --trailer "Bypass-Reason: ${AXI_OVERRIDE_REASON}" >/dev/null
+        HEAD_SHA="$(git rev-parse HEAD)"
+        echo "  ✓ trailer stamped (new HEAD: ${HEAD_SHA})"
+        echo "  ⚠ HEAD rewritten — you may need to force-push if the old sha was already pushed."
+        log_bypass "$CURRENT_BRANCH" "$HEAD_SHA" "$AXI_OVERRIDE_REASON"
+      else
+        echo "✗ pre-push: main is RED and ${missing_count} commit(s) lack a Bypass-Reason: trailer:"
+        printf '%b' "$missing" | sed 's/^/    /'
+        echo ""
+        echo "   AXI_OVERRIDE_REASON is set but more than just HEAD is missing the trailer."
+        echo "   Either:"
+        echo "     (a) wait for main to go green, or"
+        echo "     (b) re-author the listed commits with AXI_OVERRIDE_REASON=\"why\" set so"
+        echo "         the commit-msg hook stamps a Bypass-Reason trailer on each."
+        log_bypass "$CURRENT_BRANCH" "$HEAD_SHA" "refused-multi-commit-no-trailer"
+        exit 1
+      fi
+    else
+      echo "✗ pre-push: main is RED and the following commit(s) lack a Bypass-Reason: trailer:"
+      printf '%b' "$missing" | sed 's/^/    /'
+      echo ""
+      echo "   Per ci-hygiene-plan-2026-04-28.md Rule 1: never push onto red main without a receipt."
+      echo ""
+      echo "   To proceed, either:"
+      echo "     (a) wait for main to go green, or"
+      echo "     (b) re-commit with AXI_OVERRIDE_REASON=\"why this push is necessary\""
+      echo "         set in the environment — the commit-msg hook will stamp the trailer."
+      echo ""
+      echo "   To stamp the trailer on HEAD only at push time, re-run this push with"
+      echo "   AXI_OVERRIDE_REASON=\"...\" set; the hook will amend HEAD for you."
+      echo ""
+      echo "   Note: 'git push --no-verify' skips this hook entirely. Every --no-verify"
+      echo "   push onto red main is an audit event. Server-side branch protection is"
+      echo "   the binding enforcement; this hook is the courtesy stop."
+      log_bypass "$CURRENT_BRANCH" "$HEAD_SHA" "refused-no-trailer"
+      exit 1
+    fi
+  else
+    echo "✓ pre-push: all commits being pushed carry a Bypass-Reason trailer"
+    log_bypass "$CURRENT_BRANCH" "$HEAD_SHA" "trailer-present"
+  fi
+fi
+
+# Skip CI-equivalent checks in test mode (smoke tests just exercise the
+# override-reason gate).
+if [ "${AXI_PRE_PUSH_SKIP_CHECKS:-0}" = "1" ]; then
+  echo "  (AXI_PRE_PUSH_SKIP_CHECKS=1 — skipping lint/tests)"
+  exit 0
+fi
+
+# ── ADR-number collision lint ───────────────────────────────────────────
+echo "▶ pre-push: ADR number collision lint..."
+if python scripts/lint_adr_numbers.py; then
+  echo "✓ pre-push: ADR numbers unique"
+else
+  echo ""
+  echo "✗ pre-push: ADR number collision detected — push blocked"
+  echo "  Pick the next free number with: python scripts/lint_adr_numbers.py --next"
+  exit 1
+fi
+
+# ── Ruff lint (EXACT match with CI lint job) ────────────────────────────
+echo "▶ pre-push: running ruff linter..."
+
+if ruff check src/ --select E,F,W --ignore E501; then
+  echo "✓ pre-push: ruff passed"
+else
+  echo ""
+  echo "✗ pre-push: ruff found errors — push blocked"
+  echo "  Run: ruff check src/ --select E,F,W --ignore E501 --fix"
+  exit 1
+fi
+
+# ── Test suite (matches CI unit-tests job — both testpaths) ────────────
+# CI uses pyproject.toml's testpaths: ["tests", "src/axiom/extensions/builtins"].
+echo "▶ pre-push: running test suite (unit only, no integration)..."
+
+if python -m pytest tests/ src/axiom/extensions/builtins/ \
+    -m "not integration" \
+    --tb=short -q \
+    --no-header \
+    --timeout=90 \
+    2>&1; then
+  echo "✓ pre-push: all tests passed"
+else
+  echo ""
+  echo "✗ pre-push: tests failed — push blocked"
+  echo "  Fix the failures above, or use --no-verify to bypass"
+  exit 1
+fi

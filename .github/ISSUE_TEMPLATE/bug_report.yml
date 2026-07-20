@@ -1,0 +1,36 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Please don't include secrets, tokens, or personal data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `axi ...`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Output of `axi status` (or version), OS, and Python version.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Relevant logs or tracebacks (redact anything sensitive).
+      render: shell

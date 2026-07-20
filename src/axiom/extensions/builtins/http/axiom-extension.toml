@@ -1,0 +1,72 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "http"
+version = "0.2.0"
+description = "Axiom core HTTP serving substrate — FastAPI app factory, router registry, composed app, shared middleware, and `axi serve`. Base dependency for any extension that serves HTTP."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi serve` — launch the ONE composed HTTP app (router registry +
+# shared middleware). Thin wrapper over the `serve.run` skill (ADR-056).
+# Folds the legacy standalone chat HTTP API (formerly serve_cli:main)
+# into the composed model — the chat API becomes a `/chat` mount (seam).
+[[extension.provides]]
+kind = "cmd"
+noun = "serve"
+entry = "axiom.extensions.builtins.http.cli:main"
+description = "Launch the composed Axiom HTTP app"
+tier = "core"
+intent_groups = ["build", "maintain"]
+
+# Skill — the composed-serve launcher (`serve.run`). The cmd above is a
+# thin wrapper over this; agent personas reach the same surface.
+[[extension.provides]]
+kind = "skill"
+name = "serve.run"
+path = "skills/serve.md"
+entry = "axiom.extensions.builtins.http.skills.serve:run"
+description = "Compose and launch the one HTTP app; --list returns the route table"
+
+# Library service — `create_app` / `compose_app` / `ThreadedServer` for
+# downstream extensions that mount routes on the shared composed app.
+[[extension.provides]]
+kind = "service"
+name = "fastapi_app"
+entry = "axiom.extensions.builtins.http.server:create_app"
+description = "FastAPI app factory + ThreadedServer runner for built-in extensions"
+deployment_profile = "server"
+
+# Service mounts — the three current consumers ride the composed app via
+# the router registry (spec-serve §4.1). Each `entry` returns a MountSpec
+# whose `prefix` is the serve namespace (carried by the MountSpec rather
+# than the manifest block, since the AEOS 0.1 service schema does not yet
+# define a `prefix` field — see spec-serve §4 "AEOS note").
+[[extension.provides]]
+kind = "service"
+name = "ingest_sink"
+entry = "axiom.extensions.builtins.http.mounts:ingest_mount_spec"
+description = "Data-platform push ingest endpoint (/ingest)"
+deployment_profile = "server"
+
+[[extension.provides]]
+kind = "service"
+name = "classroom"
+entry = "axiom.extensions.builtins.http.mounts:classroom_mount_spec"
+description = "Classroom coordinator API (/classroom)"
+deployment_profile = "server"
+
+[[extension.provides]]
+kind = "service"
+name = "herald_inbound"
+entry = "axiom.extensions.builtins.http.mounts:herald_mount_spec"
+description = "Notifications/HERALD inbound webhook gateway (/herald/inbound)"
+deployment_profile = "server"

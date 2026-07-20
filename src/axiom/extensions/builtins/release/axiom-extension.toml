@@ -1,0 +1,163 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "release"
+version = "0.6.0"
+description = "Release lifecycle — version bumping, tagging, CI/CD pipeline monitoring, local-main sync. CLI noun is `release` (purpose); RIVET remains the LLM persona for reasoning over CI/release readiness."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# RIVET — agent persona (LLM character). Used for reasoning over CI
+# failures, release readiness, and pattern recognition. NOT the CLI
+# noun (per ADR-056 §"Layering"; the CLI noun is `release`).
+[[extension.provides]]
+kind = "agent"
+name = "rivet"
+entry = "axiom.extensions.builtins.release.cli:main"
+persona = "agents/rivet/persona.md"
+description = "RIVET — release automation (cut/version-bump/tag), CI/CD pipeline + PR-check monitoring, local-main sync (fast-forward workspace default branches), and CI-failure signalling (emits ci_failure with a failure signature; defers debounce/digest to SCAN and ticket publication to PRESS)"
+
+# `axi release` — the deterministic CLI surface. Consolidated from the
+# pre-2026-05-30 `axi rivet` (verbose control surface) + the simple
+# `axi release <part>` (now `axi release cut <part>`).
+[[extension.provides]]
+kind = "cmd"
+noun = "release"
+entry = "axiom.extensions.builtins.release.cli:main"
+description = "Release: cut / status / mode / check / plan / sync / watch / unwatch / pause / resume / list / close"
+tier = "advanced"
+intent_groups = ["build", "maintain"]
+requires = ["git"]
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+[[extension.provides]]
+kind = "skill"
+name = "cut"
+entry = "axiom.extensions.builtins.release.skills:cut"
+path = "agents/rivet/skills/cut.md"
+description = "Bump version, tag, and push (was the positional `axi release <part>`)"
+
+[[extension.provides]]
+kind = "skill"
+name = "status"
+entry = "axiom.extensions.builtins.release.skills:status"
+path = "agents/rivet/skills/status.md"
+description = "Show build and release status"
+
+[[extension.provides]]
+kind = "skill"
+name = "mode"
+entry = "axiom.extensions.builtins.release.skills:mode"
+path = "agents/rivet/skills/mode.md"
+description = "Show developer vs operator mode"
+
+[[extension.provides]]
+kind = "skill"
+name = "check"
+entry = "axiom.extensions.builtins.release.skills:check"
+path = "agents/rivet/skills/check.md"
+description = "Run pre-push prevention checks"
+
+[[extension.provides]]
+kind = "skill"
+name = "plan"
+entry = "axiom.extensions.builtins.release.skills:plan"
+path = "agents/rivet/skills/plan.md"
+description = "Show release plan"
+
+[[extension.provides]]
+kind = "skill"
+name = "sync"
+entry = "axiom.extensions.builtins.release.skills:sync"
+path = "agents/rivet/skills/sync.md"
+description = "Local-main sync across workspace repos"
+
+[[extension.provides]]
+kind = "skill"
+name = "watch"
+entry = "axiom.extensions.builtins.release.skills:watch"
+path = "agents/rivet/skills/watch.md"
+description = "Track a remote routine through to its PR"
+
+[[extension.provides]]
+kind = "skill"
+name = "unwatch"
+entry = "axiom.extensions.builtins.release.skills:unwatch"
+path = "agents/rivet/skills/unwatch.md"
+description = "Stop tracking a routine"
+
+[[extension.provides]]
+kind = "skill"
+name = "pause"
+entry = "axiom.extensions.builtins.release.skills:pause"
+path = "agents/rivet/skills/pause.md"
+description = "Pause a tracked routine"
+
+[[extension.provides]]
+kind = "skill"
+name = "resume"
+entry = "axiom.extensions.builtins.release.skills:resume"
+path = "agents/rivet/skills/resume.md"
+description = "Resume a paused routine"
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+entry = "axiom.extensions.builtins.release.skills:list_"
+path = "agents/rivet/skills/list.md"
+description = "List patterns / watched / paused (positional resource)"
+
+[[extension.provides]]
+kind = "skill"
+name = "close"
+entry = "axiom.extensions.builtins.release.skills:close"
+path = "agents/rivet/skills/close.md"
+description = "Close stale routines (positional resource)"
+
+# The load-bearing dispatcher target — never drop this from the
+# release skill registry. See the 2026-06-01 autopsy in
+# skills/__init__.py for the regression history.
+[[extension.provides]]
+kind = "skill"
+name = "heartbeat"
+entry = "axiom.extensions.builtins.release.skills:heartbeat"
+path = "skills/heartbeat/SKILL.md"
+description = "Proactive CI sweep — fired by launchd/systemd every heartbeat_interval; writes ~/.axi/agents/rivet/heartbeat.jsonl"
+
+# Daemon
+[agent]
+heartbeat_interval = 300
+startup = "daemon"
+heartbeat_command = "release heartbeat"
+
+[agent.env]
+HOME = "${HOME}"
+
+[[agent.watchers]]
+name = "ci_monitor"
+enabled = true
+interval = 300
+module = "axiom.extensions.builtins.release.ci_monitor"
+function = "check_pipelines"
+
+[[agent.watchers]]
+name = "local_sync"
+enabled = true
+interval = 300
+module = "axiom.extensions.builtins.release.local_sync"
+function = "sync_workspace"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's RIVET {version}")
+# on every channel. The canonical principal (@rivet:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "RIVET"

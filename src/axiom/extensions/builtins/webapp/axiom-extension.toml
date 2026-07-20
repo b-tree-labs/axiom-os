@@ -1,0 +1,40 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "webapp"
+version = "0.1.0"
+description = "Serves a versioned /api/v1 JSON API for a web + mobile app on the composed HTTP substrate. Backend is framework-agnostic and split from the frontend; the reference UI is a separately-hosted Vite multi-page React app."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Depends on the HTTP serving substrate (MountSpec / compose_app / `axi serve`).
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+# /api/v1 JSON API — rides the composed app via the router registry. Prefix and
+# auth posture are declared here (AEOS 0.2 service fields) and mirror the returned
+# MountSpec. requires_authz stays false for now: the API does its own per-route
+# app-level JWT auth (webauth) until the GUARD authz hook + ActorContext resolution
+# land (ADR-082 / ADR-084). See spec-serve §4.
+[[extension.provides]]
+kind = "service"
+name = "api"
+entry = "axiom.extensions.builtins.webapp.mount:mount_spec"
+description = "Versioned JSON API (/api/v1) for the web + mobile app"
+prefix = "/api/v1"
+requires_authz = false
+requires_authn = false
+deployment_profile = "server"
+
+# NOTE: Postgres persistence lands in a follow-up (session_for("webapp"),
+# ADR-052). The `[database]` manifest block is intentionally deferred until
+# the DB phase — it is an AEOS 1.0 top-level key and is not required for
+# `session_for` to work under AEOS 0.1.

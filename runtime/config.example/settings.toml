@@ -1,0 +1,77 @@
+# User Settings — Example
+#
+# Two scopes:
+#   Global   → ~/.neut/settings.toml     (user-wide, all projects)
+#   Project  → .neut/settings.toml       (repo-local, gitignored)
+#
+# Project settings take precedence over global.
+# Copy to ~/.neut/settings.toml or .neut/settings.toml and customize.
+#
+# These are *user* preferences. Facility config (API keys, facility type,
+# LLM providers) lives in runtime/config/ and is managed by `neut config`.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# User identity (auto-populated by `neut config` on first run)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[user]
+name  = ""           # e.g. "Ben Booth"
+email = ""           # e.g. "you@org.example"
+org   = ""           # e.g. "org.example"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM Routing
+# ─────────────────────────────────────────────────────────────────────────────
+
+[routing]
+default_mode  = "auto"    # auto | public | restricted | export_controlled
+
+# prefer_provider: try these named providers first (in order), before falling
+# back to priority-ordered selection. Providers with requires_vpn=true are
+# automatically skipped when the VPN is unreachable.
+#
+# Private LLM setup (VPN required):
+#   prefer_provider = ["private-llm"]
+#   prefer_when     = "reachable"
+#
+# This routes ALL queries to the private LLM when on VPN; falls back to public
+# cloud (Anthropic/OpenAI) when VPN is not reachable.
+
+prefer_provider = []            # e.g. ["private-llm"] for private-LLM routing
+prefer_when     = "reachable"   # "reachable" (VPN check) | "always"
+on_vpn_unavailable = "warn"     # "warn" | "block" | "silent"
+
+cloud_provider  = "anthropic"   # default cloud provider when VPN provider unavailable
+audit_log       = true          # log routing decisions (no plaintext content)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RAG (Retrieval-Augmented Generation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[rag]
+# PostgreSQL connection string with pgvector.
+# Empty = RAG disabled (chat still works, without knowledge base retrieval).
+#
+# Local k3d (port-forwarded):
+#   database_url = "postgresql://neut:<password>@localhost:5432/neut_db"
+#
+# Private server in-cluster (after `kubectl port-forward`):
+#   database_url = "postgresql://neut:<password>@localhost:5432/neut_db"
+
+database_url = ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Interface
+# ─────────────────────────────────────────────────────────────────────────────
+
+[interface]
+stream = true       # stream LLM responses token-by-token
+theme  = "dark"     # "dark" | "light"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RACI trust level
+# 1=locked_down  2=cautious (default)  3=balanced  4=autonomous  5=full_trust
+# ─────────────────────────────────────────────────────────────────────────────
+
+[raci]
+trust = 2
