@@ -1,0 +1,92 @@
+{{- if eq .Values.database.mode "internal" }}
+# Internal Postgres (pgvector) — `postgres.mode=internal`. When the
+# operator points at an external instance instead, this StatefulSet +
+# its Service + Secret are skipped and the chart reads
+# `postgres.external.*` for connection info via the
+# `axiom-data-platform.postgres*` helpers.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-postgres
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  password: {{ required "database.internal.password is required (axi data install --db-password ...)" .Values.database.internal.password | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-postgres
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "axiom-data-platform.selectorLabels" . | nindent 4 }}
+    component: postgres
+  ports:
+    - port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-postgres
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: postgres
+spec:
+  serviceName: {{ include "axiom-data-platform.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axiom-data-platform.selectorLabels" . | nindent 6 }}
+      component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-data-platform.selectorLabels" . | nindent 8 }}
+        component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.database.internal.image.repository }}:{{ .Values.database.internal.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.database.internal.username | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.database.internal.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axiom-data-platform.fullname" . }}-postgres
+                  key: password
+            # pgvector extension is created on first connect via the
+            # init-job + Dagster's first SELECT (handled in dagster.yaml).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "{{ .Values.database.internal.username }}"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.database.internal.storage }}
+        {{- if .Values.database.internal.storageClass }}
+        storageClassName: {{ .Values.database.internal.storageClass }}
+        {{- end }}
+{{- end }}

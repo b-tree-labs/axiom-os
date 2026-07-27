@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "directive"
+version = "0.1.0"
+description = "Version directives for federation-scoped upgrade coordination"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "directive"
+entry = "axiom.extensions.builtins.directive.cli:main"
+description = "Manage version directives (add, list, revoke)"
+tier = "core"
+intent_groups = ["govern", "maintain"]

@@ -1,0 +1,100 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Cross-root bridge: two independent federations A and B connected via
+# one bridge node that holds membership in both.
+#
+# Federation A: a-root ← a-leaf
+# Federation B: b-root ← b-leaf
+# Bridge: adds both a-root and b-root — two distinct identity-bound peer
+# entries. Per ADR-023 §3 (cross-bridge) + §5, the bridge is a
+# deterministic chokepoint; federations A and B are NOT merged.
+#
+# Driven by test_cross_root_bridge.py.
+
+services:
+  a-root:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    image: axiom-fed-node:dev
+    hostname: a-root
+    environment:
+      AXIOM_NODE_NAME: a-root
+      AXIOM_NODE_ROLE: coordinator
+    volumes:
+      - a_root_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+  a-leaf:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: a-leaf
+    environment:
+      AXIOM_NODE_NAME: a-leaf
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - a_leaf_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [a-root]
+
+  b-root:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: b-root
+    environment:
+      AXIOM_NODE_NAME: b-root
+      AXIOM_NODE_ROLE: coordinator
+    volumes:
+      - b_root_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+  b-leaf:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: b-leaf
+    environment:
+      AXIOM_NODE_NAME: b-leaf
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - b_leaf_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [b-root]
+
+  bridge:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: bridge
+    environment:
+      AXIOM_NODE_NAME: bridge
+      AXIOM_NODE_ROLE: standard
+    volumes:
+      - bridge_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [a-root, b-root]
+
+networks:
+  fednet:
+    driver: bridge
+
+volumes:
+  a_root_state:
+  a_leaf_state:
+  b_root_state:
+  b_leaf_state:
+  bridge_state:
+  harness_keys:

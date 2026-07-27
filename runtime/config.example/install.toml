@@ -1,0 +1,136 @@
+# Environment Install Manifest
+# Copy to runtime/config/install.toml and customize.
+#
+# `neut install` reads this file, detects the current environment by hostname
+# (or NEUT_ENV env var), and runs the declared steps idempotently.
+#
+# Detection order:
+#   1. NEUT_ENV=<name> environment variable
+#   2. Hostname glob match against match_hostname patterns
+#   3. --env <name> CLI flag
+#
+# Each step has a unique `id` used for idempotency tracking (.neut/install-state.json).
+# Completed steps are skipped on re-run unless you pass --force.
+#
+# Step types:
+#   connect       neut connect <name> interactive setup flow
+#   settings      write a key=value via neut settings
+#   port_forward  install a persistent kubectl port-forward service
+#   rag_index     index paths into the personal RAG corpus
+#   shell         run a shell command (use sparingly)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Private GPU server (Qwen 3.5 122B, llama.cpp, VPN required)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[environments]]
+name        = "private-gpu"
+description = "Private GPU server — Qwen 3.5 via llama.cpp, k3d PostgreSQL"
+match_hostname = ["gpu-host", "gpu-host.*", "gpu-host.internal.example"]
+
+  [[environments.steps]]
+  id          = "connect-llm-fallback"
+  type        = "connect"
+  connection  = "llm-provider"
+  description = "Cloud LLM fallback (used when not on VPN)"
+
+  [[environments.steps]]
+  id          = "connect-private-llm"
+  type        = "connect"
+  connection  = "private-llm"
+  description = "Qwen 3.5 on private GPU server — API key + routing preference"
+
+  [[environments.steps]]
+  id           = "port-forward-postgresql"
+  type         = "port_forward"
+  description  = "PostgreSQL via kubectl port-forward (persistent service)"
+  namespace    = "neut"
+  service      = "neut-postgresql"
+  local_port   = 5432
+  remote_port  = 5432
+  persistent   = true
+
+  [[environments.steps]]
+  id          = "connect-postgresql"
+  type        = "connect"
+  connection  = "postgresql"
+  description = "Configure RAG database URL"
+  depends_on  = "port-forward-postgresql"
+
+  [[environments.steps]]
+  id          = "rag-index-docs"
+  type        = "rag_index"
+  description = "Index documentation into personal RAG corpus"
+  paths       = ["docs/"]
+  depends_on  = "connect-postgresql"
+
+  [[environments.steps]]
+  id          = "rag-index-sessions"
+  type        = "rag_index"
+  description = "Index prior agent sessions into personal RAG corpus"
+  paths       = ["runtime/sessions/"]
+  depends_on  = "connect-postgresql"
+
+  # Example: one-time warm-up ingest of an external knowledge dump into the facility corpus.
+  # Add your own rag_index steps in runtime/config/install.toml (gitignored) — not here.
+  #
+  # [[environments.steps]]
+  # id          = "rag-index-facility-docs"
+  # type        = "rag_index"
+  # description = "Warm-up: index facility knowledge dump into org corpus"
+  # paths       = ["/absolute/path/to/knowledge/dump"]
+  # corpus      = "rag-org"
+  # depends_on  = "connect-postgresql"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Local — developer laptop (Anthropic + Ollama, local k3d PostgreSQL)
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[environments]]
+name        = "local"
+description = "Developer laptop — local k3d PostgreSQL, Ollama classifier, cloud LLM"
+match_hostname = []   # no hostname match; detected as default fallback
+default     = true    # used when no other environment matches
+
+  [[environments.steps]]
+  id          = "infra-k3d"
+  type        = "connect"
+  connection  = "k3d"
+  description = "k3d cluster for local PostgreSQL"
+
+  [[environments.steps]]
+  id          = "connect-ollama"
+  type        = "connect"
+  connection  = "ollama"
+  description = "Ollama — routing classifier (llama3.2:1b)"
+
+  [[environments.steps]]
+  id          = "connect-llm"
+  type        = "connect"
+  connection  = "llm-provider"
+  description = "LLM provider (Anthropic, OpenAI, or other)"
+
+  [[environments.steps]]
+  id           = "port-forward-postgresql"
+  type         = "port_forward"
+  description  = "PostgreSQL via kubectl port-forward (persistent service)"
+  namespace    = "neut"
+  service      = "neut-postgresql"
+  local_port   = 5432
+  remote_port  = 5432
+  persistent   = true
+  depends_on   = "infra-k3d"
+
+  [[environments.steps]]
+  id          = "connect-postgresql"
+  type        = "connect"
+  connection  = "postgresql"
+  description = "Configure RAG database URL"
+  depends_on  = "port-forward-postgresql"
+
+  [[environments.steps]]
+  id          = "rag-index-docs"
+  type        = "rag_index"
+  description = "Index documentation"
+  paths       = ["docs/"]
+  depends_on  = "connect-postgresql"

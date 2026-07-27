@@ -1,0 +1,41 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# REV-U — local diff review agent.
+# Phase 1: local git diff, 5 specialized passes, CLI output.
+# Phase 2+ (GitHub ingestion, memory, plan-first) are deferred — see PRD.
+
+[extension]
+name = "review"
+version = "0.1.0"
+description = "REV-U — automated PR review agent: runs 5 specialized passes against a local git diff and surfaces ranked findings in the terminal or as JSON."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "agent"
+name = "rev_u"
+entry = "axiom.extensions.builtins.review.agents.rev_u.agent:RevUAgent"
+description = "REV-U — multi-pass diff reviewer: correctness, performance, security, docs, and tests passes with a hallucination-dropping validator gate"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "review"
+entry = "axiom.extensions.builtins.review.cli:main"
+description = "Run REV-U against the local diff: axi review [--base <ref>] [--severity <level>] [--pass <kind>] [--json] [--no-validator]"
+tier = "core"
+intent_groups = ["build"]
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's REV-U {version}")
+# on every channel. The canonical principal (@rev_u:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "REV-U"

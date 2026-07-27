@@ -1,0 +1,32 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "scidisplay"
+version = "0.1.0"
+description = "Scientific Displays — math + code rendering, deterministic compute kernel, signed scientific artifacts. Per ADR-039."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.14"
+
+# Deterministic compute kernel — the asymmetric edge per ADR-039 D2.
+# LLM proposes equations; this kernel verifies via SymPy + signs the
+# computed result with Ed25519 for cross-NODE federation use.
+[[extension.provides]]
+kind = "tool"
+name = "axiom_compute__verify"
+entry = "axiom.extensions.builtins.scidisplay.compute:verify"
+description = "Verify an LLM-proposed expression deterministically; return signed result + SymPy AST provenance."
+
+# Code-block rendering with Axiom-themed syntax highlighting.
+[[extension.provides]]
+kind = "tool"
+name = "render_code_block"
+entry = "axiom.extensions.builtins.scidisplay.code:render_code_block"
+description = "Render a code block with Axiom-themed syntax highlighting (Pygments via Rich)."
