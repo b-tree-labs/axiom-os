@@ -1,0 +1,50 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.so
+
+# Runtime data (instance-specific)
+runtime/config/
+runtime/inbox/
+runtime/logs/
+runtime/sessions/
+runtime/drafts/
+runtime/kbase/
+runtime/classrooms/
+runtime/extensions/
+runtime/operational.db
+runtime/operational.db-*
+
+# State
+.neut/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# .axi/ — agent knowledge (tracked in git)
+# DO NOT gitignore .axi/agents/ — these are shared patterns
+# Local overrides go to ~/.axi/ (not in repo)
+.axi/local/
+.axi/scaffold-graduation.json
+
+# Env
+.env
+.envrc
+.venv/
+.claude/
+
+# PRESS LocalStorageProvider publication endpoint (generated artifacts; not source)
+docs/_tools/generated/
+/bin/
+.coverage
+*.coverage

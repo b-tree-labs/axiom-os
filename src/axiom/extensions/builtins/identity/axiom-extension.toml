@@ -1,0 +1,21 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "identity"
+version = "0.1.0"
+description = "Local principal identity — posture, attestation, pluggable custody (ADR-074)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.31"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "identity"
+entry = "axiom.extensions.builtins.identity.cli:main"
+description = "init / whoami / status for the local principal."

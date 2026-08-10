@@ -1,0 +1,20 @@
+[Unit]
+Description=Domain Consumer Web API Server (neut serve)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{CONSUMER_ROOT}}
+ExecStart={{CONSUMER_ROOT}}/.venv/bin/python -m example_consumer.extensions.builtins.web_api.cli --port 8766 --host 0.0.0.0 --origins "*" --static-dir {{CONSUMER_ROOT}}/src/example_consumer/extensions/builtins/web_api/static
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Environment file for API keys, DATABASE_URL, etc.
+EnvironmentFile=-{{CONSUMER_ROOT}}/.env
+
+[Install]
+WantedBy=multi-user.target

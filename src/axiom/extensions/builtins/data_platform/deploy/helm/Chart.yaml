@@ -1,0 +1,25 @@
+apiVersion: v2
+name: axiom-data-platform
+description: |
+  Axiom data-platform — the Box→bronze→RAG Dagster pipeline (DP-1) +
+  PLINTH orchestrator. Generic, site- and domain-agnostic chart;
+  consumer layers supply only values overlays + provenance rules.
+
+  Per ADR-031, this chart ships INSIDE the data_platform extension so
+  the extension owns its own deploy artifact. `axi plinth install`
+  wraps `helm install` against this chart and handles the few prompts
+  that can't be auto-detected.
+type: application
+version: 0.1.0      # chart version (bump on chart shape change)
+appVersion: 0.24.0  # axiom-os-lm version installed via initContainer
+home: https://axiom.b-tree.dev
+sources:
+  - https://github.com/b-tree-labs/axiom-os
+maintainers:
+  - name: B-Tree Labs
+    email: hello@b-tree.dev
+keywords:
+  - dagster
+  - rag
+  - data-platform
+  - ingest
