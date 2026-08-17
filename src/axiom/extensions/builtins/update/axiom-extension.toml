@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "update"
+version = "0.3.0"
+description = "Dependency and migration updates"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "update"
+entry = "axiom.extensions.builtins.update.cli:main"
+description = "Dependency and migration updates"
+tier = "starter"
+intent_groups = ["start"]

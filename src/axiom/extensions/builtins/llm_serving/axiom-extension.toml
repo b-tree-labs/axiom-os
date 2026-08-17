@@ -1,0 +1,79 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "llm_serving"
+version = "0.1.0"
+description = "Production LLM serving stack: vLLM engine + LiteLLM gateway + policy-RAG completion path, with Langfuse observability. Domain-agnostic; replaces the homegrown chat_server serving path (ADR vLLM+LiteLLM). All hosts/ports/models/keys are config — nothing baked in."
+license = "Apache-2.0"
+owner = "ut-austin"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi serving <verb>` — install / start / stop / status / diagnose the stack.
+# install renders systemd --user units + configs from [defaults] (overridable
+# by runtime/config) so a node goes from bare to serving with one command and
+# the running processes are managed + drift-detectable (not hand-run nohup).
+[[extension.provides]]
+kind = "cmd"
+noun = "serving"
+entry = "axiom.extensions.builtins.llm_serving.cli:main"
+description = "Install/operate the vLLM+LiteLLM+RAG serving stack"
+tier = "core"
+intent_groups = ["build", "maintain"]
+
+# vLLM — external serving engine (OpenAI-compatible). Continuous batching +
+# paged attention = real multi-user concurrency. Internal (loopback) only.
+[[extension.provides]]
+kind = "service"
+name = "vllm"
+entry = "axiom.extensions.builtins.llm_serving.services:vllm_unit"
+description = "vLLM OpenAI-compatible serving engine"
+
+# LiteLLM — transport gateway (OpenAI + Anthropic surfaces, keys, fallbacks,
+# caching, Langfuse). The one front door clients/IDEs point at.
+[[extension.provides]]
+kind = "service"
+name = "litellm"
+entry = "axiom.extensions.builtins.llm_serving.services:litellm_unit"
+description = "LiteLLM proxy gateway"
+
+# LiteLLM provider adapter — registers the gateway as an Axiom LLM provider so
+# policy/EC routing (above the gateway) delegates transport to it.
+[[extension.provides]]
+kind = "adapter"
+name = "litellm-provider"
+entry = "axiom.extensions.builtins.llm_serving.adapter:LiteLLMProvider"
+description = "Axiom LLM provider backed by the LiteLLM gateway"
+
+# Policy-RAG completion path — embed -> pgvector retrieve -> inject -> gateway
+# (single call, no agent loop). Exposed as model "rag-model".
+[[extension.provides]]
+kind = "service"
+name = "rag-shim"
+entry = "axiom.extensions.builtins.llm_serving.services:rag_unit"
+description = "Retrieval-grounded completion endpoint"
+
+# Domain-agnostic defaults. A deployment overrides these in runtime/config;
+# facility-specific values live in the gitignored facility config, not here.
+[defaults]
+model = "Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8"
+served_model_name = "qwen-coder"
+vllm_port = 8000
+vllm_gpu_mem_util = 0.90
+vllm_max_num_seqs = 32
+vllm_max_model_len = 32768
+gateway_port = 8443          # deployment maps to its prior client port
+gateway_alias = "qwen"
+rag_port = 8080              # deployment maps to its prior RAG port
+embed_model = "nomic-embed-text"
+embed_dims = 768
+rag_top_k = 6
+rag_min_score = 0.30
+rag_chunk_chars = 1200
+reasoning_default = "no-think"
+observability = "langfuse"   # success+failure callbacks

@@ -1,0 +1,74 @@
+# GitLab CI configuration for axiom-os.
+#
+# Sole job: a scheduled mirror pull from the GitHub source-of-truth
+# (b-tree-labs/axiom-os) into whichever GitLab project this config is
+# deployed under (e.g. a self-hosted or institutional GitLab). All
+# other axiom CI lives on GitHub Actions; this file exists so the
+# GitLab side stays current as a read-only mirror.
+#
+# Architecture: GitLab controls the mirror via a scheduled CI pipeline
+# + a Project Access Token. GitHub never needs to know GitLab exists.
+
+stages:
+  - mirror
+
+# =============================================================================
+# mirror_from_github — pull the upstream refs into this GitLab project
+# =============================================================================
+#
+# Emergency kill switches (any of these stops the next run; first is fastest):
+#
+#   1. GitLab UI → Settings → CI/CD → Schedules → toggle the schedule
+#      off. Zero further pipelines created. One click.
+#   2. GitLab UI → Settings → CI/CD → Variables → set MIRROR_ENABLED=false.
+#      The rules clause below skips the job even on manual-triggered
+#      pipelines.
+#   3. GitLab UI → Settings → CI/CD → General → "Disable pipelines for
+#      this project." The blunt option; kills all CI on this project.
+#
+# Re-enabling: undo each of the above. None require a code change.
+# -----------------------------------------------------------------------------
+#
+# Required CI variables (Settings → CI/CD → Variables):
+#
+#   GITHUB_PULL_TOKEN  — GitHub fine-grained PAT with `Contents: read` on
+#                        b-tree-labs/axiom-os. Same PAT can be reused
+#                        across sibling GitLab projects (e.g. a
+#                        consumer's mirror) by widening repo scope.
+#   GITLAB_PUSH_TOKEN  — GitLab Project Access Token with
+#                        `write_repository` scope. Created in Settings →
+#                        Access Tokens. Lets the job force-push to this
+#                        project's own refs (bypasses protected-branch
+#                        push rules without unprotecting them).
+#
+# Required pipeline schedule (Settings → CI/CD → Schedules):
+#
+#   Target branch: main (any branch fine; the job clones the external
+#                  repo anyway)
+#   Cron:          hourly recommended ("0 * * * *")
+# =============================================================================
+
+mirror_from_github:
+  stage: mirror
+  image: alpine:3.20
+  variables:
+    GITHUB_REPO: "b-tree-labs/axiom-os"
+    GIT_STRATEGY: none
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $MIRROR_ENABLED != "false"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $MIRROR_ENABLED != "false"'
+    - when: never
+  before_script:
+    - apk add --no-cache git
+  script:
+    - set -euo pipefail
+    - test -n "${GITHUB_PULL_TOKEN:-}" || { echo "ERROR: CI variable GITHUB_PULL_TOKEN is not set"; exit 1; }
+    - test -n "${GITLAB_PUSH_TOKEN:-}" || { echo "ERROR: CI variable GITLAB_PUSH_TOKEN is not set"; exit 1; }
+    - git clone --mirror "https://x-access-token:${GITHUB_PULL_TOKEN}@github.com/${GITHUB_REPO}.git" mirror.git
+    - cd mirror.git
+    - |
+      git push --prune --force \
+        "https://oauth2:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
+        'refs/heads/*:refs/heads/*' \
+        'refs/tags/*:refs/tags/*'
+  allow_failure: true

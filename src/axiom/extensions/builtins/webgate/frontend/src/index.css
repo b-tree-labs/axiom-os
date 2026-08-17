@@ -1,0 +1,276 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Axiom theme system — light and dark, driven by CSS variables.
+   ==========================================================================
+   Token NAMES are kept identical to the portable component set so auth markup
+   lifts between products unchanged both ways. Only the VALUES are
+   Axiom's: a neutral-gray palette with a UT burnt-orange accent
+   (#bf5700 — matches the webgate backend default). No agriculture palette.
+
+   Fonts are self-hosted as a system stack — no Google Fonts, no CDN, zero
+   external network requests.
+
+   :root sets the base/fallback (dark). Explicit [data-theme] selectors follow
+   so they override with equal specificity in source order (light last).
+   ========================================================================== */
+
+/* Base / fallback — Dark */
+:root {
+  --theme-page-bg: #0d1017;
+  --theme-sidebar-bg: #0d1017;
+  --theme-panel-bg: #161a21;
+  --theme-surface: #161a21;
+  --theme-surface-elevated: #1c212b;
+  --theme-surface-subtle: #0d1017;
+  --theme-input-bg: #0f131a;
+  --theme-input-border: #2a303a;
+  --theme-input-placeholder: #6b7480;
+  --theme-text-primary: #e7e9ec;
+  --theme-text-secondary: #c4c8ce;
+  --theme-text-muted: #98a1ad;
+  --theme-border: #2a303a;
+  --theme-border-subtle: rgba(231, 233, 236, 0.08);
+  --theme-accent: #bf5700;
+  --theme-accent-strong: #bf5700;
+  --theme-accent-hover: #d9741f;
+  --theme-on-accent: #ffffff;
+  --theme-accent-text: #f0a15e;
+  --theme-nav-hover: rgba(255, 255, 255, 0.06);
+  --theme-nav-hover-solid: #242a34;
+  --theme-nav-active: rgba(191, 87, 0, 0.24);
+  --theme-nav-active-fg: #e7e9ec;
+
+  /* Aliases used by the base body + a few utilities. */
+  --page-bg: var(--theme-page-bg);
+  --panel-bg: var(--theme-panel-bg);
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-muted: var(--theme-text-muted);
+  --border-color: var(--theme-border);
+  --accent: var(--theme-accent);
+
+  /* Self-hosted font stack — system UI fonts, no external requests. */
+  --app-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* One button radius + one focus treatment for the whole UI. */
+  --button-radius: 0.625rem;
+  --button-radius-compact: 0.375rem;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--theme-accent-strong) 32%, transparent);
+  --focus-border: var(--theme-accent-strong);
+}
+
+/* Dark — explicit selector, same as :root */
+[data-theme='dark'] {
+  --theme-page-bg: #0d1017;
+  --theme-sidebar-bg: #0d1017;
+  --theme-panel-bg: #161a21;
+  --theme-surface: #161a21;
+  --theme-surface-elevated: #1c212b;
+  --theme-surface-subtle: #0d1017;
+  --theme-input-bg: #0f131a;
+  --theme-input-border: #2a303a;
+  --theme-input-placeholder: #6b7480;
+  --theme-text-primary: #e7e9ec;
+  --theme-text-secondary: #c4c8ce;
+  --theme-text-muted: #98a1ad;
+  --theme-border: #2a303a;
+  --theme-border-subtle: rgba(231, 233, 236, 0.08);
+  --theme-accent: #bf5700;
+  --theme-accent-strong: #bf5700;
+  --theme-accent-hover: #d9741f;
+  --theme-on-accent: #ffffff;
+  --theme-accent-text: #f0a15e;
+  --theme-nav-hover: rgba(255, 255, 255, 0.06);
+  --theme-nav-hover-solid: #242a34;
+  --theme-nav-active: rgba(191, 87, 0, 0.24);
+  --theme-nav-active-fg: #e7e9ec;
+  --page-bg: var(--theme-page-bg);
+  --panel-bg: var(--theme-panel-bg);
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-muted: var(--theme-text-muted);
+  --border-color: var(--theme-border);
+  --accent: var(--theme-accent);
+}
+
+/* Light — MUST come last to win at equal specificity. */
+[data-theme='light'] {
+  --theme-page-bg: #eef0f3;
+  --theme-sidebar-bg: #f4f5f7;
+  --theme-panel-bg: #ffffff;
+  --theme-surface: #ffffff;
+  --theme-surface-elevated: #ffffff;
+  --theme-surface-subtle: #f4f5f7;
+  --theme-input-bg: #ffffff;
+  --theme-input-border: #dcdfe4;
+  --theme-input-placeholder: #9aa1ac;
+  --theme-text-primary: #1a1d21;
+  --theme-text-secondary: #3a3f47;
+  --theme-text-muted: #6b7280;
+  --theme-border: #dcdfe4;
+  --theme-border-subtle: rgba(26, 29, 33, 0.08);
+  --theme-accent: #bf5700;
+  --theme-accent-strong: #bf5700;
+  --theme-accent-hover: #a24a00;
+  --theme-on-accent: #ffffff;
+  --theme-accent-text: #bf5700;
+  --theme-nav-hover: rgba(26, 29, 33, 0.05);
+  --theme-nav-hover-solid: #e7e9ee;
+  --theme-nav-active: rgba(191, 87, 0, 0.12);
+  --theme-nav-active-fg: #1a1d21;
+  --page-bg: var(--theme-page-bg);
+  --panel-bg: var(--theme-panel-bg);
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-muted: var(--theme-text-muted);
+  --border-color: var(--theme-border);
+  --accent: var(--theme-accent);
+}
+
+/* Theme-aware utility classes (pair with Tailwind theme-* utilities). */
+.bg-panel { background-color: var(--theme-panel-bg); }
+.bg-theme-surface { background-color: var(--theme-surface); }
+.bg-theme-surface-elevated { background-color: var(--theme-surface-elevated); }
+.bg-theme-page { background-color: var(--theme-page-bg); }
+.text-theme-primary { color: var(--theme-text-primary); }
+.text-theme-secondary { color: var(--theme-text-secondary); }
+.text-theme-muted { color: var(--theme-text-muted); }
+.border-theme { border-color: var(--theme-border); }
+.border-theme-subtle { border-color: var(--theme-border-subtle); }
+
+/* ==========================================================================
+   Button system — theme-driven, use instead of hardcoded colors.
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: var(--button-radius);
+  border: 1px solid transparent;
+  font-family: var(--app-font-sans);
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out,
+    color 0.15s ease-out, opacity 0.15s ease-out, filter 0.15s ease-out;
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.btn-sm { min-height: 2rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; }
+.btn-md { min-height: 2.75rem; padding: 0.5rem 1rem; font-size: 0.9375rem; }
+.btn-lg { min-height: 3rem; padding: 0.625rem 1.25rem; font-size: 0.9375rem; }
+.btn-primary {
+  background-color: var(--theme-accent);
+  color: var(--theme-on-accent);
+}
+.btn-primary:hover:not(:disabled) { background-color: var(--theme-accent-hover); }
+.btn-primary:active:not(:disabled) { filter: brightness(0.95); }
+.btn-secondary {
+  background-color: var(--theme-surface);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+.btn-secondary:hover:not(:disabled) { background-color: var(--theme-nav-hover); }
+.btn-ghost {
+  background-color: transparent;
+  color: var(--theme-text-secondary);
+}
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--theme-nav-hover);
+  color: var(--theme-text-primary);
+}
+.btn-link {
+  min-height: auto;
+  padding: 0;
+  border-radius: var(--button-radius-compact);
+  background: transparent;
+  color: var(--theme-accent-text);
+}
+.btn-link:hover:not(:disabled) { color: var(--theme-accent-hover); }
+
+/* ==========================================================================
+   Typography roles — one scale, self-hosted fonts.
+   ========================================================================== */
+.text-app-brand {
+  font-family: var(--app-font-sans);
+  font-size: 1.375rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.text-app-page-title {
+  font-family: var(--app-font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+/* ==========================================================================
+   Base document.
+   ========================================================================== */
+body {
+  margin: 0;
+  font-family: var(--app-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background-color: var(--page-bg);
+}
+code {
+  font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* ==========================================================================
+   Inputs — theme-aware base + retarget @tailwindcss/forms' blue focus ring to
+   the Axiom accent for every bare form control.
+   ========================================================================== */
+.input-theme {
+  background-color: var(--theme-input-bg) !important;
+  border: 1px solid var(--theme-border) !important;
+  color: var(--theme-text-primary) !important;
+}
+.input-theme::placeholder { color: var(--theme-input-placeholder) !important; }
+.input-theme:focus,
+.input-theme:focus-visible {
+  outline: none !important;
+  border-color: var(--focus-border) !important;
+  box-shadow: var(--focus-ring) !important;
+}
+
+[type='text']:focus,
+[type='email']:focus,
+[type='password']:focus,
+[type='search']:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
+  --tw-ring-color: var(--theme-accent-strong);
+}
+
+/* ==========================================================================
+   Input modality — keyboard users get a clear focus ring on any interactive
+   element; pointer users keep the clean, ring-free UI. Set on <html
+   data-input-mode> in main.jsx.
+   ========================================================================== */
+html[data-input-mode='keyboard']
+  :is(a, button, input, [tabindex], [role='button'], [role='checkbox']):focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MCNP",
+  "scopeName": "source.mcnp",
+  "fileTypes": ["i", "inp", "mcnp"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#isotope" },
+    { "include": "#tally" },
+    { "include": "#source" },
+    { "include": "#material" },
+    { "include": "#physics" },
+    { "include": "#surface-type" },
+    { "include": "#number" },
+    { "include": "#operator" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.mcnp",
+          "match": "^[cC](\\s.*)?$"
+        },
+        {
+          "name": "comment.inline.mcnp",
+          "match": "\\$.*$"
+        }
+      ]
+    },
+    "isotope": {
+      "name": "constant.other.isotope.mcnp",
+      "match": "\\b\\d{4,6}\\.\\d{2}[cdepuyshtla]\\b"
+    },
+    "tally": {
+      "name": "entity.name.function.tally.mcnp",
+      "match": "(?i)^[f]\\d+\\b|^f[cmqsu]\\d+"
+    },
+    "source": {
+      "name": "keyword.control.source.mcnp",
+      "match": "(?i)\\b(SDEF|SI|SP|SB|DS|SC|SSW|SSR|KCODE|KSRC)\\b"
+    },
+    "material": {
+      "patterns": [
+        {
+          "name": "storage.type.material.mcnp",
+          "match": "(?i)^m\\d+\\s"
+        },
+        {
+          "name": "storage.type.material.mcnp",
+          "match": "(?i)^mt\\d+"
+        }
+      ]
+    },
+    "physics": {
+      "name": "keyword.other.physics.mcnp",
+      "match": "(?i)\\b(MODE|PHYS|CUT|ELPT|NPS|CTME|PRINT|PRDMP|RAND|IMP|VOL|AREA)\\b"
+    },
+    "surface-type": {
+      "name": "support.type.surface.mcnp",
+      "match": "(?i)\\b(PX|PY|PZ|SO|SX|SY|SZ|CX|CY|CZ|KX|KY|KZ|TX|TY|TZ|GQ|SQ|RPP|BOX|RCC|RHP|HEX)\\b"
+    },
+    "number": {
+      "name": "constant.numeric.mcnp",
+      "match": "[-+]?\\d+\\.?\\d*([eEdD][-+]?\\d+)?"
+    },
+    "operator": {
+      "name": "keyword.operator.mcnp",
+      "match": "[:#()]"
+    }
+  }
+}

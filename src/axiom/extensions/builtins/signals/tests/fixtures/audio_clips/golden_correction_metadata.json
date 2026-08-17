@@ -1,0 +1,24 @@
+{
+  "description": "Golden copy test fixture for correction review with audio clips",
+  "created": "2026-02-24",
+  "clips": [
+    {
+      "file": "golden_correction_clip.m4a",
+      "duration_sec": 6.0,
+      "correction_id": "corr_Chemical_and_Petrole_8_bb313ae3",
+      "transcript_segment": "...e your code test tests. And we threw away tests up there so you could see, impact had 842 tests and Covertilla had six at one point...",
+      "expected_correction": {
+        "original": "Covertilla",
+        "corrected": "Cobra-TF",
+        "category": "technical_term",
+        "confidence": 0.85
+      },
+      "notes": "Tests Cobra-TF vs 'Covertilla' mishearing in code quality discussion"
+    }
+  ],
+  "usage": {
+    "test_clip_extraction": "Verify ffmpeg extracts 6s clips correctly",
+    "test_guided_review": "Verify guided review presents clip for approval/rejection",
+    "test_downstream_propagation": "Verify glossary/RAG/training updates on approval"
+  }
+}

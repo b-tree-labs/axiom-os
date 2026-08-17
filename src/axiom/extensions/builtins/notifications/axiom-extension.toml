@@ -1,0 +1,74 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "notifications"
+version = "0.1.0"
+description = "HERALD — multi-channel notifications + unified inbox. Per ADR-055 + prd-axiom-notifications + spec-axiom-notifications."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.26"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# HERALD — the Generator + Sensor that owns this primitive.
+[[extension.provides]]
+kind = "agent"
+name = "herald"
+entry = "axiom.extensions.builtins.notifications:herald_persona_path"
+persona = "agents/herald/persona.md"
+description = "HERALD — multi-channel outbound (inbox, Slack, Mattermost, Teams, Email, SMS) + agent-bus->send bridge + servant-identity render; inbound reply gateway per ADR-067 (in-flight)."
+
+# The send() tool — extensions consume it; consumers register their intents.
+[[extension.provides]]
+kind = "tool"
+name = "notifications_send"
+entry = "axiom.extensions.builtins.notifications.send:send"
+description = "Dispatch a notification under an ActionEnvelope. Classification routing centralized here (spec §4)."
+idempotent = false
+side_effects = "writes_receipt,calls_network"
+
+# The 8th AEOS capability kind — see docs/decisions/adr-001-channel-adapter-as-aeos-kind.md
+[[extension.provides]]
+kind = "channel_adapter"
+name = "inbox"
+entry = "axiom.extensions.builtins.notifications.channels.inbox:InboxChannelAdapterProvider"
+
+[extension.provides.channel_adapter]
+direction              = "bidirectional"
+priority_levels        = ["low", "normal", "high", "urgent"]
+classification_ceiling = "controlled"
+supports_threading     = true
+supports_acknowledge   = true
+delivery_sla_p95_ms    = 200
+provenance_stamp       = { fragment_kind = "notification_dispatch", tier = "internal" }
+
+# notifications CLI noun (verbs are skill-fn backed per ADR-056).
+[[extension.provides]]
+kind = "cmd"
+noun = "notifications"
+entry = "axiom.extensions.builtins.notifications.cli:main"
+subcommands = ["send", "list", "channels"]
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's HERALD {version}")
+# on every channel. The canonical principal (@herald:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "HERALD"
+
+[[extension.provides]]
+kind = "skill"
+name = "comms.configure"
+entry = "axiom.extensions.builtins.notifications.skills.comms:configure"
+path = "skills/comms-configure.md"
+description = "Guided communications-config: ask the right questions, assemble a scenario-conditioned channel policy (NL-drivable)"

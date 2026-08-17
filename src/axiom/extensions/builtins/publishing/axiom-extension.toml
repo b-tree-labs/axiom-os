@@ -1,0 +1,132 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "publishing"
+version = "0.4.0"
+description = "Document publishing lifecycle — draft, render, content-gate, sign, and upload via pluggable storage backends (CLI noun `publish`); houses PRESS."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# PRESS — the Print agent the extension exists to host.
+[[extension.provides]]
+kind = "agent"
+name = "press"
+entry = "axiom.extensions.builtins.publishing.cli:main"
+persona = "agents/press/persona.md"
+description = "PRESS — publishes documents (draft/render/upload), gates content (policy + redaction + signatures), manages artifact + version lifecycle and standards bundles, and publishes/updates CI-incident digest tickets (one incident → one ticket, occurrences appended rather than re-filed)"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "publish"
+entry = "axiom.extensions.builtins.publishing.cli:main"
+description = "Document publishing lifecycle (md → docx → publish)"
+tier = "core"
+intent_groups = ["start", "research"]
+
+# PRESS skill provides will be added once SKILL.md files exist (follow-up).
+# Skills are already callable via SkillRegistry — see publishing/skills/__init__.py.
+
+# `axi doc` alias removed 2026-05-04 — was a duplicate; cluttered the
+# menu without adding capability.  `axi pub` renamed to `axi publish`
+# 2026-05-04 (one less abbreviation among "config / dr / ext / role"
+# already-short names; "publish" reads as a verb in line with chat,
+# install, search, status).
+
+# Transitional pre-AEOS bridge sections — runtime consumers (agent
+# lifecycle, connection registry, watcher loop) read these at startup.
+
+[agent]
+# Liveness/status tick — real doc watching is the separate `publish watch`
+# (PublishWatcher) loop, so this just needs to match the daemon pack. Was 10s
+# (a prt_agent-migration leftover): ~8.6k status spawns/day flooding the host.
+heartbeat_interval = 300
+startup = "daemon"
+# `status` (no --json: that flag isn't defined on the subparser and made the
+# heartbeat argparse-fail on every tick — Austin's Windows host, 2026-05-28).
+heartbeat_command = "publish status"
+
+[[agent.watchers]]
+name = "source_docs"
+enabled = true
+interval = 10
+cooldown = 300
+module = "axiom.extensions.builtins.publishing.watcher"
+function = "run_watcher_cycle"
+
+[[connections]]
+name = "onedrive"
+display_name = "Microsoft OneDrive"
+kind = "api"
+endpoint = "https://onedrive.live.com"
+credential_env_var = "MS_GRAPH_CLIENT_ID"
+credential_file = "onedrive/state.json"
+category = "storage"
+capabilities = ["read", "write"]
+docs_url = "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps"
+
+[[connections.auth_methods]]
+method = "browser"
+description = "Browser login (recommended — no API keys needed)"
+endpoint = "https://onedrive.live.com"
+
+[[connections.auth_methods]]
+method = "graph_api"
+credential_env_var = "MS_GRAPH_CLIENT_ID"
+description = "MS Graph API (requires Azure developer credentials)"
+docs_url = "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps"
+
+[[connections.auth_methods]]
+method = "manual"
+description = "Manual file drop (no auth)"
+
+[[connections]]
+name = "mmdc"
+display_name = "Mermaid CLI (diagrams)"
+kind = "cli"
+endpoint = "mmdc"
+credential_type = "none"
+health_check = "cli_version"
+category = "tools"
+docs_url = "https://github.com/mermaid-js/mermaid-cli"
+
+[connections.install_commands]
+macos = "npm install -g @mermaid-js/mermaid-cli"
+linux = "npm install -g @mermaid-js/mermaid-cli"
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "press.draft"
+entry = "axiom.extensions.builtins.publishing.skills.draft:run"
+path = "skills/draft"
+description = "Render a draft artifact locally (no upload)."
+
+[[extension.provides]]
+kind = "skill"
+name = "press.publish"
+entry = "axiom.extensions.builtins.publishing.skills.publish:run"
+path = "skills/publish"
+description = "Draft + upload + notify via the event bus."
+
+[[extension.provides]]
+kind = "skill"
+name = "press.standards"
+entry = "axiom.extensions.builtins.publishing.skills.standards:run"
+path = "skills/standards"
+description = "List the registered PRESS standards bundles."
+# END axi-skills-emit-md
+
+# [sender] — ADR-090 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's PRESS {version}")
+# on every channel. The canonical principal (@press:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "PRESS"
