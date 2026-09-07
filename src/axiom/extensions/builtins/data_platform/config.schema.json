@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataPlatformConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "connector_labels": {
+      "type": "array",
+      "default": [],
+      "description": "Site-supplied attribution map pairing a source top-level folder with its registered connector label. Used by data.activity and data.refresh when the chunks table lacks the canonical data_source column and attribution falls back to the source_path top-folder. Axiom ships an empty map; folders without an entry pass through unchanged. Operator-durable home: <config-dir>/data_platform.toml as [[data_platform.connector_labels]] entries.",
+      "x-reloadable": true,
+      "items": {
+        "type": "object",
+        "required": ["folder", "connector"],
+        "additionalProperties": false,
+        "properties": {
+          "folder": {
+            "type": "string",
+            "description": "Top-level folder name exactly as it appears in source_path."
+          },
+          "connector": {
+            "type": "string",
+            "description": "Registered connector name the folder's documents are attributed to."
+          }
+        }
+      }
+    }
+  }
+}

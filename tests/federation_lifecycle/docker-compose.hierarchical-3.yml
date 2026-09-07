@@ -1,0 +1,83 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# 3-level hierarchical federation: root → intermediate1 → {leaf1a, leaf1b}.
+#
+# Per ADR-023 §1 (hierarchical topology) and §3 (upstream heartbeats,
+# downstream manifest pulls). The intermediate acts as a leaf relative to
+# the root, and as a hub relative to its leaves. Leaves do NOT get a
+# direct peer entry for the root — hierarchy is respected.
+#
+# Driven by test_hierarchical_3_level.py.
+
+services:
+  root:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    image: axiom-fed-node:dev
+    hostname: root
+    environment:
+      AXIOM_NODE_NAME: root
+      AXIOM_NODE_ROLE: coordinator
+    volumes:
+      - root_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+  intermediate1:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: intermediate1
+    environment:
+      AXIOM_NODE_NAME: intermediate1
+      AXIOM_NODE_ROLE: standard
+    volumes:
+      - intermediate1_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [root]
+
+  leaf1a:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: leaf1a
+    environment:
+      AXIOM_NODE_NAME: leaf1a
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - leaf1a_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [intermediate1]
+
+  leaf1b:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    hostname: leaf1b
+    environment:
+      AXIOM_NODE_NAME: leaf1b
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - leaf1b_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    depends_on: [intermediate1]
+
+networks:
+  fednet:
+    driver: bridge
+
+volumes:
+  root_state:
+  intermediate1_state:
+  leaf1a_state:
+  leaf1b_state:
+  harness_keys:

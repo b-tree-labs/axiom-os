@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-web
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "axiom-observability.selectorLabels" . | nindent 4 }}
+    component: langfuse-web
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      {{- if and (eq .Values.service.type "NodePort") (gt (int .Values.service.nodePort) 0) }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-web
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+    component: langfuse-web
+spec:
+  replicas: {{ .Values.langfuse.webReplicas }}
+  selector:
+    matchLabels:
+      {{- include "axiom-observability.selectorLabels" . | nindent 6 }}
+      component: langfuse-web
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-observability.selectorLabels" . | nindent 8 }}
+        component: langfuse-web
+    spec:
+      # InitContainers wait on Postgres + ClickHouse so the web pod
+      # never CrashLoopBackoff on first boot. No manual `kubectl wait`
+      # post-install — chart is self-resilient per data_platform PR #441
+      # lessons.
+      initContainers:
+        - name: wait-postgres
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "waiting for postgres..."
+              until nc -z {{ include "axiom-observability.postgresHost" . }} 5432; do
+                sleep 2
+              done
+              echo "postgres ready"
+        {{- if eq .Values.clickhouse.mode "internal" }}
+        - name: wait-clickhouse
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "waiting for clickhouse..."
+              until nc -z {{ include "axiom-observability.fullname" . }}-clickhouse 8123; do
+                sleep 2
+              done
+              echo "clickhouse ready"
+        {{- end }}
+      containers:
+        - name: langfuse-web
+          image: "{{ .Values.langfuse.image.repository }}:{{ .Values.langfuse.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            {{- include "axiom-observability.langfuseEnv" . | nindent 12 }}
+            - name: LANGFUSE_INIT_PROJECT_NAME
+              value: {{ .Values.langfuse.initProjectName | quote }}
+          readinessProbe:
+            httpGet:
+              path: /api/public/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/public/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.langfuse.resources.web | nindent 12 }}

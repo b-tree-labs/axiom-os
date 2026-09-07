@@ -1,0 +1,82 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "webgate"
+version = "0.1.0"
+description = "UI-agnostic forward-auth gate (ADR-003): browser password login + ES256 session cookie + a /gate/verify endpoint an edge proxy subrequests to gate any UI or app. Built on axiom.webauth; shares its accounts + session with the oauth OIDC fast-follow."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Rides the composed HTTP substrate (MountSpec / compose_app / `axi serve`).
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+# Public: the gate performs authentication, so its login + verify routes must be
+# reachable without a prior session (ADR-003).
+[[extension.provides]]
+kind = "service"
+name = "gate"
+entry = "axiom.extensions.builtins.webgate.mount:mount_spec"
+description = "Forward-auth gate at /gate/{login,verify,logout}"
+prefix = "/gate"
+requires_authz = false
+requires_authn = false
+deployment_profile = "server"
+
+# `axi gate` — account + API-key administration for the gate. Thin wrappers
+# over the gate.* skills per ADR-056. CLI subprocess smokes live in
+# tests/test_cli_subprocess.py per feedback_cli_subprocess_smoke_required.
+[[extension.provides]]
+kind = "cmd"
+noun = "gate"
+entry = "axiom.extensions.builtins.webgate.cli:main"
+description = "Administer gate accounts + API keys: adduser / resetpw / list / issue / revoke"
+tier = "advanced"
+intent_groups = ["compose"]
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry. Namespace is the
+# CLI noun (`gate`) → skill names `gate.<verb>`. `entry` is the "module:function"
+# the loader binds; `path` is the SKILL.md AEOS markdown.
+[[extension.provides]]
+kind = "skill"
+name = "adduser"
+entry = "axiom.extensions.builtins.webgate.skills.adduser:run"
+path = "skills/adduser.md"
+description = "Add a password account to the gate's accounts file"
+
+[[extension.provides]]
+kind = "skill"
+name = "resetpw"
+entry = "axiom.extensions.builtins.webgate.skills.resetpw:run"
+path = "skills/resetpw.md"
+description = "Reset (rotate) an existing account's password"
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+entry = "axiom.extensions.builtins.webgate.skills.list_users:run"
+path = "skills/list.md"
+description = "List gate accounts or issued API keys (never prints hashes)"
+
+[[extension.provides]]
+kind = "skill"
+name = "issue"
+entry = "axiom.extensions.builtins.webgate.skills.issue_key:run"
+path = "skills/issue.md"
+description = "Issue a scoped bearer API key for a NON-human API principal"
+
+[[extension.provides]]
+kind = "skill"
+name = "revoke"
+entry = "axiom.extensions.builtins.webgate.skills.revoke_key:run"
+path = "skills/revoke.md"
+description = "Revoke an issued API key (effective on the next request)"

@@ -1,0 +1,96 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "rag"
+version = "0.1.0"
+description = "RAG (Retrieval-Augmented Generation) index management — index, search, and sync the three-tier corpus"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "rag"
+entry = "axiom.extensions.builtins.rag.cli:main"
+description = "RAG corpus management — index, sync, embed, rebuild (operator surface)"
+tier = "advanced"
+intent_groups = ["build"]
+
+# `axi search` — user-facing alias that dispatches to `rag query`. Visible
+# under the `start` intent so every end-user role sees it; `rag` proper
+# stays under `build` for operators managing the index.
+[[extension.provides]]
+kind = "cmd"
+noun = "search"
+entry = "axiom.extensions.builtins.rag.cli:main_search"
+description = "Search your knowledge corpus (indexed notes, papers, conversations)"
+tier = "starter"
+intent_groups = ["start"]
+
+# `/rag` — retrieval-grounded completion mount on the composed HTTP app
+# (RATIONALIZE-2). The thin retrieve->inject->generate path (RRF + access
+# filter via src/axiom/rag/, not an agent loop), exposed as model "rag-model".
+# Discovered by compose_app; replaces the standalone rag_shim at cutover (#58).
+[[extension.provides]]
+kind = "service"
+name = "rag_serving"
+entry = "axiom.extensions.builtins.rag.serving:rag_mount_spec"
+description = "Retrieval-grounded completion endpoint (/rag, model rag-model)"
+deployment_profile = "server"
+
+# Transitional pre-AEOS bridge sections — runtime consumers (connection
+# registry, chat tools, providers, etc.) read these at startup.
+
+[[connections]]
+name = "box"
+display_name = "Box (cloud storage)"
+kind = "api"
+endpoint = "https://api.box.com/2.0"
+credential_env_var = "BOX_ACCESS_TOKEN"
+credential_type = "oauth2"
+health_check = "http_get"
+health_endpoint = "https://api.box.com/2.0/users/me"
+category = "storage"
+capabilities = ["read"]
+required = false
+docs_url = "https://developer.box.com/guides/authentication/"
+description = "Box OAuth2 integration for syncing facility documents into rag-org corpus"
+# post_setup_module = "axiom.extensions.builtins.rag.connections"
+# post_setup_function = "setup_box"   # TODO: Box connector not yet implemented
+
+[[connections]]
+name = "pack-server"
+display_name = "RAG Pack Server"
+kind = "api"
+endpoint = ""
+credential_env_var = "PACK_SERVER_KEY"
+credential_type = "api_key"
+health_check = "http_get"
+health_endpoint = ""           # set to {endpoint}/packs/registry.json during setup
+category = "storage"
+capabilities = ["read", "write"]
+required = false
+description = "Pack server hosting versioned domain knowledge bundles (.neutpack files)"
+post_setup_module = "axiom.extensions.builtins.rag.connections"
+post_setup_function = "setup_pack_server"
+
+[[connections]]
+name = "postgresql"
+display_name = "PostgreSQL (pgvector)"
+kind = "api"
+endpoint = "localhost:5432"
+credential_env_var = "AXIOM_DB_URL"
+health_check = "tcp_connect"
+category = "data"
+capabilities = ["read", "write"]
+post_setup_module = "axiom.extensions.builtins.rag.connections"
+post_setup_function = "setup_postgresql"
+ensure_module = "axiom.extensions.builtins.rag.connections"
+ensure_function = "ensure_postgresql_running"

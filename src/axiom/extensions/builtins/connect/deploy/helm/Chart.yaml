@@ -1,0 +1,6 @@
+apiVersion: v2
+name: axi-presence
+description: A per-principal always-on Axi presence pod (one per human; ADR-074 A2)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

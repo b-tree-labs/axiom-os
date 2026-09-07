@@ -1,0 +1,42 @@
+# One-time init: ensure the Dagster meta database exists in the shared
+# Postgres. The Dagster webserver/daemon will create their schemas
+# inside this database on first connect.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-dp-init
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+  annotations:
+    # Re-run on chart upgrade so a database name change isn't silently
+    # dropped on an existing release.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: dp-init
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              echo "Ensuring Dagster meta DB '$DAGSTER_PG_DB' exists on $DAGSTER_PG_HOST..."
+              PGPASSWORD="$DAGSTER_PG_PASSWORD" psql \
+                -h "$DAGSTER_PG_HOST" -p "$DAGSTER_PG_PORT" \
+                -U "$DAGSTER_PG_USER" -d postgres \
+                -tc "SELECT 1 FROM pg_database WHERE datname='$DAGSTER_PG_DB'" \
+                | grep -q 1 \
+              || PGPASSWORD="$DAGSTER_PG_PASSWORD" psql \
+                -h "$DAGSTER_PG_HOST" -p "$DAGSTER_PG_PORT" \
+                -U "$DAGSTER_PG_USER" -d postgres \
+                -c "CREATE DATABASE \"$DAGSTER_PG_DB\""
+              echo "Done."
+          env:
+            {{- include "axiom-data-platform.commonEnv" . | nindent 12 }}

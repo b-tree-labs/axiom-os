@@ -1,0 +1,67 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "classroom"
+version = "0.2.0"
+description = "Classroom — course lifecycle, federated cohort ceremony, materials flow, learning modes, briefs, threads, broadcast quizzes, instructor + student CLI. Houses the CHALKE agent. Eventual home of Keplo (per ADR-031)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# CHALKE — AI Training Assistant agent the classroom extension
+# exists to host. Per AEOS §4.1 + the Axiomatic Way principle #7
+# (agent identity is canonical; the face is rebrandable), the
+# agent's persona lives inside the extension at
+# `agents/chalke/persona.md` — internal to the agent, not a
+# standalone skill. The dual instructor + student perspectives
+# remain in `agents/chalke/instructor_skills.md` +
+# `student_skills.md` as reference content; their migration to
+# the canonical SKILL.md form is a follow-up tracked in the
+# parity-gaps doc.
+[[extension.provides]]
+kind = "agent"
+name = "chalke"
+entry = "axiom.extensions.builtins.classroom.agents.chalke.chalke:Chalke"
+persona = "agents/chalke/persona.md"
+description = "CHALKE — classroom lifecycle coordinator (prep->publish->live->archive): materials flow, learning modes (ask/tutor/quiz/reflect/review), instructor briefs, student Q&A, quizzes, help threads, grades; delegates to CURIO/SCAN/PRESS"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "classroom"
+entry = "axiom.extensions.builtins.classroom.cli:main"
+description = "Classroom lifecycle: prep, invite, serve, join, ask, modes, briefs, threads, quiz, evals, status."
+tier = "core"
+intent_groups = ["teach", "learn"]
+
+# Transitional pre-AEOS bridge sections — runtime consumers (chat-
+# tool discovery in `axiom.extensions.discovery.load_chat_tools`,
+# MCP server generation in `axiom.extensions.mcp_generation`) read
+# these blocks at startup. Migrating the declarations to canonical
+# `[[extension.provides]]` form requires extending the AEOS schema
+# with `chat_tool` + `mcp_server` capability kinds; that's tracked
+# in `docs/working/competitive-parity-gaps.md`. The schema's root
+# `additionalProperties = true` (commit e760bab) accepts these
+# blocks as-is during the transition.
+
+[chat_tools]
+module = "chat_tools"
+description = "AXI prep tools — let the instructor drive course-prep from chat. See chat_tools/prep_tools.py."
+
+[mcp_servers.axiom-classroom]
+command = "python"
+args = ["-m", "axiom.extensions.builtins.classroom.mcp_server"]
+description = "Expose classroom state to Claude Code / Cursor / any MCP client. Tools: list_sessions, prep_status, list_tickets, list_signals."
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's CHALKE {version}")
+# on every channel. The canonical principal (@chalke:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "CHALKE"

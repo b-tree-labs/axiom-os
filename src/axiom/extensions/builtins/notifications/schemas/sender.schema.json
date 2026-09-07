@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://axiom.btreelabs.ai/schemas/sender.schema.json",
+  "title": "Agent sender identity (ADR-066)",
+  "description": "The [sender] block in an agent extension's axiom-extension.toml. Declares the per-agent display metadata HERALD renders onto each channel surface. The canonical principal (ADR-020 @name:context) is NOT declared here; it is derived from the agent name + owner context.",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable agent name, e.g. \"Rivet\". Required. Rendered into the possessive surface (\"Ben's Rivet 1.0\")."
+    },
+    "avatar_uri": {
+      "type": "string",
+      "description": "Optional avatar. Accepts file:// or https://. Slack/Mattermost need a public https URL; Teams accepts base64 inline.",
+      "pattern": "^(file|https)://"
+    },
+    "from_address": {
+      "type": "string",
+      "description": "Optional email From override for this agent. None -> the email adapter default.",
+      "format": "email"
+    }
+  },
+  "required": ["display_name"],
+  "additionalProperties": false
+}

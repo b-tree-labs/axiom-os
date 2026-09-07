@@ -1,0 +1,32 @@
+{
+  "name": "@axiom/design-tokens",
+  "version": "0.1.0",
+  "description": "Axiom design tokens: theme-aware CSS custom properties, the same tokens as JSON, and a Tailwind preset. Self-contained, zero external requests.",
+  "license": "Apache-2.0",
+  "main": "tailwind.preset.js",
+  "style": "tokens.css",
+  "exports": {
+    ".": "./tailwind.preset.js",
+    "./tailwind.preset.js": "./tailwind.preset.js",
+    "./tokens.css": "./tokens.css",
+    "./tokens.json": "./tokens.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "tokens.css",
+    "tokens.json",
+    "tailwind.preset.js"
+  ],
+  "scripts": {
+    "build": "python3 scripts/build_tokens.py",
+    "check": "python3 scripts/build_tokens.py --check",
+    "test": "python3 -m pytest tests"
+  },
+  "keywords": [
+    "axiom",
+    "design-tokens",
+    "css-variables",
+    "tailwind",
+    "theme"
+  ]
+}

@@ -1,0 +1,45 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "oauth"
+version = "0.1.0"
+description = "Axiom's first-party OAuth 2.1 Authorization Server + OIDC provider + MCP Resource Server (ADR-082). This cut: the public discovery + JWKS surface that publishes the ES256 signing keys clients verify tokens with. Distinct from the `auth` relying-party, which federates external IdPs upstream."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Rides the composed HTTP substrate (MountSpec / compose_app / `axi serve`).
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+# Public discovery + JWKS. requires_authz/authn = false: a client must reach the
+# AS/OIDC metadata and the public JWKS before it holds any token (ADR-082).
+[[extension.provides]]
+kind = "service"
+name = "discovery"
+entry = "axiom.extensions.builtins.oauth.mount:mount_spec"
+description = "OAuth 2.1 / OIDC discovery + JWKS at /.well-known/*"
+prefix = "/.well-known"
+requires_authz = false
+requires_authn = false
+deployment_profile = "server"
+
+# Token endpoint. Public: the client authenticates from the request itself
+# (Basic / private_key_jwt), so this is not a GUARD-protected resource (ADR-082).
+[[extension.provides]]
+kind = "service"
+name = "endpoints"
+entry = "axiom.extensions.builtins.oauth.mount:endpoints_mount_spec"
+description = "OAuth 2.1 token endpoint at /oauth/token (client_credentials; authorize/code follow)"
+prefix = "/oauth"
+requires_authz = false
+requires_authn = false
+deployment_profile = "server"

@@ -1,0 +1,671 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.axiom-os.ai/aeos/0.1/schema.json",
+  "title": "AEOS Extension Manifest",
+  "description": "JSON Schema for axiom-extension.toml per AEOS 0.1",
+  "type": "object",
+  "required": ["extension"],
+  "additionalProperties": false,
+  "properties": {
+    "extension": { "$ref": "#/$defs/Extension" },
+    "agent": { "$ref": "#/$defs/AgentLifecycle" },
+    "sender": { "$ref": "#/$defs/SenderIdentity" },
+    "connections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Connection" }
+    },
+    "chat_tools": { "$ref": "#/$defs/ChatToolsModule" },
+    "skills": { "$ref": "#/$defs/SkillsConfig" },
+    "providers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ProviderConfig" }
+    },
+    "extractors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ExtractorConfig" }
+    },
+    "mcp_servers": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/MCPServerConfig" }
+    },
+    "prompt_contributions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PromptContribution" }
+    },
+    "database": { "$ref": "#/$defs/Database" }
+  },
+  "$comment": "Root-level additionalProperties is now false. Known runtime-consumed sections that predate AEOS capability kinds (agent lifecycle, connections, chat_tools module, providers, extractors, mcp_servers, skills, prompt_contributions) remain explicitly enumerated at the root with their own permissive schemas. The `[database]` block (ADR-052 schema-per-extension persistence) is also enumerated at root and validated by `Database`. The legacy `[[cli.commands]]` block is removed in favor of `[[extension.provides]] kind = \"cmd\"`.",
+  "$defs": {
+    "SenderIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name"],
+      "description": "ADR-066 servant-naming render metadata. Per-agent display nameplate HERALD renders onto each channel surface. The canonical principal (ADR-020 @name:context) is derived, not declared here.",
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable agent name, e.g. \"Rivet\". Rendered into the locale possessive surface (\"Ben's Rivet 1.0\")."
+        },
+        "avatar_uri": {
+          "type": "string",
+          "pattern": "^(file|https)://",
+          "description": "Optional avatar. file:// or https://. Slack/Mattermost require a public https URL."
+        },
+        "from_address": {
+          "type": "string",
+          "format": "email",
+          "description": "Optional per-agent email From override. Absent → the email adapter default."
+        }
+      }
+    },
+    "Extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "description", "license", "aeos_version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Purpose-named, lowercase, underscores allowed, no type suffix"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+].*)?$",
+          "description": "Semver 2.0.0"
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string" },
+        "license": { "type": "string", "minLength": 1 },
+        "homepage": { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri" },
+        "aeos_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+        },
+        "builtin": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when the extension ships inside a host package (e.g. axi-platform's extensions/builtins/) rather than as a standalone pip-installable package. Built-ins use flat layout (<ext>/__init__.py) and may omit pyproject.toml, README.md, CHANGELOG.md, and LICENSE — those files belong to the host package, not each built-in."
+        },
+        "classification_ceiling": {
+          "type": "string",
+          "enum": ["public", "internal", "restricted", "secret", "top_secret"]
+        },
+        "trust_profile": { "type": "string" },
+        "compatibility": { "$ref": "#/$defs/Compatibility" },
+        "provides": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Provided" }
+        },
+        "consumes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Consumed" }
+        },
+        "federation": { "$ref": "#/$defs/Federation" },
+        "signing": { "$ref": "#/$defs/Signing" },
+        "testing": { "$ref": "#/$defs/Testing" },
+        "mcp": { "$ref": "#/$defs/MCPBlock" }
+      }
+    },
+    "Compatibility": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mcp": { "type": "string" },
+        "a2a": { "type": "string" },
+        "python": { "type": "string" },
+        "axiom": { "type": "string" },
+        "platforms": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Provided": {
+      "oneOf": [
+        { "$ref": "#/$defs/ProvidedAgent" },
+        { "$ref": "#/$defs/ProvidedTool" },
+        { "$ref": "#/$defs/ProvidedCmd" },
+        { "$ref": "#/$defs/ProvidedService" },
+        { "$ref": "#/$defs/ProvidedAdapter" },
+        { "$ref": "#/$defs/ProvidedSkill" },
+        { "$ref": "#/$defs/ProvidedHook" },
+        { "$ref": "#/$defs/ProvidedPrompt" },
+        { "$ref": "#/$defs/ProvidedSignalType" },
+        { "$ref": "#/$defs/ProvidedSafetyCheck" }
+      ]
+    },
+    "ProvidedPrompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "path"],
+      "properties": {
+        "kind": { "const": "prompt" },
+        "name": {
+          "type": "string",
+          "$comment": "Extension prompts MUST be namespaced as <extension>.<localname> (e.g. 'classroom.grading-context'). Platform prompts use the 'axi-' prefix and are reserved (e.g. 'axi-cli-gravity'). See spec-axi-cli.md §Cross-harness gravity → L2.",
+          "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_-]*$"
+        },
+        "path": {
+          "type": "string",
+          "$comment": "Path (relative to the extension root) to the markdown file containing the templated prompt body."
+        },
+        "description": { "type": "string" },
+        "arguments": {
+          "type": "array",
+          "$comment": "Argument schema for prompts/get calls. Maps to MCP prompts capability arguments.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "description": { "type": "string" },
+              "required": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "extends": {
+          "type": "string",
+          "$comment": "Optional. Names a platform-published prompt this contribution fills into via a declared fill point. Renderer composes parent + extension content per spec-axi-cli.md §Cross-harness gravity → L2 → Extension contributions.",
+          "pattern": "^axi-[a-z][a-z0-9_-]*$"
+        },
+        "fill_point": {
+          "type": "string",
+          "$comment": "Optional. When `extends` is set, names the parent's fill point this contribution targets. If omitted, the parent prompt's default fill point is used (where one exists).",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "template_dialect": {
+          "type": "string",
+          "$comment": "Templating syntax version. Default: 'axiom-mcp-template-v1'.",
+          "default": "axiom-mcp-template-v1"
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["starter", "core", "advanced", "internal"],
+          "$comment": "Surfacing tier for this prompt. Default: 'core'. The prompt-renderer surfaces it only when the user has reached the tier."
+        }
+      }
+    },
+    "ProvidedAgent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "entry"],
+      "properties": {
+        "kind": { "const": "agent" },
+        "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]*$|^[a-z][a-z0-9_-]*$" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "persona": { "type": "string" },
+        "description": { "type": "string" },
+        "allowed_tools": { "type": "array", "items": { "type": "string" } },
+        "requires_signals": { "type": "array", "items": { "type": "string" } },
+        "uses_skills": { "type": "array", "items": { "type": "string" } },
+        "state_model": { "type": "string" }
+      }
+    },
+    "ProvidedTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "entry"],
+      "properties": {
+        "kind": { "const": "tool" },
+        "name": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "description": { "type": "string" },
+        "input_schema": { "type": "string" },
+        "output_schema": { "type": "string" },
+        "idempotent": { "type": "boolean" },
+        "side_effects": {
+          "type": "string",
+          "enum": ["none", "reads_file", "writes_file", "calls_network", "local_only", "mutates_state"]
+        }
+      }
+    },
+    "ProvidedCmd": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "noun", "entry"],
+      "properties": {
+        "kind": { "const": "cmd" },
+        "noun": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "description": { "type": "string" },
+        "subcommands": { "type": "array", "items": { "type": "string" } },
+        "flags": { "type": "array", "items": { "type": "string" } },
+        "tier": {
+          "type": "string",
+          "enum": ["starter", "core", "advanced", "internal"],
+          "$comment": "Surfacing tier for incremental revelation. See prd-axi-cli.md §Progressive Disclosure. Default: 'core'."
+        },
+        "intent_groups": {
+          "type": "array",
+          "items": { "type": "string" },
+          "$comment": "Cross-extension user-task groupings (e.g. 'maintain', 'investigate', 'teach'). Empty = noun is not surfaced via intent rollup. See prd-axi-cli.md §Progressive Disclosure."
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "$comment": "Capability names this command needs (e.g. ['git']). The availability-aware dispatcher hides/disables the command when any are unmet. See ADR-047."
+        },
+        "verb_overrides": {
+          "type": "object",
+          "$comment": "Per-verb tier/intent overrides keyed by verb name. e.g. { 'purge': { 'tier': 'advanced' } }. See prd-axi-cli.md.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": ["starter", "core", "advanced", "internal"]
+              },
+              "intent_groups": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ProvidedService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "entry"],
+      "properties": {
+        "kind": { "const": "service" },
+        "name": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "description": { "type": "string" },
+        "prefix": {
+          "type": "string",
+          "$comment": "Optional URL path prefix this service mounts under on the composed HTTP substrate (e.g. '/api/v1'). Declarative mirror of the returned MountSpec.prefix so the mount point is visible to lint/discovery without importing the entry. See spec-serve §4, ADR-082.",
+          "pattern": "^/"
+        },
+        "requires_authz": {
+          "type": "boolean",
+          "$comment": "Whether requests to this mount pass through the GUARD authz hook. Mirrors MountSpec.requires_authz. Default true (fail-closed). Discovery/well-known mounts set false. See ADR-082, ADR-084.",
+          "default": true
+        },
+        "requires_authn": {
+          "type": "boolean",
+          "$comment": "Whether requests to this mount require an authenticated principal (a verified token resolving to an ActorContext). May be false while requires_authz is true only for anonymous-but-policy-gated surfaces. Public discovery endpoints set false. See ADR-082.",
+          "default": true
+        },
+        "ports": { "type": "array", "items": { "type": "integer" } },
+        "processes": { "type": "integer" },
+        "deployment_profile": {
+          "type": "string",
+          "enum": ["edge", "workstation", "server", "platform"]
+        }
+      }
+    },
+    "ProvidedAdapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "integration", "entry"],
+      "properties": {
+        "kind": { "const": "adapter" },
+        "integration": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "description": { "type": "string" },
+        "auth_methods": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "classification_ceiling": {
+          "type": "string",
+          "enum": ["public", "internal", "restricted", "secret", "top_secret"]
+        }
+      }
+    },
+    "ProvidedSkill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "path"],
+      "$comment": "Per ADR-052, skills may declare an `entry` (dotted module:function) so the SkillRegistry can bind them as runtime-invocable functions. Optional `schema` points at a JSON Schema for the skill's params. Both are optional for back-compat with markdown-only skills.",
+      "properties": {
+        "kind": { "const": "skill" },
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "description": { "type": "string" },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "schema": { "type": "string" }
+      }
+    },
+    "ProvidedHook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "events", "entry"],
+      "properties": {
+        "kind": { "const": "hook" },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "$comment": "NATS-shape subject or pattern: tokens [a-z0-9_]+, * matches one token, > matches one or more (only as final token).",
+            "pattern": "^([a-z][a-z0-9_]*|\\*)(?:\\.([a-z][a-z0-9_]*|\\*))*(?:\\.>)?$"
+          }
+        },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "priority": { "type": "integer" },
+        "fail_mode": {
+          "type": "string",
+          "enum": ["abort", "warn", "ignore"]
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "ProvidedSignalType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "names", "entry"],
+      "properties": {
+        "kind": { "const": "signal_type" },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "entry": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "ProvidedSafetyCheck": {
+      "$comment": "TRIAGE-discoverable safety/integrity check. Picked up by TRIAGE's heartbeat sweep; extension authors register checks here, TRIAGE ships its built-ins via the same surface.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "entry"],
+      "properties": {
+        "kind": { "const": "safety_check" },
+        "name": {
+          "type": "string",
+          "$comment": "Should be ext-prefixed (e.g., 'diagnostics.disk_space') to avoid collisions across extensions.",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+        },
+        "entry": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$" },
+        "schedule": {
+          "type": "string",
+          "enum": ["every_heartbeat", "daily"]
+        },
+        "severity_default": {
+          "type": "string",
+          "enum": ["info", "warning", "critical"]
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "Consumed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "$comment": "Declares a dependency. kind=core/extension are package deps; kind=credential/secret declare identity + secret needs the runtime satisfies (spec-aeos-identity-addendum §2, ADR-075/ADR-077). The runtime resolves a credential to a token_source and a secret to a KEEP/vault dereference; the extension never sees raw tokens or keys.",
+      "properties": {
+        "kind": { "type": "string", "enum": ["core", "extension", "credential", "secret"] },
+        "package": { "type": "string" },
+        "version": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "switches": { "type": "array", "items": { "type": "string" } },
+        "idp": { "type": "string", "$comment": "credential: provider adapter name (e.g. 'entra')." },
+        "scopes": { "type": "array", "items": { "type": "string" }, "$comment": "credential: OAuth scopes requested." },
+        "mode": { "type": "string", "enum": ["delegated", "app_only", "device_code"], "$comment": "credential: OAuth grant mode." },
+        "bind": { "type": "string", "$comment": "credential: how the resolved credential is injected at runtime (e.g. 'token_source')." },
+        "ref": { "type": "string", "$comment": "secret: vault/KEEP reference (e.g. 'openbao://kv/data/...')." },
+        "require_mfa": { "type": "boolean", "$comment": "secret: require a FRESH second factor at release time, not merely a session unlock." },
+        "min_posture": { "type": "string", "enum": ["open", "attested", "sso", "service"], "$comment": "credential/secret: the posture floor dereferencing this demands (ADR-077)." }
+      }
+    },
+    "Database": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Root-level [database] block. Per ADR-052 (schema-per-extension via axiom.infra.db.session_for), the extension owns a private Postgres schema; it never writes to public and never hardcodes schema=. `needs_schema=true` tells the install/migration flow to provision the extension schema; `migrations_path` names the extension-local Alembic directory.",
+      "properties": {
+        "needs_schema": { "type": "boolean" },
+        "migrations_path": { "type": "string" }
+      }
+    },
+    "Federation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shareable": { "type": "boolean" },
+        "requires_attestation": { "type": "boolean" },
+        "quarantine_recoverable": { "type": "boolean" }
+      }
+    },
+    "Signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["sigstore", "gpg", "minisign"]
+          }
+        },
+        "publisher_identity": { "type": "string" }
+      }
+    },
+    "Testing": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "standard_tests": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["unit", "integration", "e2e"] }
+        },
+        "test_base_class": { "type": "string" },
+        "minimum_coverage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "integration_tests": {
+          "type": "object",
+          "properties": {
+            "requires_services": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "AgentLifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Pre-AEOS [agent] lifecycle block consumed by the agent service runner. Still root-level until a future AEOS kind covers daemon-style agents.",
+      "properties": {
+        "heartbeat_interval": { "type": "integer" },
+        "heartbeat_command": { "type": "string" },
+        "startup": {
+          "type": "string",
+          "enum": ["lazy", "eager", "daemon"]
+        },
+        "watchers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AgentWatcher" }
+        }
+      }
+    },
+    "AgentWatcher": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "interval": { "type": "integer" },
+        "path": { "type": "string" },
+        "folder": { "type": "string" },
+        "module": { "type": "string" },
+        "function": { "type": "string" },
+        "cooldown": { "type": "integer" }
+      }
+    },
+    "Connection": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Pre-AEOS [[connections]] block consumed by the connection registry. Future migration to `kind = \"adapter\"` is tracked in the parity-gaps doc; until then the root-level form is permitted.",
+      "properties": {
+        "name": { "type": "string" },
+        "display_name": { "type": "string" },
+        "kind": { "type": "string" },
+        "category": { "type": "string" },
+        "endpoint": { "type": "string" },
+        "credential_type": { "type": "string" },
+        "credential_env_var": { "type": "string" },
+        "credential_file": { "type": "string" },
+        "required": { "type": "boolean" },
+        "health_check": { "type": "string" },
+        "health_endpoint": { "type": "string" },
+        "docs_url": { "type": "string" },
+        "description": { "type": "string" },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "post_setup_module": { "type": "string" },
+        "post_setup_function": { "type": "string" },
+        "ensure_module": { "type": "string" },
+        "ensure_function": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
+    "ChatToolsModule": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "Pre-AEOS [chat_tools] block declares a module path containing tool definitions. Future migration to multiple `kind = \"tool\"` provides blocks per individual tool is tracked in the parity-gaps doc.",
+      "properties": {
+        "module": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "SkillsConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "dir": { "type": "string" }
+      }
+    },
+    "ProviderConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string" },
+        "name": { "type": "string" },
+        "module": { "type": "string" }
+      }
+    },
+    "ExtractorConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "module": { "type": "string" },
+        "file_patterns": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "MCPServerConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "type": "string" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": { "type": "object" },
+        "description": { "type": "string" }
+      }
+    },
+    "PromptContribution": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "layer": { "type": "string" },
+        "name": { "type": "string" },
+        "source_module": { "type": "string" },
+        "source_function": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "MCPBlock": {
+      "$comment": "[extension.mcp] block per spec-builtin-mcp-server.md §7. Schema is intentionally permissive at the JSON-Schema level — semantic validation (collisions, principal patterns, prefix shape) lives in axiom.extensions.builtins.mcp.manifest_schema.lint_mcp_block, surfaced through `axi ext lint` as AEOS070..AEOS073.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "prefix": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["public", "internal"] },
+        "auth": { "type": "string", "enum": ["local_stdio", "token", "principal"] },
+        "description": { "type": "string" },
+        "tool": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPToolEntry" }
+        },
+        "resource": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPResourceEntry" }
+        },
+        "prompt": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPPromptEntry" }
+        },
+        "cmd": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MCPCmdEntry" }
+        }
+      }
+    },
+    "MCPToolEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "mcp_name": { "type": "string" },
+        "description_override": { "type": "string" },
+        "input_schema_module": { "type": "string" },
+        "hidden": { "type": "boolean" },
+        "allowed_principals": { "type": "array", "items": { "type": "string" } },
+        "side_effects": { "type": "string" }
+      }
+    },
+    "MCPResourceEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "uri_template", "entry"],
+      "properties": {
+        "name": { "type": "string" },
+        "uri_template": { "type": "string" },
+        "entry": { "type": "string" },
+        "mime_type": { "type": "string" },
+        "allowed_principals": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "MCPPromptEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "description", "entry"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "entry": { "type": "string" },
+        "arguments": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "MCPCmdEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["noun"],
+      "properties": {
+        "noun": { "type": "string" },
+        "subcommands": { "type": "array", "items": { "type": "string" } },
+        "mcp_name_pattern": { "type": "string" },
+        "allowed_principals": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "authz"
+version = "0.1.0"
+description = "GUARD — unified authorization decision site. Per ADR-055 + prd-axiom-authz."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.24"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# GUARD agent — the Reviewer + Governor class member that owns this primitive.
+[[extension.provides]]
+kind = "agent"
+name = "guard"
+entry = "axiom.extensions.builtins.authz:guard_persona_path"
+persona = "agents/guard/persona.md"
+description = "GUARD — deterministic authorization gatekeeper: evaluates rules, checks capability scope, tracks graduation, emits audit verdicts."
+
+# The decide() tool — every primitive consults it.
+[[extension.provides]]
+kind = "tool"
+name = "authz_decide"
+entry = "axiom.extensions.builtins.authz.decide:decide"
+description = "Decide whether an ActionEnvelope is permitted."
+idempotent = true
+side_effects = "writes_receipt"
+
+# Declared authority (P5): every tool call through axiom.infra.tool_gateway
+# consults decide() with intent `tool.invoke` and the tool as the resource
+# (tool://<name>). Priority 1000 so it runs after every manifest hook (AEOS
+# default 100; memory dedup 50) and decides on the effective args.
+# fail_mode = "warn" — this first step is fail-open by design; the site
+# manifest step flips it to fail-closed. See axiom.infra.authority.
+[[extension.provides]]
+kind = "hook"
+events = ["tool.pre_invoke"]
+entry = "axiom.infra.authority:pre_invoke_handler"
+priority = 1000
+fail_mode = "warn"
+description = "Every tool call consults GUARD — default-allow with a receipt (P5 step 1)."
+
+# audit CLI noun lives here (per ADR-056 will be skill-backed when CLI lands).
+[[extension.provides]]
+kind = "cmd"
+noun = "audit"
+entry = "axiom.extensions.builtins.authz.cli:cli"
+subcommands = ["list", "show", "chain", "causes", "explain"]
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's GUARD {version}")
+# on every channel. The canonical principal (@guard:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "GUARD"

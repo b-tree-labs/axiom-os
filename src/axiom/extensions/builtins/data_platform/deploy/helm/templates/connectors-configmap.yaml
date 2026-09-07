@@ -1,0 +1,19 @@
+# Ingest connectors — one TOML per source instance, mounted into the
+# Dagster pods at $AXI_STATE_DIR/plinth/connectors/. The box sensor
+# enumerates kind=box connectors at runtime (one source each). Populate
+# via `.Values.connectors` (name -> TOML string). Empty by default so
+# existing installs keep the env-driven single-source path.
+{{- if .Values.connectors }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-connectors
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+data:
+{{- range $name, $toml := .Values.connectors }}
+  {{ $name }}.toml: |
+{{ $toml | indent 4 }}
+{{- end }}
+{{- end }}

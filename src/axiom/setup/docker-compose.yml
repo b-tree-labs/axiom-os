@@ -1,0 +1,25 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: axiom-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: axiom
+      POSTGRES_PASSWORD: ${AXIOM_PG_PASSWORD:-axiom}
+      POSTGRES_DB: axiom_db
+    volumes:
+      - axiom-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axiom -d axiom_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  axiom-pgdata:

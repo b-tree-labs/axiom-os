@@ -1,0 +1,79 @@
+{{- if eq .Values.clickhouse.mode "internal" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-clickhouse
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "axiom-observability.selectorLabels" . | nindent 4 }}
+    component: clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
+    - name: native
+      port: 9000
+      targetPort: native
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-clickhouse
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+    component: clickhouse
+spec:
+  serviceName: {{ include "axiom-observability.fullname" . }}-clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axiom-observability.selectorLabels" . | nindent 6 }}
+      component: clickhouse
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-observability.selectorLabels" . | nindent 8 }}
+        component: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: "{{ .Values.clickhouse.internal.image.repository }}:{{ .Values.clickhouse.internal.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          env:
+            - name: CLICKHOUSE_DB
+              value: {{ .Values.clickhouse.internal.database | quote }}
+            - name: CLICKHOUSE_USER
+              value: {{ .Values.clickhouse.internal.username | quote }}
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axiom-observability.fullname" . }}-clickhouse
+                  key: password
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          volumeMounts:
+            - name: chdata
+              mountPath: /var/lib/clickhouse
+  volumeClaimTemplates:
+    - metadata:
+        name: chdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.internal.storage }}
+        {{- if .Values.clickhouse.internal.storageClass }}
+        storageClassName: {{ .Values.clickhouse.internal.storageClass }}
+        {{- end }}
+{{- end }}

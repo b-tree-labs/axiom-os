@@ -1,0 +1,127 @@
+# axiom-observability Helm chart — default values.
+#
+# Mirrors the data_platform chart's shape: provider-driven where
+# possible, opinionated defaults, no manual post-install patches.
+#
+# Langfuse v3 requires Postgres (metadata) + ClickHouse (trace store).
+# This chart bundles both as StatefulSets by default. External-mode for
+# either is supported via values overlays (parity with data_platform's
+# `database.mode = external`).
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------
+# Langfuse application (web + worker)
+# ------------------------------------------------------------------------
+langfuse:
+  image:
+    repository: "langfuse/langfuse"
+    tag: "3"
+  webReplicas: 1
+  workerReplicas: 1
+
+  # Required secrets — generate strong random values for each install.
+  # `axi observe install` mints these when not supplied and writes them
+  # back into the SkillResult.value alongside the public/secret keys.
+  salt: ""
+  nextauthSecret: ""
+  encryptionKey: ""
+
+  # Initial project bootstrap. When set, the worker creates a project on
+  # first boot and surfaces (publicKey, secretKey) via a k8s Secret the
+  # install skill reads back.
+  initProjectName: "axiom"
+
+  resources:
+    web:
+      requests: { memory: "512Mi", cpu: "250m" }
+      limits:   { memory: "2Gi",   cpu: "1000m" }
+    worker:
+      requests: { memory: "512Mi", cpu: "250m" }
+      limits:   { memory: "2Gi",   cpu: "1000m" }
+
+# ------------------------------------------------------------------------
+# Postgres (Langfuse metadata) — defaults to the SHARED axiom OLTP DB
+# with schema=langfuse per ADR-052. The install skill runs a one-time
+# `CREATE SCHEMA IF NOT EXISTS langfuse` and `CREATE EXTENSION IF NOT
+# EXISTS pgcrypto`, then renders DATABASE_URL with `?schema=langfuse`.
+# Langfuse's Prisma migrations honor the schema and never touch the
+# `public` namespace. Flip `mode = internal` only if you genuinely
+# want an isolated Postgres for the trace metadata.
+# ------------------------------------------------------------------------
+postgres:
+  mode: "external"     # external (shared axiom OLTP) | internal (own StatefulSet)
+
+  external:
+    # When unset, the install skill will look up the data_platform
+    # extension's Postgres via the same secret reference shape used
+    # there (DP1_RAG_DSN-style discovery).
+    host: ""
+    port: 5432
+    database: ""
+    username: ""
+    passwordSecret: ""
+    schema: "langfuse"   # Prisma honors `?schema=` on the connection string
+
+  internal:
+    image:
+      repository: "postgres"
+      tag: "16"
+    storage: "20Gi"
+    storageClass: ""
+    database: "langfuse"
+    username: "langfuse"
+    password: ""         # rendered by install skill if empty
+
+# ------------------------------------------------------------------------
+# ClickHouse (Langfuse v3 trace store)
+# ------------------------------------------------------------------------
+clickhouse:
+  mode: "internal"
+
+  internal:
+    image:
+      repository: "clickhouse/clickhouse-server"
+      tag: "24"
+    storage: "50Gi"
+    storageClass: ""
+    database: "langfuse"
+    username: "langfuse"
+    password: ""       # rendered by install skill if empty
+
+  external:
+    url: ""             # e.g. https://clickhouse.example.com:8443
+    username: ""
+    passwordSecret: ""
+
+# ------------------------------------------------------------------------
+# Service / Ingress
+# ------------------------------------------------------------------------
+service:
+  type: "ClusterIP"
+  port: 3000
+  nodePort: 0
+
+ingress:
+  enabled: false
+  className: ""
+  host: "langfuse.local"
+  tls: false
+
+# ------------------------------------------------------------------------
+# Image pull policy (applies to all pods unless overridden per-deploy)
+# ------------------------------------------------------------------------
+image:
+  pullPolicy: "IfNotPresent"
+  pullSecrets: []
+
+# ------------------------------------------------------------------------
+# Planned siblings — disabled in this version. Listed so operators see
+# the seam and the ADR's "planned but not implemented" note has a
+# corresponding code shape.
+# ------------------------------------------------------------------------
+prometheus:
+  enabled: false
+grafana:
+  enabled: false

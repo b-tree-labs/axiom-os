@@ -1,0 +1,21 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "auth"
+version = "0.1.0"
+description = "SSO / OIDC delegated authentication — device-code, JWKS, vault-keyed tokens (ADR-075)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.31"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "auth"
+entry = "axiom.extensions.builtins.auth.cli:main"
+description = "login / whoami / logout / providers."

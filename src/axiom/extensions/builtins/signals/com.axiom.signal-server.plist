@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.axiom.signal-server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/example/Projects/workspace/.venv/bin/python</string>
+        <string>-m</string>
+        <string>axiom.extensions.builtins.signals.cli</string>
+        <string>serve</string>
+        <string>--port</string>
+        <string>8765</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/example/Projects/workspace</string>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/axiom-signal.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/axiom-signal.log</string>
+</dict>
+</plist>

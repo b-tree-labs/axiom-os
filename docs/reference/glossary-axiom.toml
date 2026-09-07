@@ -1,0 +1,413 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Axiom Core Glossary
+#
+# Domain-agnostic terms used throughout the Axiom framework.
+# axiom and other domain layers extend these via their own glossary files.
+#
+# Managed by: Axiom core team
+# Queried via: axi glossary --layer axiom
+# See: docs/specs/spec-glossary-system.md
+
+# ---------------------------------------------------------------------------
+# Access & Sensitivity Model
+# ---------------------------------------------------------------------------
+
+[[terms]]
+id         = "tier"
+layer      = "axiom"
+term       = "Tier"
+definition = """
+An access sensitivity level that determines which physical store holds content
+of that tier, whether cloud embedding is permitted, and what processing boundary
+applies. Tier names and properties are defined by the domain configuration —
+Axiom assigns none by default.
+
+Axiom recognises three tier archetypes by their properties:
+  public      — cloud embedding allowed; standard local store
+  restricted  — no cloud embedding; requires isolated store
+  classified  — no cloud embedding; requires isolated store; additional
+                processing boundary enforced by the domain
+"""
+properties = ["cloud_embedding_allowed", "requires_isolated_store",
+              "processing_boundary"]
+see_also   = ["scope", "isolated_store", "domain_configuration",
+              "processing_boundary"]
+example    = """
+A domain configuration might define three tiers:
+  public      (cloud embedding allowed, local store)
+  restricted  (no cloud, isolated store)
+  classified  (no cloud, isolated store, regulated boundary)
+"""
+extends    = false
+
+[[terms]]
+id         = "scope"
+layer      = "axiom"
+term       = "Scope"
+definition = """
+The visibility boundary of a piece of content, independent of its sensitivity
+tier. Scope determines who may discover and retrieve an item, not whether
+cloud processing is permitted (that is determined by tier).
+
+Three scope values are defined at the Axiom level:
+  community  — visible to all subscribers of a domain pack
+  tenant     — visible only within the deploying organisation
+  personal   — visible only to the creating user
+"""
+see_also   = ["tier", "domain_pack"]
+example    = """
+A publicly available NRC regulatory guide has:
+  tier  = public, scope = community
+
+An operator's personal note attached to a procedure has:
+  tier  = restricted, scope = personal
+
+A tenant-internal SOP has:
+  tier  = restricted, scope = tenant
+"""
+extends    = false
+
+[[terms]]
+id         = "processing_boundary"
+layer      = "axiom"
+term       = "Processing Boundary"
+definition = """
+A constraint specifying where computation involving content of a given tier
+may occur. Processing boundaries are defined in domain configuration and
+enforced by the gateway and RAG store.
+
+Examples of boundary values: local, site_network, isolated_enclave.
+"""
+see_also   = ["tier", "isolated_store"]
+extends    = false
+
+[[terms]]
+id         = "isolated_store"
+layer      = "axiom"
+term       = "Isolated Store"
+definition = """
+A physical embedding and retrieval store that is network-isolated from
+cloud services. Required for tiers with cloud_embedding_allowed = false.
+The specific store implementation (e.g. PostgreSQL on a private node,
+an air-gapped vector index) is defined by the domain infrastructure spec.
+"""
+see_also   = ["tier", "processing_boundary"]
+extends    = false
+
+# ---------------------------------------------------------------------------
+# Knowledge Infrastructure
+# ---------------------------------------------------------------------------
+
+[[terms]]
+id         = "domain_pack"
+layer      = "axiom"
+term       = "Domain Pack"
+definition = """
+A curated, versioned collection of documents, embeddings, and structured
+facts for a specific subject area. Domain packs are the atomic subscription
+unit of the community corpus.
+
+A domain pack has:
+  - A unique id and semantic version
+  - A declared access tier
+  - A set of source documents with embedding provenance
+  - An optional set of knowledge facts (Layer 2+)
+  - A sync protocol entry for community distribution
+"""
+see_also   = ["bundle", "community_corpus", "knowledge_maturity",
+              "embedding_provenance"]
+extends    = false
+
+[[terms]]
+id         = "bundle"
+layer      = "axiom"
+term       = "Bundle"
+definition = """
+A named preset that selects a set of domain packs appropriate for a
+particular user persona or role. Bundles are an install-time convenience;
+they do not create new packs and do not affect the individual pack sync
+lifecycle.
+
+Example: a "researcher" bundle might include the procedures pack, the
+simulation codes pack, and the domain-specific data pack.
+"""
+see_also   = ["domain_pack"]
+extends    = false
+
+[[terms]]
+id         = "community_corpus"
+layer      = "axiom"
+term       = "Community Corpus"
+definition = """
+The shared, version-controlled collection of domain packs distributed to
+all subscribing deployments. The community corpus is distinct from a
+tenant's internal corpus (scope = tenant) and personal content
+(scope = personal).
+"""
+see_also   = ["domain_pack", "scope"]
+extends    = false
+
+[[terms]]
+id         = "knowledge_maturity"
+layer      = "axiom"
+term       = "Knowledge Maturity"
+definition = """
+A six-layer model describing the epistemic state of a piece of content in
+the RAG corpus:
+
+  Layer 0 — Data        Raw documents and artefacts, indexed but unvalidated
+  Layer 1 — Patterns    Usage-derived retrieval patterns (implicit signal)
+  Layer 2 — Facts       Explicitly validated knowledge facts
+  Layer 3 — Frameworks  Cross-domain synthesised mental models
+  Layer 4 — Application Validated applied procedures
+  Layer 5 — Wisdom      Heuristics from accumulated operational experience
+
+Promotion between layers is governed by a configurable PromotionPolicy.
+v1 ships Layers 0–2.
+"""
+see_also   = ["promotion_policy", "knowledge_fact", "retrieval_log"]
+extends    = false
+
+[[terms]]
+id         = "knowledge_fact"
+layer      = "axiom"
+term       = "Knowledge Fact"
+definition = """
+A discrete, human-reviewable proposition extracted or synthesised from
+Layer 0 content and validated to Layer 2. A knowledge fact records:
+  - The proposition text
+  - Source chunk ids
+  - Validation state and reviewer
+  - Access tier (inherited from source, never downgraded)
+  - Embedding provenance
+"""
+see_also   = ["knowledge_maturity", "promotion_policy"]
+extends    = false
+
+[[terms]]
+id         = "retrieval_log"
+layer      = "axiom"
+term       = "Retrieval Log"
+definition = """
+A persistent record of every retrieval event from the RAG store. Each entry
+captures: session id, query hash, chunk ids returned, rerank scores, tier,
+scope, and a relevance signal (explicit or implicit). The retrieval log is
+the foundation for Layer 1 knowledge maturity and the reinforcement learning
+feedback loop.
+"""
+see_also   = ["knowledge_maturity", "promotion_policy"]
+extends    = false
+
+[[terms]]
+id         = "promotion_policy"
+layer      = "axiom"
+term       = "Promotion Policy"
+definition = """
+A configurable, testable protocol that determines when a piece of content is
+eligible to advance from one knowledge maturity layer to the next. Policy
+parameters (e.g. minimum retrieval count, minimum positive signal ratio,
+mandatory human review) are declared in rag.toml and evaluated by the
+promotion pipeline.
+
+The PromotionPolicy interface is implemented in axiom; domain-specific
+policies are supplied via extension.
+"""
+see_also   = ["knowledge_maturity", "retrieval_log"]
+example    = """
+# rag.toml example
+[promotion.layer_0_to_1]
+min_retrievals      = 5
+min_positive_ratio  = 0.6
+require_human_review = false
+
+[promotion.layer_1_to_2]
+min_positive_ratio  = 0.8
+require_human_review = true
+"""
+extends    = false
+
+# ---------------------------------------------------------------------------
+# Embedding & Retrieval
+# ---------------------------------------------------------------------------
+
+[[terms]]
+id         = "embedding_provenance"
+layer      = "axiom"
+term       = "Embedding Provenance"
+definition = """
+Metadata attached to each embedded chunk recording which model produced
+the embedding, the model version, and the embedding dimensionality. Used
+to detect stale embeddings after a model transition and to gate cross-model
+similarity comparisons.
+
+Fields: embedding_model_id, embedding_dims, embedding_version, needs_reembed.
+"""
+see_also   = ["lazy_reembedding", "hybrid_search"]
+extends    = false
+
+[[terms]]
+id         = "lazy_reembedding"
+layer      = "axiom"
+term       = "Lazy Re-embedding"
+definition = """
+A strategy for handling embedding model transitions without requiring a
+full corpus re-index. Chunks with stale embeddings (needs_reembed = true)
+continue to participate in retrieval via the full-text search baseline.
+A background job (TIDY) re-embeds stale chunks incrementally.
+"""
+see_also   = ["embedding_provenance", "hybrid_search"]
+extends    = false
+
+[[terms]]
+id         = "hybrid_search"
+layer      = "axiom"
+term       = "Hybrid Search"
+definition = """
+A retrieval strategy combining full-text search (BM25 / tsvector) with
+vector similarity search. Full-text search is the invariant baseline that
+works regardless of embedding model; vector search adds semantic recall.
+Results from both are merged and optionally reranked by a cross-encoder.
+"""
+see_also   = ["cross_encoder_reranker", "lazy_reembedding",
+              "embedding_provenance"]
+extends    = false
+
+[[terms]]
+id         = "cross_encoder_reranker"
+layer      = "axiom"
+term       = "Cross-Encoder Reranker"
+definition = """
+A model that scores (query, chunk) pairs after initial retrieval to produce
+a final relevance ranking. The reranker is model-independent — it can be
+upgraded without changing the corpus or embedding model.
+"""
+see_also   = ["hybrid_search"]
+extends    = false
+
+[[terms]]
+id         = "extractor"
+layer      = "axiom"
+term       = "Extractor"
+definition = """
+A pluggable component in the RAG ingest pipeline responsible for converting
+a specific source type (PDF, HTML, transcript, simulation output file, etc.)
+into normalised chunks with metadata. Extractors are registered via the
+extractor registry and resolved by MIME type or file extension.
+
+Domain-specific extractors (e.g. MCNP output parser) are provided as
+extensions; Axiom ships only generic extractors.
+"""
+see_also   = ["domain_pack"]
+extends    = false
+
+# ---------------------------------------------------------------------------
+# Research
+# ---------------------------------------------------------------------------
+
+[[terms]]
+id         = "research_task"
+layer      = "axiom"
+term       = "Research Task"
+definition = """
+A bounded unit of autonomous research managed by CURIO. A research task
+has a lifecycle: question → plan → approval → execution → synthesis →
+validation → report. Tasks respect tier/scope boundaries and produce
+audit-logged provenance for every step.
+"""
+see_also   = ["standing_order", "source_connector", "synthesis_report"]
+extends    = false
+
+[[terms]]
+id         = "standing_order"
+layer      = "axiom"
+term       = "Standing Order"
+definition = """
+A persistent research interest that triggers periodic re-research and
+briefing generation. Standing orders monitor configured sources on a
+cadence (daily, weekly, monthly) and deliver delta briefings when new
+findings are discovered. Scope can be personal, tenant, or community.
+"""
+see_also   = ["research_task", "source_connector"]
+extends    = false
+
+[[terms]]
+id         = "source_connector"
+layer      = "axiom"
+term       = "Source Connector"
+definition = """
+A pluggable component that searches and retrieves documents from a specific
+external source for CURIO research. Source connectors declare a tier
+ceiling (the highest sensitivity of content they handle), implement search
+and retrieve interfaces, and are discovered via the extension system.
+
+Axiom ships generic connectors (RAG corpus, web search, arXiv). Domain
+extensions provide specialised connectors (e.g. NRC ADAMS, PubMed, IAEA INIS).
+"""
+see_also   = ["research_task", "extractor", "tier"]
+extends    = false
+
+[[terms]]
+id         = "research_validator"
+layer      = "axiom"
+term       = "Research Validator"
+definition = """
+A domain-specific rule that validates claims extracted during research.
+Validators are triggered by regex pattern matching on claim text and check
+domain constraints (e.g. cross-section claims must cite evaluated nuclear
+data libraries, regulatory guidance must reference the current revision).
+
+Axiom ships generic validators (citation existence, URL reachability, date
+currency). Domain extensions provide specialised validators.
+"""
+see_also   = ["research_task", "source_connector", "knowledge_fact"]
+extends    = false
+
+[[terms]]
+id         = "synthesis_report"
+layer      = "axiom"
+term       = "Synthesis Report"
+definition = """
+The structured output of a completed research task. Contains an executive
+summary, detailed findings per sub-question, cross-question themes,
+knowledge gaps, suggested follow-up, proposed knowledge facts, and a
+citation list with verification status. Reports respect tier boundaries —
+cross-tier research produces separate sub-reports per tier.
+"""
+see_also   = ["research_task", "knowledge_fact"]
+extends    = false
+
+[[terms]]
+id         = "corpus_gap"
+layer      = "axiom"
+term       = "Corpus Gap"
+definition = """
+A topic area where RAG retrieval confidence is consistently low across
+multiple queries. Gaps are detected from the interaction log (passive) and
+from research task findings (active). CURIO's self-research cycle
+attempts to fill gaps by discovering and proposing new content.
+"""
+see_also   = ["research_task", "knowledge_maturity", "retrieval_log"]
+extends    = false
+
+# ---------------------------------------------------------------------------
+# Platform
+# ---------------------------------------------------------------------------
+
+[[terms]]
+id         = "domain_configuration"
+layer      = "axiom"
+term       = "Domain Configuration"
+definition = """
+The set of files and extension manifests that specialise Axiom for a
+particular deployment domain. Domain configuration defines tier names and
+properties, store assignments, extraction profiles, and domain-specific
+extension points.
+
+In axiom, domain configuration lives in runtime/config/ and is
+gitignored; config.example/ provides templates.
+"""
+see_also   = ["tier", "isolated_store"]
+extends    = false

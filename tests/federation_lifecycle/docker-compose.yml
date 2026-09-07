@@ -1,0 +1,81 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# 3-node federation: one hub, two leaves.
+#
+# Each node:
+#   - runs sshd on port 22 (mapped to the compose network, resolvable by
+#     hostname — "hub", "leaf1", "leaf2")
+#   - starts with an *empty* ~/.axi — tests drive `axi federation init`
+#     explicitly so the bootstrap path is what's under test
+#   - mounts a shared test keypair under /harness/keys (read-only) so that
+#     `ssh axiom@leaf1` from hub (and vice-versa) works without prompts
+#
+# The `harness_keys` named volume is populated by harness.py on `start()`:
+# we generate a fresh Ed25519 keypair on the host and copy it in. This
+# avoids baking secrets into the image.
+
+services:
+  hub:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    image: axiom-fed-node:dev
+    container_name: axi-fed-hub
+    hostname: hub
+    environment:
+      AXIOM_NODE_NAME: hub
+      AXIOM_NODE_ROLE: hub
+    volumes:
+      - hub_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    ports:
+      - "22201:22"
+
+  leaf1:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    container_name: axi-fed-leaf1
+    hostname: leaf1
+    environment:
+      AXIOM_NODE_NAME: leaf1
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - leaf1_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    ports:
+      - "22202:22"
+    depends_on: [hub]
+
+  leaf2:
+    image: axiom-fed-node:dev
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    container_name: axi-fed-leaf2
+    hostname: leaf2
+    environment:
+      AXIOM_NODE_NAME: leaf2
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - leaf2_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+    ports:
+      - "22203:22"
+    depends_on: [hub]
+
+networks:
+  fednet:
+    driver: bridge
+
+volumes:
+  hub_state:
+  leaf1_state:
+  leaf2_state:
+  harness_keys:

@@ -1,0 +1,75 @@
+{{- if eq .Values.postgres.mode "internal" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-postgres
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "axiom-observability.selectorLabels" . | nindent 4 }}
+    component: postgres
+  ports:
+    - port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-postgres
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+    component: postgres
+spec:
+  serviceName: {{ include "axiom-observability.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axiom-observability.selectorLabels" . | nindent 6 }}
+      component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-observability.selectorLabels" . | nindent 8 }}
+        component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.internal.image.repository }}:{{ .Values.postgres.internal.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.internal.username | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.internal.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axiom-observability.fullname" . }}-postgres
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "{{ .Values.postgres.internal.username }}"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.internal.storage }}
+        {{- if .Values.postgres.internal.storageClass }}
+        storageClassName: {{ .Values.postgres.internal.storageClass }}
+        {{- end }}
+{{- end }}
