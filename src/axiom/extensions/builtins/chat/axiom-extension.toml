@@ -1,0 +1,134 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# AXI — the Loop agent (REPL protagonist).
+# Consumer layers rebrand him: a domain consumer might call him "Neut", others → their own name.
+# Under the hood, it's always AXI.
+
+[extension]
+name = "chat"
+version = "0.4.0"
+description = "Interactive conversational agent — houses AXI, the Loop agent who connects Read/Eval/Print into compound cycles."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# AXI — the Loop agent the extension exists to host.
+[[extension.provides]]
+kind = "agent"
+name = "axi"
+entry = "axiom.extensions.builtins.chat.agent:ChatAgent"
+persona = "agents/axi/persona.md"
+description = "AXI — conversational loop agent: multi-turn tool-use with approval gates, RAG context, streaming, and session continuity"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "chat"
+entry = "axiom.extensions.builtins.chat.cli:main"
+description = "Interactive agent with tool calling"
+tier = "starter"
+intent_groups = ["start"]
+
+# `axi code` alias removed 2026-05-04 — it was a Claude-Code-flavoured
+# alias for `axi chat` that confused new users (cluttered the menu with
+# a duplicate entry pointing at the same handler).  Use `axi chat` to
+# address AXI directly.
+
+# Transitional pre-AEOS bridge sections — runtime consumers (connection
+# registry, post-setup hooks) read these at startup.
+
+[[connections]]
+name = "anthropic"
+display_name = "Anthropic Claude"
+kind = "api"
+credential_env_var = "ANTHROPIC_API_KEY"
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = "https://console.anthropic.com/settings/keys"
+
+[[connections]]
+name = "openai"
+display_name = "OpenAI"
+kind = "api"
+credential_env_var = "OPENAI_API_KEY"
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = "https://platform.openai.com/api-keys"
+
+[[connections]]
+name = "llm-provider"
+display_name = "LLM Provider (cloud)"
+kind = "api"
+credential_type = "none"
+category = "llm"
+description = "Interactive setup: choose Anthropic, OpenAI, or other cloud LLM"
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_llm_provider"
+
+[[connections]]
+name = "ollama"
+display_name = "Ollama"
+kind = "cli"
+endpoint = "ollama"
+credential_type = "none"
+health_check = "cli_version"
+category = "llm"
+docs_url = "https://ollama.com/download"
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_ollama"
+ensure_module = "axiom.extensions.builtins.chat.connections"
+ensure_function = "ensure_ollama_running"
+
+[connections.install_commands]
+macos = "brew install ollama"
+linux = "curl -fsSL https://ollama.com/install.sh | sh"
+
+[[connections]]
+name = "qwen-selfhosted"
+display_name = "Qwen 3.5 on a self-hosted node (org VPN)"
+kind = "api"
+endpoint = "https://example-host.example.org:41883/v1"
+model = "unsloth/Qwen3.5-122B-A10B-GGUF:Q4_K_M"
+credential_env_var = "SELFHOSTED_API_KEY"
+credential_type = "api_key"
+health_check = "tcp_connect"
+health_endpoint = "example-host.example.org:41883"
+routing_tier = "restricted"
+verify_ssl = false
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = ""
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_internal_llm"
+vpn_name = "Internal VPN"
+vpn_connect_guide = "Connect to your organization's VPN before using this provider."
+
+[[connections]]
+name = "pandoc"
+display_name = "Pandoc"
+kind = "cli"
+endpoint = "pandoc"
+credential_type = "none"
+health_check = "cli_version"
+category = "tools"
+docs_url = "https://pandoc.org/installing.html"
+
+[connections.install_commands]
+macos = "brew install pandoc"
+linux = "sudo apt-get install -y pandoc"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's AXI {version}")
+# on every channel. The canonical principal (@axi:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "AXI"

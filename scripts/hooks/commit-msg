@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# commit-msg hook — stamps a `Bypass-Reason:` trailer onto the commit message
+# when AXI_OVERRIDE_REASON is set in the environment.
+#
+# Pairs with scripts/hooks/pre-push: when origin/main is red, pre-push refuses
+# pushes that include commits lacking a Bypass-Reason trailer. To satisfy that
+# gate, commit with `AXI_OVERRIDE_REASON="why" git commit ...` — this hook
+# injects the trailer automatically. Bypass-by-habit becomes bypass-with-receipt.
+#
+# To install: cp scripts/hooks/commit-msg .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
+#
+# Idempotent: if a Bypass-Reason trailer is already present, this hook leaves
+# the message untouched.
+
+set -euo pipefail
+
+MSG_FILE="$1"
+
+# No override reason → nothing to do.
+if [ -z "${AXI_OVERRIDE_REASON:-}" ]; then
+  exit 0
+fi
+
+# Already has a Bypass-Reason trailer → leave it alone.
+if git interpret-trailers --parse < "$MSG_FILE" 2>/dev/null \
+    | grep -qiE '^Bypass-Reason:[[:space:]]*[^[:space:]]'; then
+  exit 0
+fi
+
+# Inject the trailer. `git interpret-trailers` handles separator + idempotence
+# rules per the commit-message conventions.
+tmp="$(mktemp)"
+git interpret-trailers \
+  --trailer "Bypass-Reason: ${AXI_OVERRIDE_REASON}" \
+  < "$MSG_FILE" > "$tmp"
+mv "$tmp" "$MSG_FILE"

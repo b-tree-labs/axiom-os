@@ -1,0 +1,21 @@
+flowchart TD
+  CE["Claim + evidence<br/>immutable tuple"]:::data
+  HASH["content_hash<br/>SHA-256 over canonical<br/>claim + evidence"]:::core
+  MINT["mint()<br/>author signs the hash<br/>Signature role = author"]:::vega
+  ATT["attest(role)<br/>append one Ed25519 signature<br/>verifier · eval-gate · node-attestation"]:::vega
+  CHAIN["Append-only signature chain<br/>order preserved · never rewritten"]:::accent
+  DIGEST["Digest<br/>signed envelope crossing<br/>the federation boundary"]:::vega
+  VERIFY["verify_finding(pubkeys)<br/>1 · recompute hash equals content_hash<br/>2 · every signature verifies"]:::core
+  OUT["Accept — or reject<br/>tampered field or unknown signer gives False"]:::neutral
+  CE --> HASH
+  HASH --> MINT
+  MINT --> ATT
+  ATT --> CHAIN
+  CHAIN --> DIGEST
+  DIGEST --> VERIFY
+  VERIFY --> OUT
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

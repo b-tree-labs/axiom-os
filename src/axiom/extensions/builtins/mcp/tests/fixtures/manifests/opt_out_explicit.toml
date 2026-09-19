@@ -1,0 +1,13 @@
+# Copyright (c) 2026 B-Tree Ventures, LLC. Apache-2.0 licensed.
+# Fixture: explicit opt-out via enabled = false.
+
+[extension]
+name = "fixture_opt_out_explicit"
+version = "0.0.1"
+description = "Fixture extension explicitly opting out of MCP exposure."
+license = "Apache-2.0"
+owner = "axiom-tests"
+aeos_version = "0.1.0"
+
+[extension.mcp]
+enabled = false

@@ -1,0 +1,46 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "connector"
+version = "0.1.0"
+description = "Cross-cutting connector primitive — install, status, reconnect, observability for every external vendor surface"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.29"
+
+# `axi connector` — the noun every extension that touches a vendor surface
+# (HERALD, Calendar, RAG ingest, future) consults. This is a sibling
+# primitive to GUARD / KEEP / HERALD / PULSE per ADR-NNN.
+[[extension.provides]]
+kind = "cmd"
+noun = "connector"
+entry = "axiom.extensions.builtins.connector.cli:main"
+description = "Cross-cutting connector registry — install, status, reconnect"
+tier = "core"
+
+[[extension.provides]]
+kind = "skill"
+name = "add"
+description = "Interactive wizard: configure a new connector instance."
+
+[[extension.provides]]
+kind = "skill"
+name = "status"
+description = "Show last-known outcome per registered connector."
+
+[[extension.provides]]
+kind = "skill"
+name = "reconnect"
+description = "Surface connectors needing reconnect + suggested next action."
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+description = "List currently registered connectors."

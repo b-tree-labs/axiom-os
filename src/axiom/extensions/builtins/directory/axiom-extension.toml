@@ -1,0 +1,39 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "directory"
+version = "0.1.0"
+description = "Group and membership resolution as a pluggable seam — entra / oidc_claims / local (ADR-103)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.31"
+
+[[extension.provides]]
+kind = "adapter"
+noun = "directory"
+entry = "axiom.extensions.builtins.directory.providers:get_provider"
+description = "Resolve a principal's groups from any configured authority."
+
+# `axi directory` — the deterministic CLI surface. Each verb is a thin wrapper
+# over a registered skill function per ADR-056.
+[[extension.provides]]
+kind = "cmd"
+noun = "directory"
+entry = "axiom.extensions.builtins.directory.cli:main"
+subcommands = ["sync", "status"]
+description = "Sync directory groups into the authorization store; show configuration and the last run."
+
+# The cadenced projection (ADR-103 decision 7): every 15 minutes, enumerate
+# the configured groups and reconcile the tuple store to exactly their members
+# (a diff — removals happen — with removals recorded in the revoked set so they
+# bite on the next resolution). Exits 2 when any group failed to sync.
+[agent]
+heartbeat_interval = 900
+startup = "daemon"
+heartbeat_command = "directory sync --heartbeat"

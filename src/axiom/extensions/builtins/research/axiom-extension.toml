@@ -1,0 +1,33 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "research"
+version = "0.1.0"
+description = "Evaluation + knowledge engine — corpus quality gating, confidence learning, chunking optimization, and knowledge-pack lifecycle; houses CURIO."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# CURIO — the Eval / autonomous-research agent the extension exists to host.
+# Entry points to the quality_gate module; full agent loop wiring is a
+# follow-up alongside the RIVET pipeline-loop work.
+[[extension.provides]]
+kind = "agent"
+name = "curio"
+entry = "axiom.extensions.builtins.research.quality_gate:evaluate_candidate"
+persona = "agents/curio/persona.md"
+description = "CURIO — evaluation & knowledge engine: corpus quality gating (A/B promotion), confidence learning, chunking optimization, and knowledge-pack lifecycle"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's CURIO {version}")
+# on every channel. The canonical principal (@curio:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "CURIO"

@@ -1,0 +1,23 @@
+flowchart TD
+  ROOT["docs/ — the Axiom documentation tree"]:::core
+  ROOT --> ADR["docs/adrs/<br/>binding architecture decisions — the WHY"]:::accent
+  ROOT --> PRD["docs/prds/<br/>product requirements — the WHAT"]:::core
+  ROOT --> SPEC["docs/specs/<br/>normative technical contracts — the HOW"]:::core
+  ROOT --> PAPER["docs/papers/<br/>published research + whitepapers"]:::neutral
+  ROOT --> WORK["docs/working/<br/>drafts · audits · design notes"]:::neutral
+  WORK --> ARCH["docs/working/archive/<br/>superseded working docs"]:::neutral
+  ROOT --> EXTDOCS["per-extension docs/ (ADR-031)<br/>prd · spec · decisions co-located with code"]:::data
+
+  ADR -->|"constrains"| SPEC
+  PRD -->|"drives"| SPEC
+  WORK -->|"graduates to"| PRD
+  WORK -->|"graduates to"| SPEC
+
+  MEM["Precedence — when docs disagree,<br/>the memory stack wins (spec-memory.md)"]:::vega
+  SPEC --> MEM
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

@@ -1,0 +1,102 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "signals"
+version = "0.4.0"
+description = "Signal extraction + multi-source event synthesis — structured signals from voice, chat, code diffs, calendars, and documents (CLI noun `signal`); houses SCAN."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# SCAN — the Read agent the extension exists to host.
+# Per AEOS §4.1 + the Axiomatic Way principle #7 (agent identity is
+# canonical; the face is rebrandable), the agent's persona lives inside
+# the extension at agents/scan/persona.md — internal to the agent, not
+# a standalone skill.
+[[extension.provides]]
+kind = "agent"
+name = "scan"
+entry = "axiom.extensions.builtins.signals.cli:main"
+persona = "agents/scan/persona.md"
+description = "SCAN — multi-source signal extraction (voice, chat, code diffs, calendar, documents) + event classification (action_item, blocker, decision, classroom/federation/install/ci) + correlation, including CI-failure debounce (correlate rapid-fire ci_failure signals of the same signature within a window into one ci_incident digest)"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "signal"
+entry = "axiom.extensions.builtins.signals.cli:main"
+description = "Agentic signal ingestion pipeline (extract, correlate, brief)"
+tier = "core"
+intent_groups = ["maintain", "investigate"]
+
+# Transitional pre-AEOS bridge sections — runtime consumers (agent
+# lifecycle, connection registry, watcher loop) read these at startup.
+# Migrating them to [[extension.provides]] blocks is tracked in the
+# Tier 1c parity-gaps doc.
+
+[agent]
+heartbeat_interval = 30      # seconds between polling cycles
+startup = "lazy"
+
+[[agent.watchers]]
+name = "onedrive"
+enabled = true
+interval = 30
+folder = "ConsumerDocs"
+
+[[agent.watchers]]
+name = "inbox"
+enabled = true
+interval = 10
+path = "runtime/inbox/raw"
+
+[[connections]]
+name = "github"
+display_name = "GitHub"
+kind = "api"
+credential_env_var = "GITHUB_TOKEN"
+health_check = "http_get"
+health_endpoint = "https://api.github.com"
+category = "code"
+capabilities = ["read", "write"]
+docs_url = "https://github.com/settings/tokens"
+
+[[connections]]
+name = "gitlab"
+display_name = "GitLab"
+kind = "api"
+credential_env_var = "GITLAB_TOKEN"
+category = "code"
+capabilities = ["read", "write"]
+docs_url = ""
+
+[[connections]]
+name = "openai"
+display_name = "OpenAI (Embeddings)"
+kind = "api"
+credential_env_var = "OPENAI_API_KEY"
+category = "llm"
+capabilities = ["read"]
+docs_url = "https://platform.openai.com/api-keys"
+
+[[connections]]
+name = "huggingface"
+display_name = "Hugging Face"
+kind = "api"
+credential_env_var = "HF_TOKEN"
+category = "llm"
+capabilities = ["read"]
+docs_url = "https://huggingface.co/settings/tokens"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's SCAN {version}")
+# on every channel. The canonical principal (@scan:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "SCAN"

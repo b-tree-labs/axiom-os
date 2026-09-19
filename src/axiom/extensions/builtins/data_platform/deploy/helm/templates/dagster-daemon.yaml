@@ -1,0 +1,86 @@
+# Dagster daemon — runs sensors + schedules + run-queue. Split from
+# the webserver per the Dagster heavy-tier recommendation.
+#
+# Runs the baked `axiom-dagster-k8s` image (deploy/docker/Dockerfile.dagster)
+# with axiom-os-lm[data-platform] + OCR deps pre-installed. No boot-time
+# pip-install: the runtime is pinned at image-build time, so pods don't
+# need egress DNS and can't crash-loop on an unpublished version.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-dagster-daemon
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+    role: daemon
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "axiom-data-platform.selectorLabels" . | nindent 6 }}
+      component: data-platform
+      role: daemon
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-data-platform.selectorLabels" . | nindent 8 }}
+        component: data-platform
+        role: daemon
+    spec:
+      containers:
+        - name: dagster-daemon
+          image: "{{ .Values.dagster.baseImage.repository }}:{{ .Values.dagster.baseImage.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["dagster-daemon"]
+          # `-w` workspace flag is mandatory; without it the daemon
+          # can't find the code-location and runs silently fail.
+          args: ["run", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            - name: AXIOM_RAG_OCR_ENABLED
+              value: "1"
+            {{- include "axiom-data-platform.commonEnv" . | nindent 12 }}
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /opt/dagster/dagster_home
+            - name: provenance-rules
+              mountPath: /etc/axiom/rules
+              readOnly: true
+            - name: bronze
+              mountPath: {{ .Values.bronze.mountPath | default "/var/lib/axiom/bronze" }}
+            # Dagster I/O materializations need a writable storage path.
+            # The image's $DAGSTER_HOME/storage is read-only (ConfigMap-
+            # backed) — mount an emptyDir to satisfy materialization
+            # IO managers. Lost on pod restart; not a problem for our
+            # asset shape (no long-lived stored outputs).
+            - name: dagster-storage
+              mountPath: /opt/dagster/dagster_home/storage
+            {{- if .Values.connectors }}
+            # Connector TOMLs (one source per entry). The sensor reads
+            # these at runtime and dispatches to each SourceKindProvider.
+            - name: connectors
+              mountPath: /var/lib/axiom/state/plinth/connectors
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml (.Values.dagster.daemon.resources | default dict) | nindent 12 }}
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-dagster-config
+        - name: provenance-rules
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-provenance-rules
+        - name: bronze
+          persistentVolumeClaim:
+            claimName: {{ include "axiom-data-platform.fullname" . }}-bronze
+        - name: dagster-storage
+          emptyDir: {}
+        {{- if .Values.connectors }}
+        - name: connectors
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-connectors
+        {{- end }}

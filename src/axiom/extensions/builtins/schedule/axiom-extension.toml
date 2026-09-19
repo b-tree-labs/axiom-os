@@ -1,0 +1,73 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "schedule"
+version = "0.1.0"
+description = "PULSE — app-level domain scheduler. Per ADR-055 + prd-axiom-schedule + spec-axiom-schedule."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.24"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# PULSE-1 firing mode. Distributed mode lands in PULSE-2 as a config change here.
+[firing]
+mode = "single_node"
+lease_ttl_seconds = 30
+tick_interval_seconds = 1
+
+# PULSE agent — the Orchestrator class member that owns this primitive.
+[[extension.provides]]
+kind = "agent"
+name = "pulse"
+entry = "axiom.extensions.builtins.schedule:pulse_persona_path"
+persona = "agents/pulse/persona.md"
+description = "PULSE — app-level action scheduler: registers recurring/one-shot cadences and fires them with authz, idempotency, retry, and dead-letter."
+
+# Tools every other primitive can call to register / introspect schedules.
+[[extension.provides]]
+kind = "tool"
+name = "schedule_register"
+entry = "axiom.extensions.builtins.schedule.api:register"
+description = "Register a recurring or one-shot action under PULSE."
+idempotent = false
+side_effects = "writes_state"
+
+[[extension.provides]]
+kind = "tool"
+name = "schedule_fire_now"
+entry = "axiom.extensions.builtins.schedule.api:fire_now"
+description = "Manual fire of a schedule (subject to authz)."
+idempotent = false
+side_effects = "writes_state"
+
+# axi schedule CLI noun — verbs map 1:1 to skill-fns per ADR-056.
+[[extension.provides]]
+kind = "cmd"
+noun = "schedule"
+entry = "axiom.extensions.builtins.schedule.cli:cli"
+subcommands = ["register", "pause", "resume", "cancel", "list", "fire-now", "status"]
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's PULSE {version}")
+# on every channel. The canonical principal (@pulse:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "PULSE"
+
+# Calendar connector CLI (auth-integrated): axi calendar connect.
+[[extension.provides]]
+kind = "cmd"
+noun = "calendar"
+entry = "axiom.extensions.builtins.schedule.calendar.cli:main"
+description = "Connect a calendar (sign in + verify) and keep PULSE slots in sync."

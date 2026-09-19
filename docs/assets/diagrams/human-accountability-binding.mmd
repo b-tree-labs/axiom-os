@@ -1,0 +1,20 @@
+flowchart TD
+  HUMAN["Human principal<br/>handle @name:context · Ed25519 keypair"]:::vega
+  CUSTODY["Custody backend<br/>keychain · memory · badge<br/>private key never leaves its process"]:::neutral
+  DELEG["Delegation<br/>human grants authority to an agent"]:::vega
+  AGENT["Agent principal<br/>acts on the human's behalf"]:::vega
+  ACTION["Memorable or governed action<br/>a memory write · a governed call"]:::core
+  BIND["Accountability binding<br/>accountable_human_id — mandatory<br/>delegation_chain — human to agent"]:::accent
+  TRACE["Traceable to ONE named human<br/>unattributed writes are refused"]:::data
+  HUMAN --> CUSTODY
+  HUMAN --> DELEG
+  CUSTODY --> DELEG
+  DELEG --> AGENT
+  AGENT --> ACTION
+  ACTION --> BIND
+  BIND --> TRACE
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

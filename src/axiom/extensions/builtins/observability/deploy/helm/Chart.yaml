@@ -1,0 +1,27 @@
+apiVersion: v2
+name: axiom-observability
+description: |
+  Axiom observability substrate — packages a self-resilient Langfuse v3
+  install (web + worker + Postgres + ClickHouse) for trace + eval
+  capture from the Axiom Gateway and its agents.
+
+  Per ADR-031, this chart ships INSIDE the observability extension so
+  the extension owns its own deploy artifact. `axi observe install`
+  wraps `helm install` against this chart.
+
+  Planned siblings (Prometheus, Grafana) live behind values flags in
+  the same chart — not enabled in this version.
+type: application
+version: 0.1.0      # chart version (bump on chart shape change)
+appVersion: "3.45.0"  # langfuse server appVersion pinned by the chart
+home: https://axiom.b-tree.dev
+sources:
+  - https://github.com/b-tree-labs/axiom-os
+maintainers:
+  - name: Axiom Labs
+    email: hello@b-tree.dev
+keywords:
+  - langfuse
+  - observability
+  - tracing
+  - llm-eval

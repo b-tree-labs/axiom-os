@@ -1,0 +1,28 @@
+# Copyright (c) 2026 B-Tree Ventures, LLC. Apache-2.0 licensed.
+# Fixture: opt-in with per-tool overrides and a custom prefix.
+
+[extension]
+name = "fixture_overrides"
+version = "0.0.1"
+description = "Fixture extension exercising prefix + per-tool override surface."
+license = "Apache-2.0"
+owner = "axiom-tests"
+aeos_version = "0.1.0"
+
+[extension.mcp]
+enabled = true
+prefix = "fxo"
+visibility = "public"
+auth = "local_stdio"
+description = "Synthetic extension surface for tests."
+
+[[extension.provides]]
+kind = "tool"
+name = "ping"
+description = "Returns pong."
+
+[[extension.mcp.tool]]
+name = "ping"
+mcp_name = "fxo__ping_alias"
+description_override = "Test-only ping tool."
+side_effects = "none"

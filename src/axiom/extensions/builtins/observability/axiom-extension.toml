@@ -1,0 +1,57 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "observability"
+version = "0.1.0"
+description = "Observability substrate — packages the Langfuse trace/eval server install (helm + Terraform) alongside the data-platform. Pairs with the existing axiom.infra.tracing client (LangfuseTraceProvider) which already speaks the ingestion API. Future siblings (Prometheus, Grafana) live behind values flags in the same chart."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi observe` — deterministic CLI surface for install / verify / diagnose.
+# CLI verbs are thin wrappers per ADR-056; logic lives in skills/.
+[[extension.provides]]
+kind = "cmd"
+noun = "observe"
+entry = "axiom.extensions.builtins.observability.cli:main"
+description = "Observability: install / verify / diagnose the trace+eval substrate"
+tier = "advanced"
+intent_groups = ["compose"]
+
+# Long-running service home for the substrate's lifecycle agent
+# (skeleton; today this is just the install/diagnose loop).
+[[extension.provides]]
+kind = "service"
+name = "observability_orchestrator"
+entry = "axiom.extensions.builtins.observability.agent:ObservabilityAgent"
+description = "Service home for the observability substrate lifecycle"
+deployment_profile = "server"
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+[[extension.provides]]
+kind = "skill"
+name = "install"
+entry = "axiom.extensions.builtins.observability.skills.install:run"
+path = "skills/install.md"
+description = "Provision the Langfuse trace+eval substrate on K8s (helm + initContainer)"
+
+[[extension.provides]]
+kind = "skill"
+name = "verify"
+entry = "axiom.extensions.builtins.observability.skills.verify:run"
+path = "skills/verify.md"
+description = "Pre- and post-install probes: helm/kubectl reachable, web pod ready, /api/public/health, scratch trace round-trip"
+
+[[extension.provides]]
+kind = "skill"
+name = "diagnose"
+entry = "axiom.extensions.builtins.observability.skills.diagnose:run"
+path = "skills/diagnose.md"
+description = "Deterministic post-install health: helm release, web/worker Deployments, Postgres + ClickHouse StatefulSets, ingress"

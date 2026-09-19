@@ -1,0 +1,38 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "db"
+version = "0.3.0"
+description = "PostgreSQL + pgvector infrastructure"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "db"
+entry = "axiom.extensions.builtins.db.cli:main"
+description = "PostgreSQL + pgvector infrastructure"
+tier = "core"
+intent_groups = ["build", "maintain"]
+
+# NOTE (INFRA-2 / feat/axi-db-deployment-providers):
+# `axi db up/down/delete/status` dispatch to a DeploymentProvider
+# (K3DProvider | DockerComposeProvider | HostedProvider). Backend
+# selection is via the AXIOM_DB_BACKEND env var; default is "k3d"
+# for back-compat. Per-backend config (compose_file, connection_string,
+# etc.) uses sensible defaults baked into the provider classes.
+#
+# Manifest-based per-environment config (via `[extension.deployment]`
+# or similar) is deferred: the AEOS 0.1 manifest schema doesn't yet
+# permit a custom per-extension config namespace. The config loader
+# (`axiom.extensions.builtins.db.config`) already supports it, so
+# adding it back when AEOS evolves is a one-line manifest change.
+# See ADR-001 in docs/decisions/ for the full rationale.

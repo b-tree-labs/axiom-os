@@ -1,0 +1,23 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "repo"
+version = "0.1.0"
+description = "Multi-source repository analytics and export"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "tool"
+name = "repo_export"
+entry = "axiom.extensions.builtins.repo.orchestrator:main"
+description = "Multi-source repository activity export orchestrator"
+side_effects = "reads_file"
