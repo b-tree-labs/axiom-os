@@ -1,0 +1,30 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- serves /api/v1/library on the composed HTTP substrate (kind = "api"); an HTTP surface, not MCP tools
+[extension]
+name = "library"
+version = "0.1.0"
+description = "Document library: intake, classification and placement, with the document vocabulary supplied by the product as a registered taxonomy."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Harvested and uploaded documents both land in the retrieval corpus, so the
+# library reads the same store rather than keeping a second copy of anything.
+[[extension.consumes]]
+kind = "extension"
+package = "rag"
+
+# The catalog surface rides the one versioned API rather than mounting its own
+# prefix — see the webapp extension's contribution registry.
+[[extension.provides]]
+kind = "api"
+subpath = "/library"
+entry = "axiom.extensions.builtins.library.api:register_routes"
+description = "Library intake and browsing under /api/v1/library"

@@ -1,0 +1,14 @@
+# Copyright (c) 2026 B-Tree Ventures, LLC. Apache-2.0 licensed.
+# Fixture: minimal opt-in [extension.mcp] block. No tools/resources/prompts
+# declared yet — tests verify defaults.
+
+[extension]
+name = "fixture_opt_in_minimal"
+version = "0.0.1"
+description = "Fixture extension declaring [extension.mcp] with defaults only."
+license = "Apache-2.0"
+owner = "axiom-tests"
+aeos_version = "0.1.0"
+
+[extension.mcp]
+enabled = true

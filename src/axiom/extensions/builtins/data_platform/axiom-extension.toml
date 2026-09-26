@@ -1,0 +1,311 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- install/orchestration skills registered without the mcp surface; pipelines run under PULSE schedules, not agent invocation
+[extension]
+name = "data_platform"
+version = "0.3.0"
+description = "Data-platform — DP-1 Box→bronze→RAG Dagster pipeline + generic installer (axi data) + PLINTH (LLM persona for install/diagnose reasoning). Skills are first-class invocable functions per ADR-056. Heavy lakehouse (pyiceberg + dbt) lives behind the [data-platform] extra."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# PLINTH — agent persona (LLM character). Used for install-irregularity
+# reasoning when the deterministic data.diagnose skill detects an
+# anomaly. The persona is NOT the CLI noun (the CLI noun is `data` —
+# the deterministic 'arms and legs' surface). Per ADR-056 §"Layering".
+[[extension.provides]]
+kind = "agent"
+name = "plinth"
+entry = "axiom.extensions.builtins.data_platform.agent:PlinthAgent"
+persona = "agents/plinth/persona.md"
+description = "PLINTH — data-platform orchestrator: ingestion dispatch, source-liveness monitoring, medallion pack-flow (bronze->silver->gold) with lineage-tracked watermarks"
+
+# `axi data` — the deterministic CLI surface (purpose-named per the
+# 2026-05-30 verb-grammar audit + Ben's policy decision). Each verb
+# below is a thin wrapper that invokes a registered skill function
+# (see [[skill]] blocks).
+#
+# CLI subprocess smokes live in tests/test_cli_subprocess.py per
+# feedback_cli_subprocess_smoke_required.
+[[extension.provides]]
+kind = "cmd"
+noun = "data"
+entry = "axiom.extensions.builtins.data_platform.cli:main"
+description = "Data-platform: install / diagnose / ingest / register / unregister / list connectors"
+tier = "advanced"
+intent_groups = ["compose"]
+
+# The orchestrator's long-running service home — PULSE's production
+# host. Runs the engine tick loop with the SkillExecutor dispatch
+# (action string → SkillRegistry), projects the BackupPolicy onto
+# default data.backup / data.backup_validate cadences, and publishes
+# HERALD data.dispatch.dead_letter on terminal dispatch failure.
+# Entry point: OrchestratorService().run()
+[[extension.provides]]
+kind = "service"
+name = "data_platform_orchestrator"
+entry = "axiom.extensions.builtins.data_platform.orchestration.service:OrchestratorService"
+description = "PULSE production dispatch host: tick loop + skill executor + BackupPolicy cadence sync"
+deployment_profile = "server"
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per
+# ADR-056. CLI verbs (above) are 1:1 thin wrappers; agent personas
+# reach the same surface; bidirectional A2A via ctx.registry.invoke.
+# Namespace is the CLI noun (`data`) → skill names `data.<verb>`.
+#
+# `entry` is the dotted "module:function" path the loader binds.
+# `path` is the SKILL.md AEOS markdown (human + persona spec).
+
+[[extension.provides]]
+kind = "skill"
+name = "install"
+entry = "axiom.extensions.builtins.data_platform.skills.install:run"
+path = "skills/install.md"
+description = "Provision the data-platform on K8s (helm + initContainer pip-install)"
+
+[[extension.provides]]
+kind = "skill"
+name = "diagnose"
+entry = "axiom.extensions.builtins.data_platform.skills.diagnose:run"
+path = "skills/diagnose.md"
+description = "Post-install deterministic health checks; invokes data.troubleshoot on irregularity"
+
+[[extension.provides]]
+kind = "skill"
+name = "ingest"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest:run"
+path = "skills/ingest.md"
+description = "Gated Box→bronze→RAG pass for a connector (guarded_act per ADR-045 D6)"
+
+[[extension.provides]]
+kind = "skill"
+name = "ingest_push"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest_push:run"
+path = "skills/ingest_push.md"
+description = "Push-first bronze ingest: land inline items through the provenance gate (peer of POST /ingest; ADR-079 §8.4.1)"
+
+[[extension.provides]]
+kind = "skill"
+name = "register"
+entry = "axiom.extensions.builtins.data_platform.skills.register:run"
+path = "skills/register.md"
+description = "Persist an IngestSource connector configuration"
+
+[[extension.provides]]
+kind = "skill"
+name = "unregister"
+entry = "axiom.extensions.builtins.data_platform.skills.unregister:run"
+path = "skills/unregister.md"
+description = "Remove a connector configuration"
+
+[[extension.provides]]
+kind = "skill"
+name = "list"
+entry = "axiom.extensions.builtins.data_platform.skills.list_connectors:run"
+path = "skills/list.md"
+description = "List registered connectors (default resource)"
+
+[[extension.provides]]
+kind = "skill"
+name = "troubleshoot"
+entry = "axiom.extensions.builtins.data_platform.skills.troubleshoot:run"
+path = "skills/troubleshoot.md"
+description = "PLINTH-persona reasoning over an install irregularity (LLM-mediated; deterministic stub today)"
+
+[[extension.provides]]
+kind = "skill"
+name = "backup"
+entry = "axiom.extensions.builtins.data_platform.skills.backup:run"
+path = "skills/backup.md"
+description = "Policy-driven database backup: custom-format pg_dump, retention prune, optional off-box (Box) replica; HERALD data.backup.failed on failure"
+
+[[extension.provides]]
+kind = "skill"
+name = "backup_validate"
+entry = "axiom.extensions.builtins.data_platform.skills.backup_validate:run"
+path = "skills/backup_validate.md"
+description = "Fail-closed backup validation: freshness, non-empty, pg_restore TOC, optional scratch-restore proof; HERALD data.backup.stale / data.backup.validate_failed"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's PLINTH {version}")
+# on every channel. The canonical principal (@plinth:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "PLINTH"
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "data.activity"
+entry = "axiom.extensions.builtins.data_platform.skills.activity:run"
+path = "skills/activity"
+description = "Recent ingest activity — what landed, what was refused."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.backfill-urls"
+entry = "axiom.extensions.builtins.data_platform.skills.backfill_urls:run"
+path = "skills/backfill-urls"
+description = "Backfill source URLs onto rows that predate provenance capture."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.backup"
+entry = "axiom.extensions.builtins.data_platform.skills.backup:run"
+path = "skills/backup"
+description = "Back up the data platform's stores."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.backup_policy"
+entry = "axiom.extensions.builtins.data_platform.skills.backup_policy:run"
+path = "skills/backup_policy"
+description = "Show the backup policy as the node loads it."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.backup_validate"
+entry = "axiom.extensions.builtins.data_platform.skills.backup_validate:run"
+path = "skills/backup_validate"
+description = "Verify a backup restores."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.conform_run"
+entry = "axiom.extensions.builtins.data_platform.skills.conform_run:run"
+path = "skills/conform_run"
+description = "Run the real bronze→silver conform pass over every registered connector's bronze rows and upsert canonical rows into silver.signals. Site comes from the connector registry (axi data register --site). Reports the funnel and exits non-zero on a skipped connector or an unknown schema — no silent drops."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.conform_try"
+entry = "axiom.extensions.builtins.data_platform.skills.conform_try:run"
+path = "skills/conform_try"
+description = "Dry-run a registered normalizer over one bronze record and report the canonical rows it yields, plus the mistakes silver would absorb silently — a duplicate channel, a naive timestamp, a missing unit. Writes nothing. Omit schema_ref to list what is registered."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.diagnose"
+entry = "axiom.extensions.builtins.data_platform.skills.diagnose:run"
+path = "skills/diagnose"
+description = "Post-install health checks for the data platform."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.enroll"
+entry = "axiom.extensions.builtins.data_platform.skills.enroll:run"
+path = "skills/enroll"
+description = "Enroll a source from its manifest: register the connector, record the site its rows belong to, and name the credential to issue."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.ensure_schema"
+entry = "axiom.extensions.builtins.data_platform.skills.ensure_schema:run"
+path = "skills/ensure_schema"
+description = "Bring the conformance tier's schema up to the installed code — the silver.signals columns and the gold views. The Alembic-versioned extensions are `axi db migrate upgrade head`; this is the part that is raw DDL and was only ever applied by a conform pass, which is how a release can install cleanly and leave the database behind it. Reports the columns it actually added, read back after the fact. Skips index creation: that blocks writes and wants a maintenance window."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.gold_aggregate"
+entry = "axiom.extensions.builtins.data_platform.skills.gold:aggregate"
+path = "skills/gold_aggregate"
+description = "Deterministic aggregate (sum/mean/min/max/std/count) of a gold column, with an optional time window and filter. Returns a provenance-stamped value."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.gold_describe"
+entry = "axiom.extensions.builtins.data_platform.skills.gold:describe"
+path = "skills/gold_describe"
+description = "Describe one gold table: its columns and their types."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.gold_series"
+entry = "axiom.extensions.builtins.data_platform.skills.gold:series"
+path = "skills/gold_series"
+description = "Bucketed series from a gold table — the input shape the analytics tool consumes."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.gold_tables"
+entry = "axiom.extensions.builtins.data_platform.skills.gold:tables"
+path = "skills/gold_tables"
+description = "List the tables and views available in the gold tier."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.ingest"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest:run"
+path = "skills/ingest"
+description = "Run one connector's source → bronze → RAG pass."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.ingest_freshness"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest_freshness:run"
+path = "skills/ingest_freshness"
+description = "Which streams stopped advancing, and when. `silence` and CreditedGuard watch a LIVE producer's stream; they cannot say a site's silver data stopped four months ago, because then the producer is not running to notice. Requires a declared cadence to grade anything stale — without one it reports age and says the stream is ungraded, because a threshold invented here would be a number nobody agreed to."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.ingest_push"
+entry = "axiom.extensions.builtins.data_platform.skills.ingest_push:run"
+path = "skills/ingest_push"
+description = "Land pushed rows for a connector (the push front door's peer)."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.install"
+entry = "axiom.extensions.builtins.data_platform.skills.install:run"
+path = "skills/install"
+description = "Provision the data platform on Kubernetes."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.list"
+entry = "axiom.extensions.builtins.data_platform.skills.list_connectors:run"
+path = "skills/list"
+description = "List registered connectors, source kinds, or store backends."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.preflight"
+entry = "axiom.extensions.builtins.data_platform.skills.preflight:run"
+path = "skills/preflight"
+description = "Check a connector can reach its source and its bronze root."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.refresh"
+entry = "axiom.extensions.builtins.data_platform.skills.refresh:run"
+path = "skills/refresh"
+description = "Re-run a connector's pass over changes since its watermark."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.register"
+entry = "axiom.extensions.builtins.data_platform.skills.register:run"
+path = "skills/register"
+description = "Register a connector — the landing zone a producer pushes into."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.troubleshoot"
+entry = "axiom.extensions.builtins.data_platform.skills.troubleshoot:run"
+path = "skills/troubleshoot"
+description = "Explain why a connector is failing, with the fix."
+
+[[extension.provides]]
+kind = "skill"
+name = "data.unregister"
+entry = "axiom.extensions.builtins.data_platform.skills.unregister:run"
+path = "skills/unregister"
+description = "Remove a connector."
+# END axi-skills-emit-md

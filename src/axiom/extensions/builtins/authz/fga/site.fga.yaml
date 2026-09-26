@@ -1,0 +1,139 @@
+# OpenFGA model test for site.fga — the productized, runnable spec of the
+# per-site read gate. Run with:  fga model test --tests site.fga.yaml
+#
+# It encodes the program's acceptance narrative as executable assertions:
+#   1. each researcher sees ONLY their own site (exclusive), and
+#   2. an admin grant of a second site makes that site readable — the
+#      "grant → comes to life" moment, here as an added tuple + assertion.
+#
+# The concrete facilities (acu/vcu/tamu/ut) appear ONLY as test data; the model
+# itself names no site.
+
+name: per-site read authorization (site.fga)
+
+model_file: ./site.fga
+
+tuples:
+  # --- the platform + the cross-all operators group ------------------------
+  - user: group:operators#member
+    relation: admin
+    object: platform:netl
+  - user: user:ut_op
+    relation: member
+    object: group:operators
+  # every site is a child of the platform → operators view them all
+  - user: platform:netl
+    relation: parent
+    object: site:acu-flowloop
+  - user: platform:netl
+    relation: parent
+    object: site:vcu-flowloop
+  - user: platform:netl
+    relation: parent
+    object: site:tamu-bubbleloop
+  - user: platform:netl
+    relation: parent
+    object: site:ut-triga
+
+  # --- single-site researchers: each sees only their own loop -------------
+  - user: user:acu_rese
+    relation: viewer
+    object: site:acu-flowloop
+  - user: user:vcu_rese
+    relation: viewer
+    object: site:vcu-flowloop
+  - user: user:tamu_rese
+    relation: viewer
+    object: site:tamu-bubbleloop
+
+  # --- a joint-org researcher granted TWO sites (the cross-site grant) -----
+  - user: user:joint_rese
+    relation: viewer
+    object: site:acu-flowloop
+  - user: user:joint_rese
+    relation: viewer
+    object: site:vcu-flowloop
+
+  # --- an embargoed account: blocked overrides a positive grant -----------
+  - user: user:suspended
+    relation: viewer
+    object: site:acu-flowloop
+  - user: user:suspended
+    relation: blocked
+    object: site:acu-flowloop
+
+tests:
+  - name: single-site researcher sees only their own site
+    check:
+      - user: user:acu_rese
+        object: site:acu-flowloop
+        assertions:
+          viewer: true
+      - user: user:acu_rese
+        object: site:vcu-flowloop
+        assertions:
+          viewer: false
+      - user: user:acu_rese
+        object: site:tamu-bubbleloop
+        assertions:
+          viewer: false
+
+  - name: operator sees every site (cross-all via platform admin)
+    check:
+      - user: user:ut_op
+        object: site:acu-flowloop
+        assertions:
+          viewer: true
+      - user: user:ut_op
+        object: site:vcu-flowloop
+        assertions:
+          viewer: true
+      - user: user:ut_op
+        object: site:ut-triga
+        assertions:
+          viewer: true
+
+  - name: joint-org researcher sees exactly their granted set, not others
+    check:
+      - user: user:joint_rese
+        object: site:acu-flowloop
+        assertions:
+          viewer: true
+      - user: user:joint_rese
+        object: site:vcu-flowloop
+        assertions:
+          viewer: true
+      - user: user:joint_rese
+        object: site:tamu-bubbleloop
+        assertions:
+          viewer: false
+
+  - name: block overrides a positive grant
+    check:
+      - user: user:suspended
+        object: site:acu-flowloop
+        assertions:
+          viewer: true      # positive grant present...
+          blocked: true     # ...but blocked is set → substrate DENY-overrides
+
+  - name: which sites a researcher can list (ListObjects powers the home page)
+    list_objects:
+      - user: user:acu_rese
+        type: site
+        relation: viewer
+        assertions:
+          - site:acu-flowloop
+      - user: user:joint_rese
+        type: site
+        relation: viewer
+        assertions:
+          - site:acu-flowloop
+          - site:vcu-flowloop
+      - user: user:ut_op
+        type: site
+        relation: viewer
+        assertions:
+          - site:acu-flowloop
+          - site:vcu-flowloop
+          - site:tamu-bubbleloop
+          - site:ut-triga

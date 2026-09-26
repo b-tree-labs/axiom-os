@@ -1,0 +1,119 @@
+# Dagster webserver — UI + GraphQL API for Dagster runs.
+#
+# Runs the baked `axiom-dagster-k8s` image (deploy/docker/Dockerfile.dagster)
+# with axiom-os-lm[data-platform] pre-installed — no boot-time pip-install,
+# so the pod needs no egress DNS and can't crash-loop on an unpublished
+# version.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-dagster-webserver
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+    role: webserver
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # single-writer to DAGSTER_HOME
+  selector:
+    matchLabels:
+      {{- include "axiom-data-platform.selectorLabels" . | nindent 6 }}
+      component: data-platform
+      role: webserver
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-data-platform.selectorLabels" . | nindent 8 }}
+        component: data-platform
+        role: webserver
+    spec:
+      containers:
+        - name: dagster-webserver
+          image: "{{ .Values.dagster.baseImage.repository }}:{{ .Values.dagster.baseImage.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["dagster-webserver"]
+          args:
+            - "-h"
+            - "0.0.0.0"
+            - "-p"
+            - "3000"
+            - "-w"
+            - "/opt/dagster/dagster_home/workspace.yaml"
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            {{- include "axiom-data-platform.commonEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /opt/dagster/dagster_home
+            - name: provenance-rules
+              mountPath: /etc/axiom/rules
+              readOnly: true
+            - name: bronze
+              mountPath: {{ .Values.bronze.mountPath | default "/var/lib/axiom/bronze" }}
+            # Source-specific credentials (Box session, GDrive SA,
+            # GitHub token, etc.) live IN the connector TOML —
+            # SourceKindProvider.construct() materializes them at
+            # runtime per ADR-056. The chart mounts no source-specific
+            # secret; that's a layering violation.
+            {{- if .Values.connectors }}
+            # Connector TOMLs (one source per entry) — the code location
+            # enumerates them so the UI lists every source's asset/sensor.
+            - name: connectors
+              mountPath: /var/lib/axiom/state/plinth/connectors
+              readOnly: true
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /server_info
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml (.Values.dagster.webserver.resources | default dict) | nindent 12 }}
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-dagster-config
+        - name: provenance-rules
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-provenance-rules
+        - name: bronze
+          persistentVolumeClaim:
+            claimName: {{ include "axiom-data-platform.fullname" . }}-bronze
+        {{- if .Values.connectors }}
+        - name: connectors
+          configMap:
+            name: {{ include "axiom-data-platform.fullname" . }}-connectors
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-dagster-webserver
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+spec:
+  selector:
+    {{- include "axiom-data-platform.selectorLabels" . | nindent 4 }}
+    component: data-platform
+    role: webserver
+  {{- if eq (.Values.dagster.webserver.serviceType | default "ClusterIP") "NodePort" }}
+  type: NodePort
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      nodePort: {{ .Values.dagster.webserver.nodePort }}
+  {{- else }}
+  type: {{ .Values.dagster.webserver.serviceType | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+  {{- end }}

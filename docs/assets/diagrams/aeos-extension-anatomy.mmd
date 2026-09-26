@@ -1,0 +1,23 @@
+flowchart TD
+  MAN["axiom-extension.toml — the manifest<br/>[extension] name · version · license · owner<br/>[[extension.provides]] one block per capability"]:::core
+  MAN --> PROV["[[extension.provides]]<br/>declares one or more capability kinds"]:::core
+  PROV --> K1["agent<br/>LLM-backed persona · persistent identity + state"]:::core
+  K1 --> K2["tool<br/>stateless callable · typed invoke(input) to output"]:::core
+  K2 --> K3["cmd<br/>CLI noun + imperative verbs (axi …)"]:::core
+  K3 --> K4["service<br/>long-running daemon · start/stop/health"]:::core
+  K4 --> K5["adapter<br/>third-party integration · classification ceiling"]:::core
+  K5 --> K6["skill<br/>(params, ctx) to SkillResult · SkillRegistry"]:::accent
+  K6 --> K7["hook<br/>lifecycle interceptor · event-bus subjects"]:::core
+  K7 --> K8["prompt<br/>MCP prompt template · cross-harness gravity"]:::core
+  K6 --> PROJ["The skill is the single source of truth<br/>it projects to CLI verb · MCP tool · agent tool · SKILL.md<br/>(ADR-056 / ADR-072)"]:::accent
+
+  MAN --> DISC["Discovery tiers (spec-extension-loading §2.1)<br/>later tiers shadow earlier for the same noun"]:::data
+  DISC --> T1["builtin<br/>src/axiom/extensions/builtins/"]:::data
+  T1 --> T2["PyPI-installed<br/>site-packages package with a manifest"]:::data
+  T2 --> T3["user<br/>~/.axi/extensions/"]:::data
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

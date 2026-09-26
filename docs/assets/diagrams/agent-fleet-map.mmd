@@ -1,0 +1,37 @@
+flowchart TD
+  INTER["Interaction lane"]:::core
+  INTER --> AXI["AXI<br/>interactive front door · routes work"]:::core
+
+  INTER --> KNOW["Knowledge lane"]:::core
+  KNOW --> SCAN["SCAN<br/>signal ingest to structured signals"]:::core
+  KNOW --> CURIO["CURIO<br/>corpus eval · knowledge engine"]:::core
+  KNOW --> PRESS["PRESS<br/>document lifecycle · publish"]:::core
+
+  KNOW --> REL["Reliability & Review lane"]:::accent
+  REL --> TIDY["TIDY<br/>hygiene · stewardship · CI watch"]:::accent
+  REL --> TRIAGE["TRIAGE<br/>diagnostics · self-healing"]:::accent
+  REL --> RIVET["RIVET<br/>release lifecycle · heartbeat watch"]:::accent
+  REL --> REVU["REV-U<br/>multi-pass diff review"]:::accent
+
+  REL --> GOV["Governance & Security lane"]:::neutral
+  GOV --> GUARD["GUARD<br/>authorization · policy decisions"]:::neutral
+  GOV --> KEEP["KEEP<br/>capability tokens · vault"]:::neutral
+
+  GOV --> PLAT["Platform services lane"]:::neutral
+  PLAT --> HERALD["HERALD<br/>multi-channel notifications"]:::neutral
+  PLAT --> PULSE["PULSE<br/>scheduling · cadences"]:::neutral
+
+  PLAT --> DATA["Data platform lane"]:::data
+  DATA --> PLINTH["PLINTH<br/>medallion tiers · data plane"]:::data
+
+  DATA --> EDU["Classroom lane · Keplo"]:::accent
+  EDU --> CHALKE["CHALKE<br/>classroom orchestration · brief"]:::accent
+
+  EDU --> VEGA["Vega lane · Federation"]:::vega
+  VEGA --> WARDEN["WARDEN<br/>federation trust boundary · verdicts"]:::vega
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

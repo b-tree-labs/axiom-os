@@ -1,0 +1,12 @@
+# Phase A demo problem manifest.
+[problem]
+description     = "sum_of_squares(0, 1000)"
+pattern_hint    = "embarrassingly_parallel"
+submitter       = "@demo:local"
+classification  = "public"
+visibility      = "cohort"
+
+[problem.parameters]
+n        = 1000
+n_chunks = 6
+kernel   = "sum_of_squares"

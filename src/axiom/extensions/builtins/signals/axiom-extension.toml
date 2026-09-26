@@ -1,0 +1,136 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "signals"
+version = "0.4.0"
+description = "Signal extraction + multi-source event synthesis — structured signals from voice, chat, code diffs, calendars, and documents (CLI noun `signal`); houses SCAN."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# SCAN — the Read agent the extension exists to host.
+# Per AEOS §4.1 + the Axiomatic Way principle #7 (agent identity is
+# canonical; the face is rebrandable), the agent's persona lives inside
+# the extension at agents/scan/persona.md — internal to the agent, not
+# a standalone skill.
+[[extension.provides]]
+kind = "agent"
+name = "scan"
+entry = "axiom.extensions.builtins.signals.cli:main"
+persona = "agents/scan/persona.md"
+description = "SCAN — multi-source signal extraction (voice, chat, code diffs, calendar, documents) + event classification (action_item, blocker, decision, classroom/federation/install/ci) + correlation, including CI-failure debounce (correlate rapid-fire ci_failure signals of the same signature within a window into one ci_incident digest)"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "signal"
+entry = "axiom.extensions.builtins.signals.cli:main"
+description = "Agentic signal ingestion pipeline (extract, correlate, brief)"
+tier = "core"
+intent_groups = ["maintain", "investigate"]
+
+# Transitional pre-AEOS bridge sections — runtime consumers (agent
+# lifecycle, connection registry, watcher loop) read these at startup.
+# Migrating them to [[extension.provides]] blocks is tracked in the
+# Tier 1c parity-gaps doc.
+
+[agent]
+heartbeat_interval = 30      # seconds between polling cycles
+startup = "lazy"
+
+[[agent.watchers]]
+name = "onedrive"
+enabled = true
+interval = 30
+folder = "ConsumerDocs"
+
+[[agent.watchers]]
+name = "inbox"
+enabled = true
+interval = 10
+path = "runtime/inbox/raw"
+
+# Research feeds: market/user signals from the connect extension's
+# research-source connectors (Reddit / X). 6-hourly — market discourse
+# develops in hours, not minutes; more often is noise. Queries live in
+# the config file; sources without credentials are skipped with a note.
+[[agent.watchers]]
+name = "research_feeds"
+enabled = true
+interval = 21600
+config = "runtime/config/research_feeds.toml"
+
+[[connections]]
+name = "github"
+display_name = "GitHub"
+kind = "api"
+credential_env_var = "GITHUB_TOKEN"
+health_check = "http_get"
+health_endpoint = "https://api.github.com"
+category = "code"
+capabilities = ["read", "write"]
+docs_url = "https://github.com/settings/tokens"
+
+[[connections]]
+name = "gitlab"
+display_name = "GitLab"
+kind = "api"
+credential_env_var = "GITLAB_TOKEN"
+category = "code"
+capabilities = ["read", "write"]
+docs_url = ""
+
+[[connections]]
+name = "openai"
+display_name = "OpenAI (Embeddings)"
+kind = "api"
+credential_env_var = "OPENAI_API_KEY"
+category = "llm"
+capabilities = ["read"]
+docs_url = "https://platform.openai.com/api-keys"
+
+[[connections]]
+name = "huggingface"
+display_name = "Hugging Face"
+kind = "api"
+credential_env_var = "HF_TOKEN"
+category = "llm"
+capabilities = ["read"]
+docs_url = "https://huggingface.co/settings/tokens"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's SCAN {version}")
+# on every channel. The canonical principal (@scan:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "SCAN"
+
+# Aggregated MCP surface (spec-builtin-mcp-server.md §6.3): the read-only
+# signal-state status tool from mcp_handlers.py. Write-side flows (ingest,
+# draft, correct) stay CLI-only until Phase 4 adds write policy per spec §8.
+# Prefix per spec §6.5: the platform primitive axiom_signals__brief owns the
+# axiom_signals namespace, so the extension takes axiom_signals_ext.
+[[extension.provides]]
+kind = "tool"
+# Namespaced: the chat manifest-tool scan (chat/tools.py) keys on the bare
+# provides name, and a generic "status" would collide across extensions.
+# The MCP name stays the spec §6.5 form via the mcp_name override below.
+name = "signals_status"
+entry = "axiom.extensions.builtins.signals.mcp_handlers:status"
+description = "SCAN signal-state snapshot: inbox / processed / draft counts."
+idempotent = true
+side_effects = "reads_file"
+
+[extension.mcp]
+enabled = true
+prefix = "axiom_signals_ext"
+
+[[extension.mcp.tool]]
+name = "signals_status"
+mcp_name = "axiom_signals_ext__status"

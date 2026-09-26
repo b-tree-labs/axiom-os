@@ -1,0 +1,172 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "notifications"
+version = "0.1.0"
+description = "HERALD — multi-channel notifications + unified inbox. Per ADR-055 + prd-axiom-notifications + spec-axiom-notifications."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.26"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# HERALD — the Generator + Sensor that owns this primitive.
+[[extension.provides]]
+kind = "agent"
+name = "herald"
+entry = "axiom.extensions.builtins.notifications:herald_persona_path"
+persona = "agents/herald/persona.md"
+description = "HERALD — multi-channel outbound (inbox, Slack, Mattermost, Teams, Email, SMS) + agent-bus->send bridge + servant-identity render; inbound reply gateway per ADR-067 (in-flight)."
+
+# The send() tool — extensions consume it; consumers register their intents.
+[[extension.provides]]
+kind = "tool"
+name = "notifications_send"
+entry = "axiom.extensions.builtins.notifications.send:send"
+description = "Dispatch a notification under an ActionEnvelope. Classification routing centralized here (spec §4)."
+idempotent = false
+# Dispatch calls the channel network; it also writes a delivery receipt
+# (the enum takes a single value — network dispatch is the governing effect).
+side_effects = "calls_network"
+
+# The inbox READ tool. Sending is a write and stays opt-in; reading is not,
+# so this one surfaces automatically on every agent surface — chat included.
+# A monitor fires an alert into this inbox (see the reactor-monitor recipe:
+# "the site chat comes in at the end, to cross-check your running monitor"),
+# and until this existed no agent surface could see that it had.
+[[extension.provides]]
+kind = "tool"
+name = "notifications_list"
+entry = "axiom.extensions.builtins.notifications.skills.list_inbox:run"
+description = "Read the HERALD inbox: delivered notifications and alerts for a recipient (filters: recipient, unread_only, limit)."
+idempotent = true
+
+# The inbox READ tool. Sending is a write and stays opt-in; reading is not,
+# so this one surfaces automatically on every agent surface — chat included.
+# A monitor fires an alert into this inbox (see the reactor-monitor recipe:
+# "the site chat comes in at the end, to cross-check your running monitor"),
+# and until this existed no agent surface could see that it had.
+[[extension.provides]]
+kind = "tool"
+name = "notifications_list"
+entry = "axiom.extensions.builtins.notifications.skills.list_inbox:run"
+description = "Read the HERALD inbox: delivered notifications and alerts for a recipient (filters: recipient, unread_only, limit)."
+idempotent = true
+
+# The 8th AEOS capability kind — see docs/decisions/adr-001-channel-adapter-as-aeos-kind.md
+[[extension.provides]]
+kind = "channel_adapter"
+name = "inbox"
+entry = "axiom.extensions.builtins.notifications.channels.inbox:InboxChannelAdapterProvider"
+
+[extension.provides.channel_adapter]
+direction              = "bidirectional"
+priority_levels        = ["low", "normal", "high", "urgent"]
+classification_ceiling = "controlled"
+supports_threading     = true
+supports_acknowledge   = true
+delivery_sla_p95_ms    = 200
+provenance_stamp       = { fragment_kind = "notification_dispatch", tier = "internal" }
+
+# notifications CLI noun (verbs are skill-fn backed per ADR-056).
+[[extension.provides]]
+kind = "cmd"
+noun = "notifications"
+entry = "axiom.extensions.builtins.notifications.cli:main"
+subcommands = ["send", "alert", "ack", "list", "channels"]
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's HERALD {version}")
+# on every channel. The canonical principal (@herald:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "HERALD"
+
+[[extension.provides]]
+kind = "skill"
+name = "comms.configure"
+entry = "axiom.extensions.builtins.notifications.skills.comms:configure"
+path = "skills/comms-configure.md"
+description = "Guided communications-config: ask the right questions, assemble a scenario-conditioned channel policy (NL-drivable)"
+
+# Aggregated MCP surface (spec-builtin-mcp-server.md §6.3): HERALD's verbs are
+# capabilities registered through the SkillRegistry with surfaces including
+# "mcp" (skills/__init__.py, ADR-072 §4.9.4) — the registry-driven projection
+# serves them; nothing extra to declare per-tool here.
+[extension.mcp]
+enabled = true
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "notifications.ack"
+entry = "axiom.extensions.builtins.notifications.skills.ack:run"
+path = "skills/ack"
+description = "Acknowledge an alert — record that a person took it up."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.alert"
+entry = "axiom.extensions.builtins.notifications.skills.alert:run"
+path = "skills/alert"
+description = "Post a durable alert to a principal's inbox."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.channels"
+entry = "axiom.extensions.builtins.notifications.skills.list_channels:run"
+path = "skills/channels"
+description = "List configured notification channels."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.list"
+entry = "axiom.extensions.builtins.notifications.skills.list_inbox:run"
+path = "skills/list"
+description = "List inbox rows for a recipient."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.recipient_list"
+entry = "axiom.extensions.builtins.notifications.skills.recipient_list:run"
+path = "skills/recipient_list"
+description = "List known recipients."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.recipient_set"
+entry = "axiom.extensions.builtins.notifications.skills.recipient_set:run"
+path = "skills/recipient_set"
+description = "Set where a recipient is reached (writes routing)."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.recipient_show"
+entry = "axiom.extensions.builtins.notifications.skills.recipient_show:run"
+path = "skills/recipient_show"
+description = "Show a recipient's channel preferences."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.send"
+entry = "axiom.extensions.builtins.notifications.skills.send:run"
+path = "skills/send"
+description = "Dispatch a notification through channel routing."
+
+[[extension.provides]]
+kind = "skill"
+name = "notifications.setup"
+entry = "axiom.extensions.builtins.notifications.skills.setup_channel:run"
+path = "skills/setup"
+description = "Configure a notification channel (writes credentials)."
+# END axi-skills-emit-md

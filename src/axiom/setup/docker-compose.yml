@@ -1,0 +1,31 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: axiom-postgres
+    restart: unless-stopped
+    # Docker defaults /dev/shm to 64 MB. Postgres uses shared memory for
+    # parallel workers, so parallel VACUUM and index builds fail on a large
+    # table with "could not resize shared memory segment". Observed on a 73 GB
+    # retrieval corpus, where the table that most needed maintenance was the
+    # one that could not get it.
+    shm_size: "1gb"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: axiom
+      POSTGRES_PASSWORD: ${AXIOM_PG_PASSWORD:-axiom}
+      POSTGRES_DB: axiom_db
+    volumes:
+      - axiom-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axiom -d axiom_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  axiom-pgdata:

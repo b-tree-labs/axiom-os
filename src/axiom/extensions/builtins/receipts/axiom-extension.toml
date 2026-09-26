@@ -1,0 +1,144 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- a pure serving mount; the data it renders is fleet's /api/v1 surface, which owns any MCP projection
+[extension]
+name = "receipts"
+version = "0.1.0"
+description = "Receipts surface — the gate-fronted appkit-shell console every Receipts-program feature renders into (ADR-123)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+[[extension.consumes]]
+kind = "extension"
+package = "fleet"
+
+# Gate-fronted: unlike webgate (which IS the authenticator), this surface
+# requires an authenticated browser; reads then ride the cookie session via
+# the fleet route's chain_resolvers(session, bearer) seam (ADR-123 D3).
+[[extension.provides]]
+kind = "service"
+name = "receipts"
+entry = "axiom.extensions.builtins.receipts.mount:mount_spec"
+description = "Receipts surface at /receipts/ — appkit-shell console over /api/v1/fleet"
+prefix = "/receipts"
+requires_authz = true
+deployment_profile = "server"
+
+# The brief's web projection — same composer as CLI/MCP, read-only
+# (snapshot=False: browsing never consumes trust deltas).
+[[extension.provides]]
+kind = "api"
+name = "receipts-api"
+subpath = "/receipts"
+entry = "axiom.extensions.builtins.receipts.api:register_routes"
+description = "The oversight brief under /api/v1/receipts (web projection of the one composer)"
+
+# --- The oversight courier (PRD R16; spec §1d) ---------------------------
+# Skills are the one implementation; CLI verbs and MCP tools are thin
+# projections. The MCP surface is deterministic-to-the-words (today,
+# receipt) plus propose-only direct (ADR-114 propose floor).
+
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "receipts"
+entry = "axiom.extensions.builtins.receipts.cli:main"
+description = "Oversight courier: the brief (today), evidence records (receipt), the focus directive (direct)"
+tier = "core"
+intent_groups = ["operate", "investigate"]
+
+[[extension.provides]]
+kind = "skill"
+name = "receipts.today"
+entry = "axiom.extensions.builtins.receipts.skills.today:run"
+path = "skills/today.py"
+description = "The oversight brief: budgeted needs-you, trust deltas, focus — one deterministic renderer"
+idempotent = false
+side_effects = "mutates_state"
+
+[[extension.provides]]
+kind = "skill"
+name = "receipts.receipt"
+entry = "axiom.extensions.builtins.receipts.skills.receipt:run"
+path = "skills/receipt.py"
+description = "One supervised entity's evidence record, verbatim"
+idempotent = true
+side_effects = "reads_state"
+
+[[extension.provides]]
+kind = "skill"
+name = "receipts.direct"
+entry = "axiom.extensions.builtins.receipts.skills.direct:run"
+path = "skills/direct.py"
+description = "Read, set (gated surfaces), or propose (MCP) the day-focus directive"
+idempotent = false
+side_effects = "mutates_state"
+
+[[extension.provides]]
+kind = "skill"
+name = "receipts.decide"
+entry = "axiom.extensions.builtins.receipts.skills.decide:run"
+path = "skills/decide.py"
+description = "Record a decision about a case (typed decision receipt; the outcome arrives later)"
+
+[[extension.provides]]
+kind = "skill"
+name = "receipts.digest"
+entry = "axiom.extensions.builtins.receipts.skills.digest:run"
+path = "skills/digest.py"
+description = "Send the arrival digest: what is waiting on a person, on a cadence."
+
+[[extension.provides]]
+kind = "tool"
+name = "receipts_today"
+entry = "axiom.extensions.builtins.receipts.mcp_handlers:today"
+description = "The oversight brief (byte-stable text + structured form) — relay verbatim"
+idempotent = false
+side_effects = "mutates_state"
+
+[[extension.provides]]
+kind = "tool"
+name = "receipts_receipt"
+entry = "axiom.extensions.builtins.receipts.mcp_handlers:receipt"
+description = "One entity's evidence record, verbatim"
+idempotent = true
+side_effects = "reads_state"
+
+[[extension.provides]]
+kind = "tool"
+name = "receipts_direct"
+entry = "axiom.extensions.builtins.receipts.mcp_handlers:direct"
+description = "Propose (never set) the day-focus directive; reads current focus"
+idempotent = false
+side_effects = "mutates_state"
+
+[extension.mcp]
+enabled = true
+prefix = "axiom_receipts"
+
+[[extension.mcp.tool]]
+name = "receipts_today"
+mcp_name = "axiom_receipts__today"
+
+[[extension.mcp.tool]]
+name = "receipts_receipt"
+mcp_name = "axiom_receipts__receipt"
+
+[[extension.mcp.tool]]
+name = "receipts_direct"
+mcp_name = "axiom_receipts__direct"

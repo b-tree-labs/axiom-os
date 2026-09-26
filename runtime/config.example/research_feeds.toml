@@ -1,0 +1,35 @@
+# Research-feed queries for the signals extension's research_feeds
+# extractor (SCAN's market-signal harvest). Copy to
+# runtime/config/research_feeds.toml and adjust. A source with no
+# credentials configured is skipped with a note — see
+# `axi connect show reddit` / `axi connect show x`.
+
+# --- trust: the agent said done ---------------------------------------
+[[queries]]
+source = "reddit"
+subreddit = "ClaudeAI"
+query = "agent said it fixed OR claimed done OR lied"
+min_engagement = 50
+
+[[queries]]
+source = "x"
+query = '"said it was done" (agent OR claude OR cursor OR codex) -is:retweet'
+min_engagement = 100
+
+# --- cost: runaway spend ----------------------------------------------
+[[queries]]
+source = "reddit"
+query = "usage limit OR quota OR surprise bill (claude OR cursor OR codex)"
+min_engagement = 50
+
+# --- memory: portability + poisoning ----------------------------------
+[[queries]]
+source = "reddit"
+query = "agent memory portable OR forgot OR context loss"
+min_engagement = 50
+
+# --- security: permissions + injection --------------------------------
+[[queries]]
+source = "x"
+query = "(MCP OR agent) (prompt injection OR least privilege OR exfiltrat) -is:retweet"
+min_engagement = 100

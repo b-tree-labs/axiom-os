@@ -1,0 +1,35 @@
+# Starter authorization model for GUARD's OpenFgaSubstrate (ADR-083).
+#
+# OpenFGA DSL, schema 1.1. This is a TEMPLATE — a deployment adapts the types and
+# relations to its own resources and pairs them with a TupleMapper (see
+# ../openfga.py) that turns an ActionEnvelope into (user, relation, object).
+#
+# The three patterns GUARD relies on are all here:
+#   1. `blocked` — an explicit deny relation. OpenFgaSubstrate checks it first and
+#      maps a hit to SubstrateDecision.DENY (deny-overrides in the combiner).
+#   2. group `member` — team/role grants, and the anchor for contextual tuples
+#      ("alice is on-call right now") passed at check time.
+#   3. hierarchical relations — owner implies editor implies viewer — so a grant
+#      high in the hierarchy satisfies lower-privilege checks.
+
+model
+  schema 1.1
+
+type user
+
+type group
+  relations
+    # Direct members, plus nested groups via `group#member`.
+    define member: [user, group#member]
+
+type resource
+  relations
+    # Positive grants, most- to least-privileged. `owner` satisfies `editor`,
+    # which satisfies `viewer`, so a single owner tuple covers all three checks.
+    define owner: [user, group#member]
+    define editor: [user, group#member] or owner
+    define viewer: [user, group#member] or editor
+
+    # Explicit block. A user (or a whole group) listed here is DENIED regardless
+    # of any positive grant — the substrate checks this relation first.
+    define blocked: [user, group#member]
