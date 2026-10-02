@@ -1,0 +1,21 @@
+# Bronze content + sidecar storage — the substrate of record per
+# ADR-049. Sized for Box-corpus seed; expand via storageClass/size as
+# the corpus grows. Iceberg upgrade in a future slice swaps the
+# FilesystemBronzeSink for a Lakehouse sink against the same mount.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "axiom-data-platform.fullname" . }}-bronze
+  labels:
+    {{- include "axiom-data-platform.labels" . | nindent 4 }}
+    component: data-platform
+    layer: bronze
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.bronze.size | default "100Gi" }}
+  {{- if .Values.bronze.sizeClass }}
+  storageClassName: {{ .Values.bronze.sizeClass }}
+  {{- end }}

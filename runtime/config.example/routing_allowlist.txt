@@ -1,0 +1,18 @@
+# Export Control Router — Allowlist (False-Positive Suppression)
+# Copy to runtime/config/routing_allowlist.txt (gitignored).
+#
+# Terms listed here are EXCLUDED from export-control keyword matching even if
+# they appear in export_control_terms.txt or the built-in term list.
+# Use this to suppress facility-specific false positives without editing the
+# shared built-in list.
+#
+# Format: one term per line (case-insensitive). Comments (#) and blank lines ignored.
+#
+# Example use cases:
+#   - "scale" if your team uses "scale" to mean data normalization, not a domain tool
+#   - A project code name that coincidentally matches a sensitive term
+#
+# WARNING: Be conservative. Every entry reduces export-control safety coverage.
+# Prefer adding context-specific terms here over removing from export_control_terms.txt.
+#
+# Current facility suppressions: (none — add below)

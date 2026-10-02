@@ -1,0 +1,53 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- phase 1 is CLI + /api/v1/fleet; a read-only MCP status tool lands in phase 2 alongside envelope verification
+[extension]
+name = "fleet"
+version = "0.1.0"
+description = "Fleet console — effect-checked status and release drift over nodes that push signed reports out; the console never reaches in (ADR-119)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# `axi fleet` — status / report verbs, thin wrappers over skills (ADR-056).
+[[extension.provides]]
+kind = "cmd"
+noun = "fleet"
+entry = "axiom.extensions.builtins.fleet.cli:main"
+description = "Fleet console: per-node effect-checked status; node-side report push"
+tier = "advanced"
+intent_groups = ["operate"]
+
+# The console's slice of /api/v1 — push ingestion + status view. Auth is
+# per-route: ingest requires a site-bound Bearer API key (fail closed).
+[[extension.provides]]
+kind = "api"
+subpath = "/fleet"
+entry = "axiom.extensions.builtins.fleet.api:register_routes"
+description = "Fleet report ingestion (push-only) and status under /api/v1/fleet"
+
+[[extension.provides]]
+kind = "skill"
+name = "fleet.status"
+path = "skills/status/"
+entry = "axiom.extensions.builtins.fleet.skills.status:run"
+description = "Read-time fleet view: per-node per-kind effect-checked status with evidence and worst-wins rollup"
+
+[[extension.provides]]
+kind = "skill"
+name = "fleet.report"
+path = "skills/report/"
+entry = "axiom.extensions.builtins.fleet.skills.report:run"
+description = "Node-side push: gather a local snapshot and POST it out to the configured console (opt-in; absence of config = not enrolled)"
