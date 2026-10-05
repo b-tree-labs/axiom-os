@@ -1,0 +1,61 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "principal"
+version = "0.1.0"
+description = "DESK — the principal a harness works for, human or service: principal record, setup interview or declaration, proven round trip, topic routing. Per prd-axiom-principal-comms."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[sender]
+display_name = "DESK"
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.26"
+
+# P0 persists the record to <config-dir>/principal.toml (operator-durable, the
+# same pattern notifications uses for herald.toml). Threads in P2 are
+# transactional and will take a schema per ADR-052.
+[database]
+needs_schema = false
+
+[[extension.provides]]
+kind = "agent"
+name = "desk"
+entry = "axiom.extensions.builtins.principal:__doc__"
+description = "DESK — knows the principal, routes to them, and (later phases) drafts in their voice. Never sends unattended."
+
+[[extension.provides]]
+kind = "cmd"
+name = "principal"
+entry = "axiom.extensions.builtins.principal.cli:main"
+description = "axi principal — setup, status, verify, route."
+
+[[extension.provides]]
+kind = "skill"
+name = "principal.setup"
+entry = "axiom.extensions.builtins.principal.skills.setup:run"
+description = "Run or resume the setup interview for a human principal, or declare a non-human one, then prove delivery on every endpoint."
+
+[[extension.provides]]
+kind = "skill"
+name = "principal.status"
+entry = "axiom.extensions.builtins.principal.skills.status:run"
+description = "The principal record and which endpoints have actually delivered."
+
+[[extension.provides]]
+kind = "skill"
+name = "principal.verify"
+entry = "axiom.extensions.builtins.principal.skills.verify:run"
+description = "Re-run the comms test (human: send + receipt; service/agent/node: machine round trip); an endpoint without proof stays unusable."
+
+[[extension.provides]]
+kind = "skill"
+name = "principal.route"
+entry = "axiom.extensions.builtins.principal.skills.route:run"
+description = "Explain which channel a topic would take, and why each candidate was kept or dropped."

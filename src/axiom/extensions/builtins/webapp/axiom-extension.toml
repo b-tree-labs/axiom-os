@@ -1,0 +1,49 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- serves the versioned /api/v1 JSON API on the composed HTTP substrate; an HTTP surface, not MCP tools
+[extension]
+name = "webapp"
+version = "0.1.0"
+description = "Serves a versioned /api/v1 JSON API for a web + mobile app on the composed HTTP substrate. Backend is framework-agnostic and split from the frontend; the reference UI is a separately-hosted Vite multi-page React app."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Depends on the HTTP serving substrate (MountSpec / compose_app / `axi serve`).
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+# /api/v1 JSON API — rides the composed app via the router registry. Prefix and
+# auth posture are declared here (AEOS 0.2 service fields) and mirror the returned
+# MountSpec. requires_authz stays false for now: the API does its own per-route
+# app-level JWT auth (webauth) until the GUARD authz hook + ActorContext resolution
+# land (ADR-082 / ADR-084). See spec-serve §4.
+[[extension.provides]]
+kind = "service"
+name = "api"
+entry = "axiom.extensions.builtins.webapp.mount:mount_spec"
+description = "Versioned JSON API (/api/v1) for the web + mobile app"
+prefix = "/api/v1"
+requires_authz = false
+requires_authn = false
+deployment_profile = "server"
+
+# Persistence landed: the serving catalog binds session_for("webapp") per
+# ADR-052, so its tables live in the extension's own schema and never in
+# `public`. The `[database]` manifest block stays deferred — it is an AEOS 1.0
+# top-level key and `session_for` does not require it under AEOS 0.1.
+
+# The serving projection, invocable through the SkillRegistry (ADR-056).
+[[extension.provides]]
+kind = "skill"
+name = "project"
+entry = "axiom.extensions.builtins.webapp.skills.project:run"
+path = "skills/project.md"
+description = "Refresh the serving catalog from the gold tier"

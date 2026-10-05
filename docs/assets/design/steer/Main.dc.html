@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Steer — agent activity</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+/* An agent name is a way in, so it has to look like one. */
+.agent-chip { border-radius: 6px; padding: 3px 6px; margin: -3px -6px; text-decoration: none; transition: background-color .12s; }
+.agent-chip:hover { background: rgba(255, 255, 255, 0.06); }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; background: #0d1017; color: #e7e9ec; overflow: hidden; position: relative">
+
+  <!-- ============ DRAWER EDGE — a closed drawer has to look like one ============ -->
+  <a href="Drawer.dc.html" style="position: absolute; right: 0; top: 0; bottom: 0; width: 30px; box-sizing: border-box; background: #12161d; border-left: 1px solid #2a303a; text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; z-index: 5">
+    <span style="font-size: 12px; color: #98a1ad">‹</span>
+    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; color: #6b7480; writing-mode: vertical-rl; transform: rotate(180deg)">AGENTS</span>
+    <span style="width: 6px; height: 6px; border-radius: 3px; background: #e8a0a0"></span>
+    <div style="display: flex; flex-direction: column; gap: 3px">
+      <span style="width: 3px; height: 3px; border-radius: 2px; background: #3a3f47"></span>
+      <span style="width: 3px; height: 3px; border-radius: 2px; background: #3a3f47"></span>
+      <span style="width: 3px; height: 3px; border-radius: 2px; background: #3a3f47"></span>
+    </div>
+  </a>
+
+  <!-- ============ NAV RAIL ============ -->
+  <div style="width: 232px; flex-shrink: 0; box-sizing: border-box; background: #0d1017; border-right: 1px solid #2a303a; display: flex; flex-direction: column; padding: 16px 12px">
+
+    <div style="display: flex; align-items: center; gap: 9px; padding: 4px 8px 16px 8px">
+      <div style="width: 22px; height: 22px; border-radius: 5px; background: #bf5700; flex-shrink: 0"></div>
+      <span style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px">Axiom</span>
+    </div>
+
+    <button type="button" style="width: 100%; box-sizing: border-box; text-align: left; padding: 9px 11px; margin-bottom: 6px; border-radius: 7px; border: 1px solid #2a303a; background: #161a21; color: #e7e9ec; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 9px">
+      <span style="color: #f0a15e; font-size: 14px">+</span> New chat
+    </button>
+
+    <button type="button" style="width: 100%; box-sizing: border-box; text-align: left; padding: 9px 11px; margin-bottom: 18px; border-radius: 7px; border: 1px solid transparent; background: transparent; color: #98a1ad; font-size: 13.5px; display: flex; align-items: center; gap: 9px">
+      <span style="font-size: 13px">⌕</span> Search
+    </button>
+
+    <!-- verbs -->
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <a href="Main.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 7px; background: rgba(191, 87, 0, 0.24); color: #e7e9ec; font-size: 13.5px; font-weight: 600">
+        <span style="font-size: 13px; width: 14px; display: inline-block">◈</span>
+        <span style="flex-grow: 1">Steer</span>
+        <span style="background: #bf5700; color: #ffffff; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 9px">3</span>
+      </a>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 7px; color: #c4c8ce; font-size: 13.5px">
+        <span style="font-size: 13px; width: 14px; display: inline-block">◱</span> Chart
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 7px; color: #c4c8ce; font-size: 13.5px">
+        <span style="font-size: 13px; width: 14px; display: inline-block">⬡</span> Model
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 7px; color: #c4c8ce; font-size: 13.5px">
+        <span style="font-size: 13px; width: 14px; display: inline-block">▦</span> Book
+      </div>
+    </div>
+
+    <div style="margin-top: 22px; padding: 0 11px 7px 11px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480">RECENT</div>
+    <div style="display: flex; flex-direction: column; gap: 1px">
+      <div style="padding: 6px 11px; font-size: 12.5px; color: #98a1ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Rotation policy for unused keys</div>
+      <div style="padding: 6px 11px; font-size: 12.5px; color: #98a1ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Why is the conform run slow</div>
+      <div style="padding: 6px 11px; font-size: 12.5px; color: #98a1ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Draft the partner readiness note</div>
+    </div>
+
+    <div style="flex-grow: 1"></div>
+    <div style="padding: 9px 11px; font-size: 12px; color: #6b7480; border-top: 1px solid #2a303a">@ben:axiom</div>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <div style="flex-grow: 1; box-sizing: border-box; display: flex; flex-direction: column; min-width: 0; padding-right: 30px">
+
+    <!-- header + liveness -->
+    <div style="box-sizing: border-box; padding: 20px 28px 0 28px">
+      <div style="display: flex; align-items: flex-end; gap: 14px; margin-bottom: 4px">
+        <h1 style="margin: 0; font-size: 25px; font-weight: 700; letter-spacing: -0.4px">Steer</h1>
+        <span style="font-size: 13px; color: #98a1ad; padding-bottom: 4px">What your agents are doing, did, and need from you</span>
+      </div>
+
+      <!-- LIVENESS STRIP -->
+      <div style="margin-top: 15px; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px">
+        <div style="padding: 11px 14px; display: flex; align-items: center; gap: 18px">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-shrink: 0">REPORTING</span>
+          <div style="display: flex; align-items: center; gap: 15px; flex-grow: 1; flex-wrap: wrap">
+            <sc-for list="{{agents}}" as="a" hint-placeholder-count="6">
+              <a href="Agent.dc.html" class="agent-chip" style="display: flex; align-items: center; gap: 6px">
+                <span style="font-size: 11px; color: {{a.dot}}">{{a.glyph}}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{a.fg}}">{{a.name}}</span>
+                <span style="font-size: 11.5px; color: #6b7480">{{a.seen}}</span>
+              </a>
+            </sc-for>
+          </div>
+          <button type="button" onClick="{{revDark}}" style="display: flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 13px; border: 1px dashed #5a3232; background: rgba(232, 160, 160, 0.07); color: #e8a0a0; font-size: 12px; font-weight: 600; flex-shrink: 0">1 dark <span style="font-size: 9.5px; opacity: 0.8">i</span></button>
+        </div>
+        <sc-if value="{{rev.dark}}" hint-placeholder-val="{{false}}">
+          <div style="padding: 0 14px 11px 14px; border-top: 1px solid #2a303a; padding-top: 10px; display: flex; gap: 18px; align-items: flex-start">
+            <div style="flex-grow: 1; font-size: 12.5px; line-height: 1.6; color: #98a1ad">
+              <span style="font-family: 'JetBrains Mono', monospace; color: #e8a0a0">@scan</span> reports every 15 minutes and has missed 12 in a row. Its last run finished cleanly at 06:30, so its own row under Done still looks healthy. Silence is not health, which is why it is counted here rather than simply absent.
+            </div>
+            <a href="Drawer.dc.html" style="font-size: 12.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Open @scan</a>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- ============ GAUGES ============ -->
+      <div style="margin-top: 10px; display: flex; gap: 10px">
+
+        <!-- 1. since you last looked -->
+        <div style="width: 318px; flex-shrink: 0; box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-radius: 9px; padding: 11px 13px">
+          <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: #f0a15e; margin-bottom: 8px">SINCE YOU LAST LOOKED · TUE 26 SEP, 2 DAYS</div>
+          <div style="display: flex; align-items: flex-end; gap: 16px">
+            <div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; line-height: 1">87</div>
+              <div style="font-size: 11px; color: #98a1ad; margin-top: 3px">runs</div>
+            </div>
+            <div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; line-height: 1; color: #f0a15e">4</div>
+              <div style="font-size: 11px; color: #98a1ad; margin-top: 3px">new cases</div>
+            </div>
+            <div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; line-height: 1; color: #e8a0a0">1</div>
+              <div style="font-size: 11px; color: #98a1ad; margin-top: 3px">went dark</div>
+            </div>
+            <div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 600; line-height: 1; color: #6b7480">2</div>
+              <div style="font-size: 11px; color: #98a1ad; margin-top: 3px">you decided</div>
+            </div>
+          </div>
+          <div style="margin-top: 8px; font-size: 11.5px; color: #c4c8ce">Oldest case has waited <strong style="color: #f0a15e; font-weight: 600">3 days</strong>.</div>
+        </div>
+
+        <!-- 2. handled alone, six weeks -->
+        <div style="width: 286px; flex-shrink: 0; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 11px 13px">
+          <div style="display: flex; align-items: baseline; gap: 7px; margin-bottom: 8px">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: #6b7480">HANDLED ALONE · 6 WEEKS · %</span>
+            <button type="button" onClick="{{revAxis}}" aria-label="About this axis" style="width: 15px; height: 15px; border-radius: 8px; border: 1px solid #3a3f47; background: transparent; color: #98a1ad; font-size: 9px; line-height: 1; padding: 0; flex-shrink: 0">i</button>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 11px; color: #e8a0a0; font-weight: 600">▼ 9</span>
+          </div>
+          <sc-if value="{{rev.axis}}" hint-placeholder-val="{{false}}">
+            <div style="font-size: 11.5px; line-height: 1.55; color: #98a1ad; margin-bottom: 9px; padding-bottom: 9px; border-bottom: 1px solid #2a303a">The axis runs 75 to 95, not 0 to 100, because on a full axis 82 and 91 look identical. The range is stated rather than left to be inferred from the bars.</div>
+          </sc-if>
+          <div style="display: flex; align-items: flex-end; gap: 5px; height: 34px">
+            <sc-for list="{{weeks}}" as="w" hint-placeholder-count="6">
+              <div style="flex-grow: 1; height: {{w.h}}; background: {{w.bg}}; border-radius: 2px 2px 0 0"></div>
+            </sc-for>
+          </div>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px">
+            <span style="font-size: 10.5px; color: #6b7480">18 Aug</span>
+            <span style="font-size: 11.5px; color: #c4c8ce">now <strong style="font-family: 'JetBrains Mono', monospace; color: #e7e9ec">82%</strong></span>
+          </div>
+        </div>
+
+        <!-- 3. fleet rhythm, 14 days -->
+        <div style="flex-grow: 1; min-width: 0; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 11px 13px">
+          <div style="display: flex; align-items: baseline; gap: 7px; margin-bottom: 7px">
+            <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: #6b7480">RUNS PER DAY · 14 DAYS · COUNT</span>
+            <div style="flex-grow: 1"></div>
+            <span style="font-size: 11px; color: #e8a0a0">▼ 96/day since @scan stopped</span>
+          </div>
+          <div style="display: flex; align-items: flex-end; gap: 3px; height: 34px">
+            <sc-for list="{{days}}" as="d" hint-placeholder-count="14">
+              <div style="flex-grow: 1; height: {{d.h}}; background: {{d.bg}}; border-radius: 2px 2px 0 0"></div>
+            </sc-for>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 10.5px; color: #6b7480">
+            <span>15 Sep</span><span style="color: #98a1ad">weekends are lighter by design</span><span style="color: #e8a0a0">today</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- facets -->
+    <div style="box-sizing: border-box; padding: 18px 28px 0 28px; display: flex; align-items: center; gap: 7px; border-bottom: 1px solid #2a303a; padding-bottom: 13px">
+      <sc-for list="{{facets}}" as="f" hint-placeholder-count="4">
+        <button type="button" onClick="{{f.pick}}" style="padding: 6px 13px; border-radius: 16px; border: 1px solid {{f.bd}}; background: {{f.bg}}; color: {{f.fg}}; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 7px">
+          {{f.label}}
+          <span style="font-size: 11px; color: {{f.cfg}}; font-weight: 700">{{f.count}}</span>
+        </button>
+      </sc-for>
+      <div style="flex-grow: 1"></div>
+      <a href="Sources.dc.html" style="text-decoration: none; display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 6px; border: 1px solid #2a303a; color: #c4c8ce; font-size: 12px; font-weight: 600">
+        <span style="font-size: 10px; color: #7fb3d5">●</span>All sources
+        <span style="font-size: 11px; color: #6b7480">4</span>
+        <span style="font-size: 9px; color: #6b7480">▾</span>
+      </a>
+      <span style="font-size: 12px; color: #6b7480">today · </span>
+      <button type="button" style="padding: 5px 11px; border-radius: 6px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12px">Change window</button>
+    </div>
+
+    <!-- COVERAGE DISCLOSURE -->
+    <div style="box-sizing: border-box; margin: 14px 28px 0 28px; border-left: 2px solid #bf5700; background: rgba(191, 87, 0, 0.07); border-radius: 0 6px 6px 0">
+      <div style="padding: 9px 13px; display: flex; align-items: center; gap: 9px">
+        <span style="font-size: 12.5px; color: #c4c8ce; flex-grow: 1">
+          <strong style="color: #f0a15e; font-weight: 600">59 of 117</strong> capabilities cannot report here.
+        </span>
+        <button type="button" onClick="{{revCoverage}}" aria-label="Why these cannot report" style="width: 17px; height: 17px; border-radius: 9px; border: 1px solid #5a4632; background: transparent; color: #f0a15e; font-size: 10px; line-height: 1; padding: 0; flex-shrink: 0">i</button>
+        <a href="Main.dc.html" style="font-size: 12.5px; font-weight: 600; white-space: nowrap">Which ones</a>
+      </div>
+      <sc-if value="{{rev.coverage}}" hint-placeholder-val="{{false}}">
+        <div style="padding: 0 13px 11px 13px; font-size: 12.5px; line-height: 1.6; color: #98a1ad; border-top: 1px solid #3a3226; margin-top: 2px; padding-top: 9px">
+          A capability appears here only if it declares a skill spec saying what it does. These 59 run, and their work is real, but this page cannot see it. The count is shown rather than hidden so the list is never mistaken for the whole fleet, and it turns into a positive claim the day it reaches zero.
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- STREAM -->
+    <div style="flex-grow: 1; box-sizing: border-box; padding: 14px 28px 20px 28px; overflow: hidden">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+        <div style="box-sizing: border-box; margin-bottom: 7px; background: {{r.cardBg}}; border: 1px solid {{r.cardBd}}; border-left: 3px solid {{r.accent}}; border-radius: 8px">
+
+          <button type="button" onClick="{{r.toggle}}" style="width: 100%; box-sizing: border-box; text-align: left; background: transparent; border: none; padding: 11px 14px; display: flex; align-items: center; gap: 13px; color: inherit">
+            <span style="font-size: 12px; color: {{r.accent}}; width: 13px; flex-shrink: 0">{{r.glyph}}</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #e7e9ec; width: 118px; flex-shrink: 0; text-decoration: underline; text-decoration-color: #3a3f47; text-underline-offset: 3px">{{r.agent}}</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #98a1ad; width: 132px; flex-shrink: 0">{{r.capability}}</span>
+            <span style="font-size: 13px; color: #c4c8ce; flex-grow: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.summary}}</span>
+            <sc-if value="{{r.hasClass}}" hint-placeholder-val="{{true}}">
+              <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 4px; background: {{r.classBg}}; color: {{r.classFg}}; flex-shrink: 0">{{r.consequence}}</span>
+            </sc-if>
+            <span style="font-size: 12px; color: #6b7480; width: 62px; text-align: right; flex-shrink: 0">{{r.when}}</span>
+            <span style="font-size: 10px; color: #6b7480; width: 11px; flex-shrink: 0">{{r.chev}}</span>
+          </button>
+
+          <sc-if value="{{r.open}}" hint-placeholder-val="{{false}}">
+            <div style="box-sizing: border-box; padding: 0 14px 12px 43px">
+              <div style="height: 1px; background: #2a303a; margin-bottom: 10px"></div>
+
+              <div style="display: flex; gap: 18px; align-items: stretch; height: {{r.panelH}}">
+
+                <!-- left: the record -->
+                <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden">
+                  <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 7px">LOG</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.75; color: #98a1ad; white-space: pre-line">{{r.log}}</div>
+                  <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin: 13px 0 6px 0">CANNOT ESTABLISH</div>
+                  <div style="font-size: 12.5px; line-height: 1.55; color: #c4c8ce">{{r.limit}}</div>
+                  <div style="flex-grow: 1"></div>
+                  <div style="display: flex; gap: 8px; margin-top: 12px">
+                    <a href="Case.dc.html" style="text-decoration: none; padding: 6px 12px; border-radius: 6px; background: #bf5700; color: #ffffff; font-size: 12.5px; font-weight: 600">Open the case</a>
+                    <a href="Agent.dc.html" style="text-decoration: none; padding: 6px 12px; border-radius: 6px; border: 1px solid #2a303a; color: #c4c8ce; font-size: 12.5px; font-weight: 600">The agent</a>
+                  </div>
+                </div>
+
+                <!-- right: discuss, in place -->
+                <div style="width: 392px; flex-shrink: 0; box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 8px; padding: 11px 13px; display: flex; flex-direction: column">
+
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px">
+                    <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-grow: 1">DISCUSS</span>
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: rgba(191, 87, 0, 0.2); color: #f0a15e">{{r.agent}}</span>
+                    <button type="button" onClick="{{r.grow}}" aria-label="{{r.growLabel}}" style="padding: 3px 8px; border-radius: 5px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px; line-height: 1">{{r.growGlyph}}</button>
+                  </div>
+
+                  <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 9px; overflow: hidden">
+                    <sc-if value="{{r.tall}}" hint-placeholder-val="{{false}}">
+                      <div style="display: flex; flex-direction: column; gap: 9px">
+                        <div style="align-self: flex-end; max-width: 280px; box-sizing: border-box; background: #1c212b; border-radius: 10px 10px 2px 10px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5">Why this one and not the signing key?</div>
+                        <div style="display: flex; gap: 7px">
+                          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #f0a15e; padding-top: 8px; flex-shrink: 0">@warden</span>
+                          <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 10px 10px 10px 2px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5; color: #c4c8ce">Your July condition covers the signing key under 180 days. It suppressed it at 62 days this morning. This runner has no condition.</div>
+                        </div>
+                        <div style="display: flex; gap: 7px">
+                          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #7fb3d5; padding-top: 7px; flex-shrink: 0">@neut</span>
+                          <div style="border-left: 2px solid #7fb3d5; padding: 3px 0 3px 10px; font-size: 12px; line-height: 1.5; color: #98a1ad; font-style: italic">@tidy proposed deleting the branch whose CI used this token. Rotate here and approve there and nothing is left that would have used it.</div>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{r.short}}" hint-placeholder-val="{{true}}">
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start">
+                        <sc-for list="{{r.prompts}}" as="p" hint-placeholder-count="3">
+                          <button type="button" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">{{p.t}}</button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+
+                  <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 8px; padding: 7px 10px; display: flex; align-items: center; gap: 8px; margin-top: 9px">
+                    <label for="{{r.inputId}}" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message this agent about this run</label>
+                    <input id="{{r.inputId}}" type="text" placeholder="Ask it about this run…" style="flex-grow: 1; background: transparent; border: none; color: #e7e9ec; font-size: 12.5px; outline: none">
+                    <button type="button" style="padding: 4px 11px; border-radius: 6px; border: none; background: #bf5700; color: #ffffff; font-size: 12px; font-weight: 600; flex-shrink: 0">Send</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- drag handle -->
+              <div style="display: flex; justify-content: center; margin-top: 7px">
+                <button type="button" onClick="{{r.grow}}" aria-label="{{r.growLabel}}" style="width: 52px; height: 5px; border-radius: 3px; border: none; background: #2a303a; padding: 0"></button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{noneShown}}" hint-placeholder-val="{{false}}">
+        <div style="box-sizing: border-box; margin-top: 44px; display: flex; flex-direction: column; align-items: center; gap: 15px">
+          <div style="font-size: 15px; font-weight: 600; color: #e7e9ec">Nothing is waiting on you.</div>
+          <div style="display: flex; gap: 8px">
+            <span style="display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 16px; border: 1px solid #2a303a; font-size: 12.5px; color: #98a1ad"><span style="color: #6b7480">✓</span>5 reporting</span>
+            <span style="display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 16px; border: 1px dashed #5a3232; background: rgba(232, 160, 160, 0.07); font-size: 12.5px; color: #e8a0a0; font-weight: 600"><span>◌</span>1 dark</span>
+            <span style="display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 16px; border: 1px solid #3a3226; font-size: 12.5px; color: #f0a15e"><span>◐</span>59 cannot report</span>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { facet: "all", open: "r1", tall: false, rev: "" };
+  }
+
+  renderVals() {
+    const facet = this.state.facet;
+
+    const agents = [
+      { name: "@axi", seen: "12s", state: "ok" },
+      { name: "@mo:node-a", seen: "running", state: "run" },
+      { name: "@tidy", seen: "4m", state: "ok" },
+      { name: "@triage", seen: "running", state: "run" },
+      { name: "@warden", seen: "2m", state: "ok" },
+      { name: "@scan", seen: "3h 11m", state: "dark" }
+    ].map((a) => ({
+      name: a.name,
+      seen: a.seen,
+      glyph: a.state === "dark" ? "◌" : a.state === "run" ? "●" : "✓",
+      dot: a.state === "dark" ? "#e8a0a0" : a.state === "run" ? "#7fb3d5" : "#6b7480",
+      fg: a.state === "dark" ? "#e8a0a0" : "#c4c8ce"
+    }));
+
+    const all = [
+      {
+        id: "r1", band: "needs", agent: "@warden", capability: "secrets.rotate",
+        summary: "A credential that rotates by use has not been used in 94 days",
+        consequence: "HARM", when: "09:41",
+        log: "read  vault/audit --since 90d\nfound 1 credential, last_use 94d, expires_at 2027-03-01\nrule  rotate-by-use implies disuse is expiry\nHELD  consequence=harm requires a person",
+        limit: "That the credential still works. Nothing has tried it, which is why the age is the only evidence."
+      },
+      {
+        id: "r2", band: "needs", agent: "@tidy", capability: "hygiene.sweep",
+        summary: "3 proposals; one deletes a branch with an unpushed commit",
+        consequence: "LOSS", when: "09:14",
+        log: "scan  47 branches, 6 worktrees\nmatch 3 landed, tip-equal to a merged PR\nflag  1 carries a commit no remote has\nHELD  consequence=loss requires a person",
+        limit: "That the unpushed commit is unwanted. It is unreachable from any remote, not that it is worthless."
+      },
+      {
+        id: "r3", band: "needs", agent: "@press", capability: "press.draft",
+        summary: "A partner-facing document has no named owner",
+        consequence: "WASTE", when: "08:52",
+        log: "draft ok, 4 pages\ncheck owner field empty\nHELD  consequence=waste, reported not blocked",
+        limit: "That nobody owns it. The field is empty, which is not the same fact."
+      },
+      {
+        id: "r4", band: "running", agent: "@mo:node-a", capability: "fleet.report",
+        summary: "Collecting vitals from 4 nodes", consequence: "", when: "4m",
+        log: "node node-a   ok   cpu 31%  disk 68%\nnode node-b   ok   cpu 12%  disk 44%\nnode local    ok\nnode node-c   … waiting",
+        limit: "Still running. Nothing here is a conclusion yet."
+      },
+      {
+        id: "r5", band: "running", agent: "@triage", capability: "data.conform",
+        summary: "283,316 bronze rows to silver, 3 sites", consequence: "", when: "12m",
+        log: "senna-loop   258,934 signals  ok\nprost-loop   290,957 signals  ok\nfangio-loop … in flight",
+        limit: "Still running. Row counts are per site as they land, not a total."
+      },
+      {
+        id: "r6", band: "done", agent: "@scan", capability: "signals.extract",
+        summary: "41 signals from 6 sources", consequence: "", when: "06:30",
+        log: "sources 6, reachable 6\nsignals 41 extracted, 3 deduped\nwrote  ledger, chain intact\nEXIT   ok",
+        limit: "That the sources were complete. Six answered; nobody knows how many did not exist."
+      },
+      {
+        id: "r7", band: "done", agent: "@curio", capability: "rag.retrieve",
+        summary: "Failed: corpus unreachable after 3 attempts", consequence: "", when: "05:12",
+        log: "attempt 1  connect refused :8767\nattempt 2  connect refused :8767\nattempt 3  connect refused :8767\nEXIT   failed, no partial result served",
+        limit: "Which service owns the port. The refusal says nothing answered, not that the corpus is gone."
+      },
+      {
+        id: "r8", band: "done", agent: "@axi", capability: "receipts.today",
+        summary: "Composed the docket: 3 cases, 14 automatic", consequence: "", when: "04:00",
+        log: "cases 17 evaluated\nband  3 need a person, 14 handled\nEXIT   ok",
+        limit: "That the 14 were handled correctly. They cleared their bars, which is a different claim."
+      }
+    ];
+
+    const shown = facet === "all" ? all : all.filter((r) => r.band === facet);
+    const styleFor = {
+      needs: { accent: "#f0a15e", glyph: "◈", bg: "#1c212b", bd: "#3a3226" },
+      running: { accent: "#7fb3d5", glyph: "●", bg: "#161a21", bd: "#2a303a" },
+      done: { accent: "#98a1ad", glyph: "✓", bg: "#161a21", bd: "#2a303a" }
+    };
+    const classColor = {
+      HARM: { bg: "rgba(232, 160, 160, 0.16)", fg: "#e8a0a0" },
+      LOSS: { bg: "rgba(240, 161, 94, 0.16)", fg: "#f0a15e" },
+      WASTE: { bg: "rgba(152, 161, 173, 0.16)", fg: "#a8b1bd" }
+    };
+
+    const rows = shown.map((r) => {
+      const s = styleFor[r.band];
+      const failed = r.summary.indexOf("Failed") === 0;
+      const cc = classColor[r.consequence] || { bg: "transparent", fg: "#98a1ad" };
+      return {
+        agent: r.agent, capability: r.capability, summary: r.summary,
+        when: r.when, log: r.log, limit: r.limit,
+        consequence: r.consequence, hasClass: r.consequence !== "",
+        classBg: cc.bg, classFg: cc.fg,
+        accent: failed ? "#e8a0a0" : s.accent,
+        glyph: failed ? "✕" : s.glyph,
+        cardBg: s.bg, cardBd: s.bd,
+        open: this.state.open === r.id,
+        chev: this.state.open === r.id ? "▾" : "▸",
+        toggle: () => this.setState({ open: this.state.open === r.id ? null : r.id, tall: false }),
+        // The conversation lives in the row. It starts short enough to leave
+        // the stream readable and grows to most of the page, because reading a
+        // long log while typing about it is the actual task.
+        tall: this.state.tall,
+        short: !this.state.tall,
+        panelH: this.state.tall ? "468px" : "170px",
+        growGlyph: this.state.tall ? "⤡" : "⤢",
+        growLabel: this.state.tall ? "Shrink the conversation" : "Expand the conversation",
+        inputId: "msg-" + r.id,
+        // Openers instead of a paragraph explaining what the panel is for.
+        prompts: [{ t: "Why this one?" }, { t: "What would change it?" }, { t: "Show me similar" }],
+        grow: () => this.setState({ tall: !this.state.tall })
+      };
+    });
+
+    const counts = {
+      all: all.length,
+      needs: all.filter((r) => r.band === "needs").length,
+      running: all.filter((r) => r.band === "running").length,
+      done: all.filter((r) => r.band === "done").length
+    };
+
+    const facets = [
+      { id: "all", label: "All" },
+      { id: "needs", label: "Needs you" },
+      { id: "running", label: "Running" },
+      { id: "done", label: "Done" }
+    ].map((f) => {
+      const on = facet === f.id;
+      return {
+        label: f.label, count: counts[f.id],
+        bg: on ? "rgba(191, 87, 0, 0.24)" : "transparent",
+        bd: on ? "#bf5700" : "#2a303a",
+        fg: on ? "#e7e9ec" : "#c4c8ce",
+        cfg: on ? "#f0a15e" : "#6b7480",
+        pick: () => this.setState({ facet: f.id })
+      };
+    });
+
+    // Handled-alone %, six weeks. The axis is truncated to 75–95 because a
+    // 0–100 axis makes 82 and 91 look identical; the label states the range
+    // rather than leaving the reader to infer it from the bars.
+    const weeks = [88, 91, 86, 90, 91, 82].map((v, i) => ({
+      h: Math.round(8 + (v - 75) * 1.3) + "px",
+      bg: i === 5 ? "#f0a15e" : "#7fb3d5"
+    }));
+
+    // Runs per day, fourteen days. Zero-based, so no range label is needed.
+    const raw = [348, 352, 341, 356, 201, 195, 344, 339, 347, 351, 338, 205, 210, 244];
+    const days = raw.map((v, i) => ({
+      h: Math.round((v / 360) * 34) + "px",
+      bg: i === 13 ? "#e8a0a0" : v < 250 ? "#4a5560" : "#7fb3d5"
+    }));
+
+    // Incremental revelation: one panel open at a time, opening in place so
+    // nothing is navigated away from. The prose that used to sit on the page
+    // permanently lives behind these.
+    const R = this.state.rev;
+    const flip = (k) => () => this.setState({ rev: R === k ? "" : k });
+
+    return {
+      agents, facets, rows, weeks, days,
+      rev: { coverage: R === "coverage", dark: R === "dark", axis: R === "axis" },
+      revCoverage: flip("coverage"),
+      revDark: flip("dark"),
+      revAxis: flip("axis"),
+      noneShown: rows.length === 0
+    };
+  }
+}
+</script>
+</body>
+</html>
