@@ -1,0 +1,54 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- phase 1 is the CLI face only; the composed MCP
+# projection ships with the coordinator phases (prd-program R1 full), at
+# which point status/validate project as read tools.
+[extension]
+name = "program"
+version = "0.1.0"
+description = "Program tracking — one data file per program (axiom.program/0.1): the parameterized status read, the static status-page renderer, and the data-file validator, as registry skills per ADR-056. Phase 1 of prd-program (R1 partial + R2); the coordinator agent and capture watchers (ADR-161/162) land in later phases."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi program` — the deterministic CLI surface. Each verb is a thin
+# wrapper dispatching through invoke_capability to the matching skill.
+[[extension.provides]]
+kind = "cmd"
+noun = "program"
+entry = "axiom.extensions.builtins.program.cli:main"
+description = "Program tracking: status / render / validate over the program data file"
+subcommands = ["status", "render", "validate"]
+tier = "core"
+intent_groups = ["investigate"]
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+# Namespace is the CLI noun (`program`) → skill names `program.<verb>`.
+
+[[extension.provides]]
+kind = "skill"
+name = "program.status"
+entry = "axiom.extensions.builtins.program.skills.status:run"
+path = "skills/status.py"
+description = "One parameterized read over the program data file: items with owner, dates, proposed-or-committed status, percent, and links, scoped by person, lane, item, schedule, or priorities. Answers only from the data file — absent is reported as absent, never invented."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.render"
+entry = "axiom.extensions.builtins.program.skills.render:run"
+path = "skills/render.py"
+description = "Render the program data file to one static HTML status page in an output directory. Built-in template, stdlib only; every item id and every link in the file is present on the page."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.validate"
+entry = "axiom.extensions.builtins.program.skills.validate:run"
+path = "skills/validate.py"
+description = "Check a program data file against the axiom.program/0.1 schema and report every defect at once, or the file's shape when it is valid."
