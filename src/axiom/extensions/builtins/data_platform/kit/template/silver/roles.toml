@@ -1,0 +1,11 @@
+# What each channel MEANS, so your data can be compared with another site's.
+#
+# The channel keeps your own name; the role is the shared vocabulary. Two
+# sites that call the same quantity different things still line up by role,
+# and that is what cross-site charts are drawn from. A role only works if
+# somebody else uses the same one: `axi data roles` lists the ones in use.
+
+[roles]
+"temperature.inlet" = "fluid_temperature"
+"temperature.outlet" = "fluid_temperature"
+"flow.primary" = "volumetric_flow"

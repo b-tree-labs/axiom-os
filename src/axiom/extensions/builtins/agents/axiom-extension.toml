@@ -1,0 +1,52 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: applicable -- `ask` and `roster` are agent-invocable: a consuming harness
+# delegates to a subject-matter expert instead of reasoning in its place. The
+# lifecycle verbs (start/stop/status/register) stay operator-only.
+[extension]
+name = "agents"
+version = "0.1.0"
+description = "Agent service lifecycle management"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "agents"
+entry = "axiom.extensions.builtins.agents.cli:main"
+description = "Manage always-on agent services (start, stop, status)"
+tier = "advanced"
+intent_groups = ["maintain"]
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+# Namespace = CLI noun (`agents`) → skill names `agents.<verb>`.
+
+[[extension.provides]]
+kind = "skill"
+name = "ask"
+path = "skills/ask.py"
+entry = "axiom.extensions.builtins.agents.skills.ask:ask"
+description = "Ask a subject-matter-expert agent to do something and return its answer"
+
+[[extension.provides]]
+kind = "skill"
+name = "roster"
+path = "skills/roster.py"
+entry = "axiom.extensions.builtins.agents.skills.roster:roster"
+description = "List the agents that can be addressed"
+
+[[extension.provides]]
+kind = "skill"
+name = "address"
+path = "skills/address.py"
+entry = "axiom.extensions.builtins.agents.skills.address:address"
+description = "Route an @handle message (@axi, @neut, @rivet, …) to the agent it names"
+

@@ -1,0 +1,18 @@
+# Calendar vendor -> IdP + delegated scopes. THIS IS DATA, NOT CODE.
+#
+# To change a mapping, add a vendor, or point a vendor at a different IdP in a
+# LIVE deployment WITHOUT a code patch: drop a `calendar-vendors.toml` with the
+# same shape into the config dir ($AXIOM_CONFIG_DIR, else ~/.axi/config). It is
+# merged over these defaults per-vendor and read at call time.
+#
+#   [vendors.m365]
+#   idp = "entra"          # any registered IdP (see `axi auth providers`)
+#   scopes = ["https://graph.microsoft.com/Calendars.ReadWrite", "offline_access"]
+
+[vendors.m365]
+idp = "entra"
+scopes = ["https://graph.microsoft.com/Calendars.ReadWrite", "offline_access"]
+
+[vendors.google]
+idp = "google"
+scopes = ["https://www.googleapis.com/auth/calendar", "openid", "email"]
