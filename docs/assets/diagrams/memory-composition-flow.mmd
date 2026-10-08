@@ -1,0 +1,19 @@
+flowchart TD
+  CALL["Caller<br/>every read and every write"]:::neutral
+  CS["CompositionService<br/>the ONLY entry point<br/>no call site bypasses the stack"]:::core
+  ACC["Accountability gate — ADR-035<br/>accountable_human_id mandatory<br/>empty or legacy gives AccountabilityError"]:::accent
+  FRAG["MemoryFragment — write-once<br/>immutable T,U,A,R,S provenance<br/>MIRIX type: core · episodic · semantic<br/>procedural · resource · vault"]:::data
+  SIGN["attest — Ed25519 fragment signing<br/>canonical bytes minus the signature slot"]:::vega
+  PERSIST["Persist + append-only AuditLog<br/>tamper-evident record per access"]:::vega
+  REPLACE["Updates via dataclasses.replace only<br/>provenance is never mutated"]:::neutral
+  CALL --> CS
+  CS --> ACC
+  ACC --> FRAG
+  FRAG --> SIGN
+  SIGN --> PERSIST
+  FRAG --> REPLACE
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

@@ -1,0 +1,27 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "whoami"
+version = "0.1.0"
+description = "Who you are on this machine and what it is: principal and identity, software and where it runs from, node, site and federation, credentials (names only), dev nodes, agent harnesses, and the mismatches between them."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "whoami"
+entry = "axiom.extensions.builtins.whoami.cli:main"
+description = "Who you are here, what this node is, and what it is connected to"
+
+# Read-only orientation an agent should be able to call before a task or when a
+# result surprises it: the skill reaches MCP through the aggregation server.
+[extension.mcp]
+enabled = true

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axiom-observability.fullname" . }}-worker
+  labels:
+    {{- include "axiom-observability.labels" . | nindent 4 }}
+    component: langfuse-worker
+spec:
+  replicas: {{ .Values.langfuse.workerReplicas }}
+  selector:
+    matchLabels:
+      {{- include "axiom-observability.selectorLabels" . | nindent 6 }}
+      component: langfuse-worker
+  template:
+    metadata:
+      labels:
+        {{- include "axiom-observability.selectorLabels" . | nindent 8 }}
+        component: langfuse-worker
+    spec:
+      {{- include "axiom-observability.imagePullSecrets" . | nindent 6 }}
+      initContainers:
+        - name: wait-postgres
+          image: {{ include "axiom-observability.image" (dict "img" .Values.image.initImage "ctx" .) | quote }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              until nc -z {{ include "axiom-observability.postgresHost" . }} 5432; do sleep 2; done
+      containers:
+        - name: langfuse-worker
+          image: {{ include "axiom-observability.image" (dict "img" .Values.langfuse.image "ctx" .) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          # Same env block; the langfuse image switches mode on
+          # container name / command — but here we just expose the
+          # full env and let the upstream entrypoint pick up.
+          command: ["node"]
+          args: ["dist/worker.js"]
+          env:
+            {{- include "axiom-observability.langfuseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.langfuse.resources.worker | nindent 12 }}

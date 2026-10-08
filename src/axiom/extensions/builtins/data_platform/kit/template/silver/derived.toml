@@ -1,0 +1,15 @@
+# Silver building blocks: channels computed from other channels.
+#
+# Declared, not coded. The platform evaluates each one and writes the result
+# beside the readings it came from, marked derivation = "derived:<expression>"
+# so nobody mistakes it for a measurement.
+#
+# An expression is one step: <a> <op> <b>, op one of + - * /, each side a
+# channel name or a number. Anything more is a gold object (see gold/).
+
+[[derived]]
+name = "temperature.rise"
+expression = "temperature.outlet - temperature.inlet"
+unit = "degC"
+role = "temperature_rise"
+description = "Temperature rise across the rig at the same instant."

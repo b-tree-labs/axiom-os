@@ -1,0 +1,37 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+repos:
+  - repo: local
+    hooks:
+      - id: adr-number-collision
+        name: ADR number collision lint (prevents two ADRs with same NNN)
+        entry: python scripts/lint_adr_numbers.py
+        language: system
+        files: '^docs/adrs/adr-\d{3,}-.+\.md$'
+        pass_filenames: false
+
+      - id: ruff-check
+        name: Ruff Lint
+        entry: ruff check --force-exclude
+        language: system
+        types: [python]
+        pass_filenames: true
+
+      - id: ruff-format-check
+        name: Ruff Format Check
+        entry: ruff format --check --force-exclude
+        language: system
+        types: [python]
+        pass_filenames: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.(md|rst)$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
