@@ -1,0 +1,87 @@
+{{- with .Values.roles.medallion }}{{- if .enabled }}
+{{- $fullname := printf "%s-medallion" $.Release.Name }}
+{{- $pgroot := "/var/lib/postgresql/data" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" "medallion") | nindent 4 }}
+  annotations:
+    axiom.io/role: "medallion"
+    axiom.io/priority: "background"
+    {{- with .publish }}
+    axiom.io/publish: {{ . | quote }}
+    {{- end }}
+    {{- with .compose }}
+    {{- with .containerName }}
+    axiom.io/container-name: {{ . | quote }}
+    {{- end }}
+    {{- with .volumeName }}
+    axiom.io/volume-name: {{ . | quote }}
+    {{- end }}
+    {{- with .serviceName }}
+    axiom.io/compose-service: {{ . | quote }}
+    {{- end }}
+    {{- end }}
+spec:
+  serviceName: {{ $fullname }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "axiom-node.labels" (dict "root" $ "role" "medallion") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "axiom-node.labels" (dict "root" $ "role" "medallion") | nindent 8 }}
+    spec:
+      priorityClassName: {{ $.Release.Name }}-background
+      containers:
+        - name: medallion
+          image: {{ .image | quote }}
+          env:
+            - {name: POSTGRES_DB, value: axiom_db}
+            - {name: POSTGRES_USER, value: axiom}
+            # A Kubernetes volume's root holds lost+found, so Postgres lives in a
+            # subdirectory; a volume that already holds data at its root keeps
+            # it there (pgdataSubdir: "").
+            - {name: PGDATA, value: {{ ternary (printf "%s/%s" $pgroot .pgdataSubdir) $pgroot (ne .pgdataSubdir "") | quote }}}
+            {{- with .passwordSecret }}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .name | quote }}, key: {{ .key | quote }}}}
+            {{- end }}
+          {{- if not .passwordSecret }}
+          envFrom:
+            - secretRef: {name: {{ required "roles.medallion.secretFrom (or passwordSecret) names where POSTGRES_PASSWORD comes from" .secretFrom }}}
+          {{- end }}
+          ports: [{name: pg, containerPort: {{ .port }}}]
+          readinessProbe:
+            exec: {command: [pg_isready, -U, axiom, -d, axiom_db]}
+            periodSeconds: 10
+          livenessProbe:
+            exec: {command: [pg_isready, -U, axiom, -d, axiom_db]}
+            periodSeconds: 30
+          {{- include "axiom-node.resources" (dict "root" $ "cfg" . "priority" "background") | nindent 10 }}
+          volumeMounts:
+            - {name: data, mountPath: {{ $pgroot }}}
+            {{- if .shmSize }}
+            - {name: shm, mountPath: /dev/shm}
+            {{- end }}
+      {{- if .shmSize }}
+      # Parallel VACUUM and index builds need more than a container's default
+      # 64 MB of shared memory on a large table.
+      volumes:
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: {{ .shmSize }}}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: {{ .storage }}}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}
+spec:
+  selector: {{- include "axiom-node.labels" (dict "root" $ "role" "medallion") | nindent 4 }}
+  ports: [{name: pg, port: {{ .port }}, targetPort: pg}]
+{{- end }}{{- end }}

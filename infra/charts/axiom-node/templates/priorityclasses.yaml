@@ -1,0 +1,15 @@
+{{- if .Values.priority.createClasses }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: {{ .Release.Name }}-realtime}
+value: {{ int64 .Values.priority.realtime }}
+globalDefault: false
+description: "The collector's realtime path and its consumers: last to be preempted on small hardware."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: {{ .Release.Name }}-background}
+value: {{ int64 .Values.priority.background }}
+globalDefault: false
+description: "Storage and forwarding: throttled and preempted before the realtime path."
+{{- end }}

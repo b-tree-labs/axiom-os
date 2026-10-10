@@ -1,0 +1,38 @@
+# GENERATED from infra/charts/axiom-node by axiom.infra.deploy.compose_from_chart.
+# Do not edit: change the chart or its values and generate again.
+x-axiom-node:
+  agents: none
+  functions: []
+  maintenance: 'off'
+  role: ''
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: axiom_db
+      POSTGRES_USER: axiom
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_PASSWORD: ${AXIOM_PG_PASSWORD:?AXIOM_PG_PASSWORD must be set from the
+        vault}
+    cpu_shares: 256
+    oom_score_adj: 500
+    ports:
+    - 5432:5432
+    healthcheck:
+      test:
+      - CMD
+      - pg_isready
+      - -U
+      - axiom
+      - -d
+      - axiom_db
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    container_name: axiom-postgres
+    shm_size: 1g
+    volumes:
+    - axiom-pgdata:/var/lib/postgresql/data
+volumes:
+  axiom-pgdata: {}

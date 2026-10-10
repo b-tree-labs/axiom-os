@@ -1,0 +1,6 @@
+apiVersion: v2
+name: axiom-node
+description: One node, any set of roles (ADR-164), from one definition (ADR-170). Compose for single hosts is generated from this chart, never hand-written.
+type: application
+version: 0.1.0
+appVersion: "0.68.0"

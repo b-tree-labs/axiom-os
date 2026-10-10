@@ -1,0 +1,198 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "attest"
+version = "0.1.0"
+description = "Signed, append-only records of accountable human acts, kept in logbooks declared by extensions (ADR-142..147)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052. Records, presentations and
+# anchors are append-only, enforced by triggers in migration 0001.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "attest"
+entry = "axiom.extensions.builtins.attest.cli:main"
+description = "Logbooks, signing at the prompt, chain verification and evidence export"
+tier = "advanced"
+intent_groups = ["operate"]
+
+# /api/v1/attest: logbooks, drafts, confirmation, signing with a grant, records,
+# verification and the live stream (ADR-144, ADR-146, ADR-147).
+[[extension.provides]]
+kind = "api"
+subpath = "/attest"
+entry = "axiom.extensions.builtins.attest.api:register_routes"
+description = "Logbooks, drafts, confirmation, grant signing, records and the live stream"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.logbook_list"
+path = "skills/logbook.py"
+entry = "axiom.extensions.builtins.attest.skills.logbook:list_logbooks"
+description = "List the logbooks declared on this node, their entry types and who may sign them"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.logbook_validate"
+path = "skills/logbook.py"
+entry = "axiom.extensions.builtins.attest.skills.logbook:validate"
+description = "Validate a logbook declaration file"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.new"
+path = "skills/sign.py"
+entry = "axiom.extensions.builtins.attest.skills.sign:new"
+description = "Write an entry and sign it at the prompt (CLI only; a person answers)"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.sign"
+path = "skills/sign.py"
+entry = "axiom.extensions.builtins.attest.skills.sign:sign"
+description = "Complete and sign a draft proposed for you (CLI only; a person answers)"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.show"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.attest.skills.read:show"
+description = "Show one signed record, or the latest records of a logbook at a site"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.verify"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.attest.skills.read:verify"
+description = "Verify a logbook's signed chain and name the first broken record"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.export"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.attest.skills.read:export"
+description = "Write an evidence package: records, public keys and the standalone verify.py"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.anchor"
+path = "skills/anchor.py"
+entry = "axiom.extensions.builtins.attest.skills.anchor:run"
+description = "Sign a Merkle root over every logbook head at a site"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.device_enroll"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:device_enroll"
+description = "Enrol a signing device (administration)"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.device_reclaim"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:device_reclaim"
+description = "Issue a fresh one-time claim code for an enrolled device"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.device_retire"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:device_retire"
+description = "Retire an enrolled device (administration)"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.device_list"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:device_list"
+description = "List enrolled signing devices"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.location_init"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:location_init"
+description = "Create a location's presence secret in the vault"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.location_code"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:location_code"
+description = "Show a location's current presence code"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.role_grant"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:role_grant"
+description = "Give a person a signing role at a site"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.role_revoke"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:role_revoke"
+description = "Take a signing role from a person at a site"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.role_list"
+path = "skills/admin.py"
+entry = "axiom.extensions.builtins.attest.skills.admin:role_list"
+description = "List signing roles at a site"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.obligations"
+path = "skills/obligations.py"
+entry = "axiom.extensions.builtins.attest.skills.obligations:status"
+description = "What is due in each open interval and whether it is ok, due soon or missed"
+
+[[extension.provides]]
+kind = "skill"
+name = "attest.obligations_tick"
+path = "skills/obligations.py"
+entry = "axiom.extensions.builtins.attest.skills.obligations:tick"
+description = "Record, publish and notify obligation changes"
+
+# Obligations: every minute, record and announce what came due or was missed.
+[[extension.schedule]]
+name = "attest_obligations_tick"
+description = "Record, publish and notify obligation changes (missed-entry alarm)"
+cadence = { kind = "interval", interval_seconds = 60 }
+action = "attest.obligations_tick"
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 2, backoff = "exponential", dedup_window_seconds = 50 }
+
+# Daily anchor over every site with a chain (ADR-143, Anchors). UTC midnight
+# until per-site time zones are declared by the site configuration.
+[[extension.schedule]]
+name = "attest_daily_anchor"
+description = "Sign a Merkle root over every logbook head at each site"
+cadence = { kind = "cron", cron = "0 0 * * *", tz = "UTC", jitter_seconds = 60 }
+action = "attest.anchor"
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 3, backoff = "exponential", dedup_window_seconds = 300 }
+
+# Read-only skills (logbook_list, show, verify) project to MCP through the skill
+# registry (ADR-073). Signing skills declare surfaces = ("cli",) and never do.
+[extension.mcp]
+enabled = true
+prefix = "axiom_attest"

@@ -1,0 +1,17 @@
+profile: micro
+image: {repository: axiom-runtime, tag: dev, pullPolicy: Never}
+roles:
+  edge:
+    enabled: true
+    configFrom: smoke-edge-config
+    downstream: "@downstream:org"
+  producer:
+    enabled: true
+    command: [python, /config/push.py]
+    configFrom: smoke-producer-config
+    secretFrom: smoke-producer-secret
+    env: {EDGE_URL: "http://node-edge:8787", SOURCE: smoke-src, BATCHES: "4", ROWS: "25"}
+  twin:
+    enabled: true
+    command: [python, /config/twin.py]
+    configFrom: smoke-producer-config

@@ -1,0 +1,31 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- background tasks are an operator CLI surface; no agent tool wraps them yet
+[extension]
+name = "tasks"
+version = "0.1.0"
+description = "Background task tracking schema: spawned commands, their status and where their output is (ADR-174)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# `axi tasks`: persistent, federation-aware background tasks (formerly registered by hand in axiom_cli).
+[[extension.provides]]
+kind = "cmd"
+noun = "tasks"
+entry = "axiom.infra.tasks.cli:main"
+description = "Persistent background tasks: spawn, status, tail, cancel, clear"
+tier = "advanced"
+intent_groups = ["operate"]

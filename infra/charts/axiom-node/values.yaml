@@ -1,0 +1,143 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# One node, its roles switched on here. Every role runs the same runtime image:
+# a base Python plus an entrypoint that installs the pinned packages once into
+# a versioned environment on the role's volume (the updater's layout), so an
+# update never needs a new image and a restart never reinstalls.
+
+profile: node                 # micro | node | lowpower | cluster (resource sizing only)
+
+# What this node is, for people and for the generated "what runs on this
+# machine" disclosure: its role, its functions (ADR-164) and its agent policy.
+node:
+  role: ""
+  functions: []
+  agents: "none"              # none | assist | local
+  maintenance: "off"          # off | requests (a partner role answers maintenance requests through its edge)
+
+# Every role may declare where it connects out (egress: [{host, port, purpose,
+# data}]) and what it listens on that a port list would not show (listen:
+# [{address, purpose}]). The disclosure is generated from these, and a test
+# fails when a definition reaches somewhere it does not declare.
+
+image:
+  repository: ghcr.io/b-tree-labs/axiom-runtime
+  tag: "0.4.0"
+  digest: ""                  # set by the release pipeline; preferred over tag when present
+  pullPolicy: IfNotPresent
+
+runAsUser: 10001
+
+# The front a single host runs in place of a Service, for blue/green roles.
+front:
+  image: nginx:1.27.3-alpine
+
+# Packages the entrypoint installs into /data/venvs/<version> on first boot.
+packages:
+  pin: "axiom-os-lm==0.68.0"
+  version: "0.68.0"
+  cli: axi
+
+# On constrained hardware the realtime path wins: the collector and the twin run
+# at "realtime" priority with guaranteed resources; storage and forwarding run
+# at "background" priority and are the first to be throttled or evicted.
+priority:
+  createClasses: true         # needs cluster-admin; false to use classes that already exist
+  realtime: 1000000
+  background: 1000
+
+resources:                    # per profile, applied to every role unless a role overrides
+  micro:    {cpu: "250m", memory: "256Mi"}
+  lowpower: {cpu: "500m", memory: "384Mi"}
+  node:     {cpu: "1",    memory: "1Gi"}
+  cluster:  {cpu: "2",    memory: "2Gi"}
+
+roles:
+  # The public landing node (ADR-177): /ingest, /edge, /healthz only.
+  edge:
+    enabled: false
+    port: 8787
+    publish: "127.0.0.1:8787"   # single-host: where the reverse proxy reaches it
+    configFrom: ""              # existing ConfigMap/host dir holding sources.txt + gate-api-keys.json (hashes only)
+    downstream: ""              # AXIOM_EDGE_DOWNSTREAM principal
+    env:
+      # Refuse (507) before writing when the bronze volume runs low; it is
+      # /data here, not the state directory's default.
+      AXIOM_INGEST_HEADROOM_PATH: /data
+    storage: 20Gi
+    # Never down from our own causes (ADR-170): two slots, one front. A deploy
+    # adds or changes the idle slot, health-gates it, then switches active
+    # (blue -> both -> green); the old slot stays for rollback.
+    blueGreen:
+      enabled: true
+      active: blue                # blue | green | both (only during a switch)
+      slots:
+        blue: {}                  # {packages: {pin, version}} overrides the role's packages
+    init: []                    # once, before the role starts (e.g. schema setup)
+    companions: []              # [{name, command, cpu?, memory?}] beside the role, sharing /data (e.g. a nightly conform)
+    extraConfig: []             # [{name, from: <ConfigMap>, path}] more read-only config (Compose: ./config/<role>-<name>)
+    watchVolumes: []            # [{label, role}] another role's volume, mounted read-only and watched for free space
+  # The platform's serving tier (gate, API, web app): blue/green per ADR-170.
+  serve:
+    enabled: false
+    port: 8770
+    publish: "127.0.0.1"
+    probePath: /healthz
+    agents: local               # the platform's own serving tier may call a model
+    command: [axi, serve, --host, "0.0.0.0", --port, "8770"]
+    configFrom: ""
+    secretFrom: ""
+    env: {}
+    storage: 5Gi
+    blueGreen:
+      enabled: true
+      active: blue
+      slots:
+        blue: {}
+  # The collector: reads a source and pushes rows, and publishes the newest
+  # value per channel on an in-memory realtime point (fed straight from the
+  # source, never through a database). Highest priority on small hardware.
+  producer:
+    enabled: false
+    packages: {}                # e.g. {pin: "site-collector[epics]==1.2.0", version: "collector-1.2.0"}; default: packages above
+    command: []                 # e.g. [neut, daq, run, --config, /config/site.toml, --provider, x]
+    realtimePort: 9100          # the realtime publish point the twin reads
+    hostNetwork: false          # true where a protocol needs broadcast (EPICS CA)
+    configFrom: ""
+    secretFrom: ""              # existing Secret with the key(s); never values here
+    env: {}
+    storage: 2Gi
+  # A realtime consumer (the reduced-order model / digital twin). Off by
+  # default; on bigger hardware enabling it is the only change.
+  twin:
+    enabled: false
+    command: []
+    configFrom: ""
+    env: {}
+    storage: 1Gi
+  # The local medallion's database (archive or primary role).
+  medallion:
+    enabled: false
+    image: timescale/timescaledb:2.17.2-pg16
+    port: 5432
+    secretFrom: ""              # existing Secret with POSTGRES_PASSWORD
+    passwordSecret: {}          # or {name, key}: one key of a Secret; on Compose, an env var of that name read at `up` time
+    pgdataSubdir: pgdata        # "" keeps data at the volume root (a volume that already holds it there)
+    shmSize: ""                 # e.g. 1Gi, for parallel maintenance on large tables
+    publish: ""                 # single host: e.g. "127.0.0.1:5432:5432"
+    compose: {}                 # single-host names kept for an existing install: {containerName, volumeName}
+    storage: 50Gi
+  # Forwarder: ships bronze from the local medallion upstream (W2).
+  forwarder:
+    enabled: false
+    command: []
+    secretFrom: ""
+    storage: 1Gi
+  # A downstream pull, run on a schedule where the platform owns the data.
+  edgePull:
+    enabled: false
+    connector: ""
+    schedule: "*/5 * * * *"
+    secretFrom: ""

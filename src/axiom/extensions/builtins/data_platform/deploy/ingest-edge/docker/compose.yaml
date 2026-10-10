@@ -1,0 +1,18 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+services:
+  ingest-edge:
+    build: .
+    image: axiom-ingest-edge:0.67.5
+    restart: unless-stopped
+    # Loopback only: nginx is the one public face.
+    ports:
+      - "127.0.0.1:8787:8787"
+    env_file: edge.env
+    volumes:
+      - edge-data:/data
+      # Who may push: owned by the operator on the host, read here, never written.
+      - ${EDGE_CONFIG_DIR:?set EDGE_CONFIG_DIR in .env to the operator's config folder}:/config:ro
+volumes:
+  edge-data:

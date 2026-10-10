@@ -1,0 +1,15 @@
+# Per-principal Axi presence (A2). One release per human: release name = slug.
+namespace: axiom-data
+# Principal handle (@axi:<context>) and its k8s-safe slug (axi-<context>).
+principal: ""
+slug: ""              # required; e.g. "axi-bens" — used for SA/secret/labels
+image: "axiom/presence:latest"
+imagePullPolicy: IfNotPresent
+# Name of the pre-provisioned K8s Secret holding this principal's channel creds
+# (SLACK_BOT_TOKEN, SLACK_APP_TOKEN, PRIVATE_LLM_API_KEY). Defaults to the slug.
+secretName: ""
+channel: ""           # SLACK_CHANNEL the presence binds to
+accountableHuman: ""  # accountable_human_id (ADR-035)
+resources:
+  requests: {cpu: "100m", memory: "256Mi"}
+  limits: {memory: "512Mi"}

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent drawer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+input { font-family: inherit; }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; display: flex; overflow: hidden">
+
+  <!-- dimmed stream behind -->
+  <div style="width: 700px; flex-shrink: 0; box-sizing: border-box; padding: 22px; opacity: 0.32; display: flex; flex-direction: column; gap: 7px">
+    <div style="font-size: 21px; font-weight: 700; margin-bottom: 10px">Steer</div>
+    <div style="box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-left: 3px solid #f0a15e; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #c4c8ce">@warden · secrets.rotate · 94 days unused</div>
+    <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-left: 3px solid #98a1ad; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #98a1ad">@tidy · hygiene.sweep · 3 proposals</div>
+    <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-left: 3px solid #7fb3d5; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #98a1ad">@mo:node-a · fleet.report · running</div>
+    <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-left: 3px solid #98a1ad; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #98a1ad">@scan · signals.extract · 41 signals</div>
+  </div>
+
+  <!-- ============ DRAWER ============ -->
+  <div style="width: 740px; flex-shrink: 0; box-sizing: border-box; background: #12161d; border-left: 1px solid #2a303a; display: flex; flex-direction: column; box-shadow: -24px 0 48px rgba(0, 0, 0, 0.45)">
+
+    <!-- header -->
+    <div style="box-sizing: border-box; padding: 16px 20px 13px 20px; border-bottom: 1px solid #2a303a">
+      <div style="display: flex; align-items: center; gap: 11px">
+        <span style="font-size: 12px; color: #6b7480">✓</span>
+        <a href="Agent.dc.html" style="font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; color: #e7e9ec; text-decoration: none; border-bottom: 1px solid #3a3f47">@warden:local</a>
+        <span style="font-size: 12.5px; color: #98a1ad">reporting, last 2m ago</span>
+        <div style="flex-grow: 1"></div>
+        <a href="Dials.dc.html" style="text-decoration: none; padding: 5px 12px; border-radius: 6px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Tune</a>
+        <button type="button" style="padding: 5px 10px; border-radius: 6px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 13px">✕</button>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; color: #98a1ad">Verifier and gatekeeper. Watches credentials, signatures and policy. Runs every 15 minutes.</div>
+    </div>
+
+    <!-- timeline + search -->
+    <div style="box-sizing: border-box; padding: 13px 20px; border-bottom: 1px solid #2a303a; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+        <sc-for list="{{ranges}}" as="r" hint-placeholder-count="5">
+          <button type="button" onClick="{{r.pick}}" style="padding: 4px 11px; border-radius: 14px; border: 1px solid {{r.bd}}; background: {{r.bg}}; color: {{r.fg}}; font-size: 12px; font-weight: 600">{{r.label}}</button>
+        </sc-for>
+        <div style="flex-grow: 1"></div>
+        <button type="button" style="padding: 4px 11px; border-radius: 6px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12px; display: flex; align-items: center; gap: 6px">
+          <span style="font-size: 11px">▤</span> 26 Sep – 28 Sep
+        </button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 9px; box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 7px; padding: 7px 11px">
+        <span style="font-size: 12px; color: #6b7480">⌕</span>
+        <label for="agent-search" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search this agent's history</label>
+        <input id="agent-search" type="text" value="rotate" style="flex-grow: 1; background: transparent; border: none; color: #e7e9ec; font-size: 13px; outline: none">
+        <span style="font-size: 12px; color: #6b7480">{{hits}} in @warden</span>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div style="flex-grow: 1; box-sizing: border-box; padding: 15px 20px; overflow: hidden; display: flex; flex-direction: column; gap: 14px">
+
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480">{{rangeLabel}} · 41 RUNS · 3 REACHED YOU</div>
+
+      <sc-for list="{{runs}}" as="g" hint-placeholder-count="3">
+        <div>
+          <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 6px">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #6b7480">{{g.time}}</span>
+            <span style="font-size: 12.5px; color: {{g.fg}}; font-weight: 600">{{g.title}}</span>
+            <sc-if value="{{g.held}}" hint-placeholder-val="{{true}}">
+              <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(232, 160, 160, 0.16); color: #e8a0a0">HARM</span>
+            </sc-if>
+            <div style="flex-grow: 1; height: 1px; background: #2a303a"></div>
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.75; color: #98a1ad; white-space: pre-line; padding-left: 13px; border-left: 1px solid #2a303a">{{g.body}}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <!-- CONVERSATION -->
+    <div style="box-sizing: border-box; border-top: 1px solid #2a303a; background: #0f131a; padding: 14px 20px 16px 20px">
+
+      <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 11px; padding-bottom: 9px; border-bottom: 1px solid #2a303a">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480">@WARDEN&rsquo;S PART OF</span>
+        <a href="Main.dc.html" style="font-size: 12.5px; font-weight: 600">Rotation policy for unused keys</a>
+        <span style="font-size: 11.5px; color: #6b7480">&middot; 3 agents &middot; 24 turns</span>
+        <div style="flex-grow: 1"></div>
+        <a href="Main.dc.html" style="font-size: 12px; white-space: nowrap">Open the whole session</a>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 11px; margin-bottom: 13px">
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end">
+          <div style="max-width: 460px; box-sizing: border-box; background: #1c212b; border-radius: 10px 10px 2px 10px; padding: 9px 13px; font-size: 13px; line-height: 1.55; color: #e7e9ec">You are interrupting me too often.</div>
+        </div>
+
+        <div style="display: flex; gap: 10px">
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #f0a15e; padding-top: 9px; flex-shrink: 0">@warden</span>
+          <div style="max-width: 500px; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 10px 10px 10px 2px; padding: 9px 13px; font-size: 13px; line-height: 1.55; color: #c4c8ce">
+            7 cases this month, 5 of them the signing key before your July condition. Two since. Either of these ends it:
+            <div style="display: flex; gap: 6px; margin-top: 9px">
+              <button type="button" style="padding: 4px 10px; border-radius: 14px; border: 1px solid #bf5700; background: rgba(191, 87, 0, 0.2); color: #f0a15e; font-size: 11.5px; font-weight: 600">Ceiling → act on loss</button>
+              <button type="button" style="padding: 4px 10px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 11.5px; font-weight: 600">Attention → harm only</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 9px 12px">
+        <div style="display: flex; align-items: center; gap: 9px">
+          <a href="Dials.dc.html" style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 2px 8px; border-radius: 5px; background: rgba(191, 87, 0, 0.2); color: #f0a15e; flex-shrink: 0; text-decoration: none">@warden</a>
+          <label for="agent-msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message this agent</label>
+          <input id="agent-msg" type="text" placeholder="Ask it, or tell it what to do differently…" style="flex-grow: 1; background: transparent; border: none; color: #e7e9ec; font-size: 13px; outline: none">
+          <button type="button" style="padding: 5px 13px; border-radius: 6px; border: none; background: #bf5700; color: #ffffff; font-size: 12.5px; font-weight: 600; flex-shrink: 0">Send</button>
+        </div>
+      </div>
+      <div style="margin-top: 8px; font-size: 11.5px; line-height: 1.5; color: #6b7480">An excerpt is an exchange, never a turn on its own: a reply severed from its question reads as something the agent never claimed. <span style="color: #7fb3d5">@neut</span> and <span style="color: #98a1ad">@plinth</span> also spoke in this session and are attributed where they did. Anything you say that changes how it behaves is read back first, then kept with a reason and an expiry.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { range: "3d", dials: false };
+  }
+
+  renderVals() {
+    const ranges = [
+      { id: "today", label: "Today", hits: 2 },
+      { id: "3d", label: "3 days", hits: 7 },
+      { id: "7d", label: "7 days", hits: 19 },
+      { id: "30d", label: "30 days", hits: 64 },
+      { id: "since", label: "Since you last changed it", hits: 41 }
+    ];
+    const cur = ranges.filter((r) => r.id === this.state.range)[0] || ranges[1];
+
+    const runs = [
+      {
+        time: "09:41", title: "Held for a person", held: true, fg: "#f0a15e",
+        body: "read  vault/audit --since 90d\nfound 1 credential gitlab-ci-runner, last_use 94d\nrule  rotate-by-use implies disuse is expiry\ngate  consequence=harm, uncertainty unreported\nHELD  raised as a case"
+      },
+      {
+        time: "09:26", title: "Suppressed by your condition", held: false, fg: "#98a1ad",
+        body: "found 1 credential release-signing, last_use 62d\nrule  rotate-by-use implies disuse is expiry\ncond  2026-07-02 @ben: not under 180 days\nSKIP  suppressed, 4th time"
+      },
+      {
+        time: "09:11", title: "Nothing to report", held: false, fg: "#98a1ad",
+        body: "read  vault/audit --since 90d\nfound 0 credentials over threshold\nEXIT  ok, silent"
+      }
+    ];
+
+    return {
+      hits: cur.hits,
+      rangeLabel: cur.label.toUpperCase(),
+      runs,
+      dialsBg: this.state.dials ? "rgba(191, 87, 0, 0.24)" : "transparent",
+      dialsBd: this.state.dials ? "#bf5700" : "#2a303a",
+      dialsFg: this.state.dials ? "#e7e9ec" : "#c4c8ce",
+      showDials: () => this.setState({ dials: !this.state.dials }),
+      ranges: ranges.map((r) => {
+        const on = this.state.range === r.id;
+        return {
+          label: r.label,
+          bg: on ? "rgba(191, 87, 0, 0.24)" : "transparent",
+          bd: on ? "#bf5700" : "#2a303a",
+          fg: on ? "#e7e9ec" : "#98a1ad",
+          pick: () => this.setState({ range: r.id })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

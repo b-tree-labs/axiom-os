@@ -1,0 +1,35 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "maintenance"
+version = "0.1.0"
+description = "Remote maintenance without a login: signed allowlisted requests a site's node fetches itself, and support sessions a person at the site opens and can end (ADR-183)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "maintenance"
+entry = "axiom.extensions.builtins.maintenance.cli:main"
+description = "Remote maintenance requests: what is waiting, approve or deny, and the node's poll"
+tier = "starter"
+intent_groups = ["operate"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "support"
+entry = "axiom.extensions.builtins.maintenance.cli:support_main"
+description = "Open, end or join a time-boxed, recorded support session"
+tier = "starter"
+intent_groups = ["operate"]
+
+[extension.mcp]
+enabled = true

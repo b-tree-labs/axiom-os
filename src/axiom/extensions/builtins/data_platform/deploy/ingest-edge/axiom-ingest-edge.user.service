@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# An ingest edge (ADR-177) as a per-user service, for a host where the
+# operator has no root: install to ~/.config/systemd/user/axiom-ingest-edge.service.
+# It keeps running after logout and starts at boot only if an administrator
+# has run `loginctl enable-linger <user>` once; without that, see
+# run-edge-without-linger.sh.
+[Unit]
+Description=Axiom ingest edge (bronze landing; downstream pulls), per-user
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/axiom-edge/edge.env
+# Refuse to start short of disk (AXIOM_EDGE_DATA_DIR, AXIOM_EDGE_MIN_FREE_GIB in edge.env).
+ExecStartPre=%h/axiom-edge/check-free-space.sh ${AXIOM_EDGE_DATA_DIR} ${AXIOM_EDGE_MIN_FREE_GIB}
+ExecStart=%h/axiom-edge/venv/bin/axi serve --profile ingest-edge --host 127.0.0.1 --port ${AXIOM_EDGE_PORT}
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
