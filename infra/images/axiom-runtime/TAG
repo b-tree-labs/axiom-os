@@ -1,0 +1,4 @@
+# The runtime image tag in values.yaml, and the sha256 of Dockerfile + entrypoint.sh + edge-run.sh
+# it was cut from. Change any of them and the test asks for a new tag: a host
+# that cached the old tag would otherwise run different files under one name.
+0.4.0 4af2c11772867bea03d48cf65d756c037ebb52af290a7ea7231b87e004677b06

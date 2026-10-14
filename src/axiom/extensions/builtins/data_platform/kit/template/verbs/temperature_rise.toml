@@ -1,0 +1,13 @@
+# A question chat can answer. Promoted, it becomes a tool for everyone who can
+# read your site, and nobody else. The description is what the assistant reads
+# when deciding whether to call it, so say what it answers.
+
+name = "temperature_rise_by_day"
+description = "Average temperature rise across the rig for each day since a date, in degC."
+object = "daily_stats"
+sql = "SELECT day, mean AS rise, unit FROM {object} WHERE channel = 'temperature.rise' AND day >= %(since)s ORDER BY day"
+
+[params.since]
+type = "date"
+default = "2026-09-01"
+description = "First day to include (YYYY-MM-DD)."

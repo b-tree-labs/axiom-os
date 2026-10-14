@@ -1,0 +1,25 @@
+# Your tenant's data kit. Everything under data/ is yours to change.
+#
+#   kit-up      start a local medallion (Postgres in Docker)
+#   kit-try     run every tier on your data and show each one
+#   kit-check   the gate CI runs before anything is promoted
+#   kit-down    remove the local medallion
+#
+# Each verb is `axi data <verb>` (or `neut data <verb>`), and each is also a
+# tool your assistant can call. See notebooks/first-contribution.py.
+
+[kit]
+# Your site's id on the shared platform. It becomes your gold schema
+# (gold_{{tenant_slug}}) and the database role your queries run as.
+tenant = "{{tenant}}"
+
+# Raw sources and the schema_ref their records carry. The examples ship one
+# source with sample data in samples/bronze/rig-a/; add yours beside it.
+[sources.rig-a]
+schema_ref = "example/rig-frame-v1"
+
+# How well your readings are known. A normalizer can attach uncertainty_terms
+# to each row (see conform/rig_frame.py); until it does, say so honestly here.
+# Declaring nothing and saying so is a legitimate state; zero is never one.
+[uncertainty]
+posture = "uncharacterised"

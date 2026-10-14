@@ -1,0 +1,49 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "0.1.0",
+  "id": "REPLACE_WITH_TEAMS_BOT_APP_ID",
+  "developer": {
+    "name": "The University of Texas at Austin",
+    "websiteUrl": "https://example.org/herald",
+    "privacyUrl": "https://example.org/herald/privacy",
+    "termsOfUseUrl": "https://example.org/herald/terms"
+  },
+  "name": {
+    "short": "AXI",
+    "full": "AXI — ut-triga-site reactor assistant"
+  },
+  "description": {
+    "short": "Ask AXI about reactor status in your channel.",
+    "full": "HERALD's bidirectional Teams channel. Reply in-thread and the AXI chat agent (configured LLM + RAG) answers, with reply-bind-back correlation to the originating alert."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#BF5700",
+  "bots": [
+    {
+      "botId": "REPLACE_WITH_TEAMS_BOT_APP_ID",
+      "scopes": ["team", "groupChat", "personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["token.botframework.com"],
+  "webApplicationInfo": {
+    "id": "REPLACE_WITH_TEAMS_BOT_APP_ID",
+    "resource": "https://RscBasedStoreApp"
+  },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [
+        {
+          "name": "ChannelMessage.Read.Group",
+          "type": "Application"
+        }
+      ]
+    }
+  }
+}

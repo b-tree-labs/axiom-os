@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataPlatformConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "connector_labels": {
+      "type": "array",
+      "default": [],
+      "description": "Site-supplied attribution map pairing a source top-level folder with its registered connector label. Used by data.activity and data.refresh when the chunks table lacks the canonical data_source column and attribution falls back to the source_path top-folder. Axiom ships an empty map; folders without an entry pass through unchanged. Operator-durable home: <config-dir>/data_platform.toml as [[data_platform.connector_labels]] entries.",
+      "x-reloadable": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "folder",
+          "connector"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "folder": {
+            "type": "string",
+            "description": "Top-level folder name exactly as it appears in source_path."
+          },
+          "connector": {
+            "type": "string",
+            "description": "Registered connector name the folder's documents are attributed to."
+          }
+        }
+      }
+    },
+    "data_platform.timeseries": {
+      "type": "array",
+      "title": "Managed time-series tables",
+      "description": "Partitioned RANGE(ts) tables whose partition lifecycle this node manages: partitions created ahead of the data, and optionally retired past a window. Declared, never discovered \u2014 a table absent from this list is never touched.",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema",
+          "table"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "string",
+            "description": "Schema holding the partitioned parent."
+          },
+          "table": {
+            "type": "string",
+            "description": "The partitioned PARENT table, not a partition."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "default": "day"
+          },
+          "ahead": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 7,
+            "description": "Future partitions to keep created. A partition created only once its data arrives is too late \u2014 the rows already fell to DEFAULT."
+          },
+          "retain_periods": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Drop partitions entirely older than this many periods. Omit to never drop."
+          }
+        }
+      }
+    }
+  }
+}

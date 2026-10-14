@@ -1,0 +1,265 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "program"
+version = "0.5.0"
+description = "Program tracking — one data file per program (axiom.program/0.1): the parameterized status read (with a drift scope — data-file-only findings plus a crosslink facet of live link/mirror health — and account-aware item content with gated-link hints), the static status-page renderer, the data-file validator, the self-update sync (reconcile + append-only change log, selecting a file or a live GitLab/GitHub feeder), the per-consumer changes read (what changed since a principal last looked), the ownership-over-time read, and the mutation surface — add/edit/remove/reassign people, lanes and schedule items, plus an invitation flow (issue/redeem) riding the platform gate invitation primitive — as registry skills per ADR-056. The data file is the authoritative editable source of truth; every mutation is identity-gated (deputy/maintainer), writes via the locked state helpers, and appends to the change log. The reads project to the composed MCP and status/changes to authz-gated HTTP routes; the mutations are CLI-only (never an anonymous MCP tool). Phases 1-6 of prd-program (R1, R2, R3/R4 coordinator + live capture feeders, R6 access, R9 connector readiness, R11 drift + crosslink health + canonical endpoints, R12 change detection, R13 identity/attribution + account-aware reads, R14 editable through its own tool), coordinated by the thin scheduled CLERK agent (ADR-161); the feeders are instances of the ADR-162 watcher primitive. No hard dependency on GitLab, GitHub, or any harness. Link checks are read-only; writing back to a tracker (repairing a moved backlink, posting a proxy assignee) is a later consent-gated phase."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi program` — the deterministic CLI surface. Each verb is a thin
+# wrapper dispatching through invoke_capability to the matching skill.
+[[extension.provides]]
+kind = "cmd"
+noun = "program"
+entry = "axiom.extensions.builtins.program.cli:main"
+description = "Program tracking: read (status / validate / changes / ownership), render, sync, edit (person / lane / item / invite / redeem), and recover (snapshots / restore) the program data file"
+subcommands = ["status", "render", "validate", "sync", "changes", "ownership", "person", "lane", "item", "invite", "redeem", "snapshots", "restore"]
+tier = "core"
+intent_groups = ["investigate", "maintain"]
+
+# CLERK — the thin program coordinator (ADR-161: "the court clerk — keeps
+# the docket and the record, never judges"). It owns the clock and the
+# accountability, not the work: on its heartbeat it runs `program sync`
+# (reconcile + append the change log). The specialist capture + posting
+# steps are delegated / arrive in later phases. CLERK is the agent persona;
+# `program` stays the deterministic CLI noun (ADR-056 §Layering).
+[[extension.provides]]
+kind = "agent"
+name = "CLERK"
+entry = "axiom.extensions.builtins.program.cli:main"
+persona = "agents/clerk/persona.md"
+description = "CLERK — the thin program coordinator (ADR-161): on a heartbeat reconciles the program data file against its read-only sources via `program sync`, keeping the append-only change log current. Reconciles from the live GitLab/GitHub feeders a deployment declares in program.feeders (else a safe self-reconcile). Writes only the node's own state; external posting and event-driven/webhook capture land in later phases."
+uses_skills = ["program.sync"]
+
+# Skills — invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+# Namespace is the CLI noun (`program`) → skill names `program.<verb>`.
+
+[[extension.provides]]
+kind = "skill"
+name = "program.status"
+entry = "axiom.extensions.builtins.program.skills.status:run"
+path = "skills/status.py"
+description = "One parameterized read over the program data file: items with owner, dates, proposed-or-committed status, percent, and links, scoped by person, lane, item, schedule, or priorities; or the drift scope, which reports what the data file alone shows is inconsistent, labelled data-file-only. Answers only from the data file — absent is reported as absent, never invented."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.render"
+entry = "axiom.extensions.builtins.program.skills.render:run"
+path = "skills/render.py"
+description = "Render the program data file to one static HTML status page in an output directory. Built-in template, stdlib only; every item id and every link in the file is present on the page."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.validate"
+entry = "axiom.extensions.builtins.program.skills.validate:run"
+path = "skills/validate.py"
+description = "Check a program data file against the axiom.program/0.1 schema and report every defect at once, or the file's shape when it is valid."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.sync"
+entry = "axiom.extensions.builtins.program.skills.sync:run"
+path = "skills/sync.py"
+description = "Reconcile the program data file against its source(s) and append one change-log entry per difference. source_kind selects the feeder (file = self-reconcile, gitlab, github, or all; default: the data file's program.feeders, else self). A live feeder that cannot pass the connector-readiness ladder is skipped loudly, never treated as 'no changes'. Idempotent — a second run over an unchanged source logs nothing. Reads only read-only sources and writes only the node's own state (data.json, snapshot, change log); nothing leaves the node. CLI + the scheduled clerk's heartbeat; not an MCP tool."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.changes"
+entry = "axiom.extensions.builtins.program.skills.changes:run"
+path = "skills/changes.py"
+description = "What changed since this principal last looked: the change-log entries after the caller's watermark, in the same owner/dates/status/percent/links shape as status. Reporting is a read; advancing the watermark is a write that defaults on only the operator CLI and otherwise requires an explicit advance, so the projected MCP/HTTP tool stays read-only."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.ownership"
+entry = "axiom.extensions.builtins.program.skills.ownership:run"
+path = "skills/ownership.py"
+description = "The ownership of an item or lane over time: the current owner from the data file plus the timeline reconstructed from the change log — each span a principal with from/to timestamps and who set it. A past owner is reported accurately even after they leave the roster. Read-only."
+
+# --- the mutation surface (prd-program R2/R6, ADR-166/167) --------------------
+# Every mutation writes data.json via the locked state helpers, appends a
+# change-log entry, and is deputy/maintainer-gated in-body. All declare
+# surfaces = ("cli",) so none is an anonymous MCP tool.
+
+[[extension.provides]]
+kind = "skill"
+name = "program.person_add"
+entry = "axiom.extensions.builtins.program.skills.people:add"
+path = "skills/people.py"
+description = "Add a program member: a principal (@name:context) layered with a lane and optional role and accounts, resolved through the directory seam when a provider is configured, else accepted as given. Deputy/maintainer-gated; appends person_added."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.person_edit"
+entry = "axiom.extensions.builtins.program.skills.people:edit"
+path = "skills/people.py"
+description = "Edit a member's name, drives, or accounts (lane/role moves go through person reassign). Deputy/maintainer-gated; appends person_edited."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.person_remove"
+entry = "axiom.extensions.builtins.program.skills.people:remove"
+path = "skills/people.py"
+description = "Remove a member; refuses if they still own schedule items unless --reassign-to names another member. Deputy/maintainer-gated; appends person_removed (and owner_changed for reassigned items)."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.person_reassign"
+entry = "axiom.extensions.builtins.program.skills.people:reassign"
+path = "skills/people.py"
+description = "Move a member to a different set of lanes and/or change their program role. Deputy/maintainer-gated; appends person_reassigned with old→new."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.lane_add"
+entry = "axiom.extensions.builtins.program.skills.lanes:add"
+path = "skills/lanes.py"
+description = "Add a lane (id, name, optional lead, optional color). Deputy/maintainer-gated; appends lane_added."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.lane_edit"
+entry = "axiom.extensions.builtins.program.skills.lanes:edit"
+path = "skills/lanes.py"
+description = "Edit a lane's name/color or change its lead. A lead change is a first-class ownership transition (lane_owner_changed, old→new); a name/color change appends lane_edited. Deputy/maintainer-gated."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.lane_remove"
+entry = "axiom.extensions.builtins.program.skills.lanes:remove"
+path = "skills/lanes.py"
+description = "Remove a lane; refuses if it still owns schedule items unless --reassign-to names another lane. Deputy/maintainer-gated; appends lane_removed."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.item_add"
+entry = "axiom.extensions.builtins.program.skills.items:add"
+path = "skills/items.py"
+description = "Add a schedule item (id, label, optional owner/lane/dates/status/pct/issue). An owner with no tracker account gets the ADR-166 proxy assignment recorded, never posted. Deputy/maintainer-gated; appends item_added."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.item_edit"
+entry = "axiom.extensions.builtins.program.skills.items:edit"
+path = "skills/items.py"
+description = "Edit an item's label/lane/dates/status/pct/issue (owner changes go through item reassign). Deputy/maintainer-gated; logs the matching field change-kind or item_edited for a label."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.item_remove"
+entry = "axiom.extensions.builtins.program.skills.items:remove"
+path = "skills/items.py"
+description = "Remove a schedule item. Deputy/maintainer-gated; appends item_removed."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.item_reassign"
+entry = "axiom.extensions.builtins.program.skills.items:reassign"
+path = "skills/items.py"
+description = "Change an item's owner, recomputing the ADR-166 proxy assignment when the new owner has no account on the program's tracker system — recorded on item.assignment, never posted to any tracker. Deputy/maintainer-gated; logs owner_changed with old→new and who acted."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.invite"
+entry = "axiom.extensions.builtins.program.skills.invitation:invite"
+path = "skills/invitation.py"
+description = "Issue a single-use, expiring invitation to join the program at a lane and role, riding the platform gate invitation primitive (shrink-only scope, scrypt-hashed at rest). Deputy/maintainer-gated; appends invited."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.redeem"
+entry = "axiom.extensions.builtins.program.skills.invitation:redeem"
+path = "skills/invitation.py"
+description = "Redeem an invitation code and record the program membership (honoring the missing-account onboarding finding). The code is the authentication, so this is not deputy-gated. Appends redeemed and person_added."
+
+# --- the recovery surface (rolling backup retention + restore) ----------------
+# save_program keeps a timestamped backup history of data.json beside it under
+# snapshots/, pruned to a bounded retention policy, separate from the
+# change-detection snapshot.json. These two CLI-only verbs read and roll back
+# that history; restore reads only the backups so it recovers a corrupt file.
+
+[[extension.provides]]
+kind = "skill"
+name = "program.snapshots"
+entry = "axiom.extensions.builtins.program.skills.restore:list_snapshots"
+path = "skills/restore.py"
+description = "List the rolling backups of the program data file, newest first, each with a short summary (program id/name and people / item / lane counts) so an operator can tell which prior state to roll back to. A backup is written on every real change to data.json and pruned to a bounded retention policy; this read never touches the live file. CLI-only."
+
+[[extension.provides]]
+kind = "skill"
+name = "program.restore"
+entry = "axiom.extensions.builtins.program.skills.restore:restore"
+path = "skills/restore.py"
+description = "Restore a chosen rolling backup over data.json, atomically, with a confirmation step (--yes to skip; headless requires it). Pick a backup with --snapshot <name> or --latest. Restore reads only the backups, never the live file, so it recovers the program even when the current data.json is corrupt, truncated, or unreadable. Authorized against the backup being restored; deputy/maintainer-gated. CLI-only."
+
+# `GET /program/status` on the composed HTTP substrate — the status read as
+# a thin projection dispatched through invoke_capability on the web
+# surface. requires_authz = true: compose_app refuses to serve the mount
+# without an authz hook (fail-closed), and the hook refuses a request with
+# no credential. The route reads only the node's own data file.
+[[extension.provides]]
+kind = "service"
+name = "program_status_route"
+entry = "axiom.extensions.builtins.program.mount:mount_spec"
+description = "Authz-gated read route GET /program/status over the node's program data file"
+prefix = "/program"
+requires_authz = true
+
+# The read skills (status, validate, changes, ownership) project to the composed
+# MCP through the skill registry (ADR-073) as read-only tools. sync is a write
+# (CLI + the clerk heartbeat), render writes files, and the whole mutation
+# surface (person/lane/item/invite/redeem) writes the node's authoritative
+# state; all of them declare surfaces = ("cli",), so none becomes an MCP tool.
+# changes/ownership declare side_effects = false, so their tools are read-only —
+# the watermark advance is an explicit opt-in (see spec-program §"Read vs.
+# write exposure"). A deployment that wants a mutation over MCP opts it in
+# deliberately with "mcp" + allowed_principals; it is never anonymous.
+[extension.mcp]
+enabled = true
+prefix = "axiom_program"
+
+# CLERK daemon lifecycle (ADR-161). The agent service runner schedules this
+# on the existing background-service substrate: the heartbeat_command runs as
+# `axi program sync` every heartbeat_interval seconds once the agent is armed.
+#
+# What makes it fire — and the two gates that keep it OFF by default:
+#   1. The master `autonomy.enabled` setting ships FALSE; no OS timer is even
+#      installed until an operator runs `axi settings set autonomy.enabled true`.
+#   2. default_consent = "opt-in" keeps CLERK out of the auto-enabled core set,
+#      so on a decided machine it fires only after the operator selects it in
+#      `axi agents register`. (Opt-in, not "core": although phase-3 sync writes
+#      only local node state, CLERK is the coordinator that will soon reach the
+#      network — capture + posting — so it opts in deliberately, never silently.)
+# This declaration does NOT force autonomy on; it declares a correct, genuinely
+# schedulable agent whose firing stays an operator decision.
+[agent]
+default_consent = "opt-in"
+heartbeat_interval = 900
+startup = "daemon"
+heartbeat_command = "program sync"
+
+[agent.env]
+HOME = "${HOME}"
+
+# ADR-066 servant-naming render metadata — the nameplate HERALD renders on a
+# channel; the canonical principal (@clerk:<context>) is derived, not declared.
+[sender]
+display_name = "CLERK"
+
+# ADR-182: how this service stays up through a deploy, update or migration.
+[extension.availability]
+switch = "blue-green"  # mounted on the http app; switches with it
+readiness = "http:/healthz"
+drain_s = 15
+migrations = "none"
+single_flight = false
+verified_by = "../http/tests/test_every_mounted_service_answers_through_a_switch.py"

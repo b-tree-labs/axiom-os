@@ -1,0 +1,42 @@
+# Builtin CLIs that dispatch WITHOUT going through `invoke_capability`.
+#
+# The chokepoint is where a verb gets its authority decision, its audit
+# record and its telemetry row. A verb that dispatches around it is invisible
+# to `axi agents status`, to the capability ledger, and to anything asking
+# "did an external harness call this?" — which is how a day on which the
+# operator used a verb came to record zero invocations.
+#
+# This file is a RATCHET. Entries only ever LEAVE it: route the CLI through
+# `invoke_capability`, then delete its line. Adding a line is how the gap
+# grew unnoticed in the first place, so a new entry needs a reason on the
+# same line and a reviewer who accepts it.
+#
+# Generated 2026-10-02 from the then-current tree: 21 of 49 routed.
+analytics
+auth
+chat
+classroom
+commands
+compute
+connect
+context
+cred
+db
+diagnostics
+directive
+federation
+ide
+identity
+install
+llm_serving
+log
+mcp
+memory
+note
+principal
+rag
+review
+settings
+signals
+test
+update
