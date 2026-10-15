@@ -1,0 +1,57 @@
+# LLM Provider Configuration
+# Copy to runtime/config/models.toml and fill in your keys.
+#
+# The gateway tries providers in priority order with automatic fallback.
+# All providers must speak the OpenAI chat completions format.
+
+[gateway]
+format = "openai"
+
+# Uncomment and configure providers you have access to:
+
+# routing_tier = "public"            → safe for cloud LLMs (no VPN needed)
+# routing_tier = "restricted"        → private network LLM (VPN-gated)
+# routing_tier = "export_controlled" → private cloud or equivalent authorized environment (future)
+# routing_tier = "any"               → no restriction (default)
+# requires_vpn = true                → TCP reachability check before each call
+
+# Uncomment and configure providers you have access to:
+
+# [[gateway.providers]]
+# name = "anthropic"
+# endpoint = "https://api.anthropic.com/v1"
+# model = "claude-sonnet-4-20250514"
+# api_key_env = "ANTHROPIC_API_KEY"    # reads from environment variable
+# priority = 1
+# routing_tier = "public"              # safe for cloud
+# use_for = ["extraction", "synthesis", "correlation", "fallback"]
+
+# [[gateway.providers]]
+# name = "private-llm"
+# endpoint = "https://llm.internal.example:8443/v1"        # private LLM server (VPN required)
+# model = "unsloth/Qwen3.5-122B-A10B-GGUF:Q4_K_M"         # Qwen3.5 MoE 122B/10B active, 256K ctx
+# api_key_env = "PRIVATE_LLM_API_KEY"                      # set to your provider's API key
+# priority = 2
+# routing_tier = "restricted"          # private server, no cloud — restricted tier (not EC)
+# requires_vpn = true                  # VPN required (vpn_profile = "private-llm")
+# use_for = ["extraction", "synthesis", "fallback"]
+
+# [[gateway.providers]]
+# name = "openai"
+# endpoint = "https://api.openai.com/v1"
+# model = "gpt-4o"
+# api_key_env = "OPENAI_API_KEY"
+# priority = 3
+# routing_tier = "public"
+# use_for = ["multimodal", "fallback"]
+
+# To use the bundled local llamafile (default qwen2.5:7b, configurable via
+# `axi config --model bonsai` for the legacy 1.7GB option):
+#
+# [[gateway.providers]]
+# name = "local-llamafile"
+# endpoint = "http://localhost:8080/v1"
+# model = "qwen2.5-7b-instruct"
+# priority = 1
+# routing_tier = "any"
+# use_for = ["chat", "fallback"]

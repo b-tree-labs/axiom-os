@@ -1,0 +1,90 @@
+# The local medallion in its archive role (contributor mode): the site's own
+# ingest, a TimescaleDB for silver, the schema set up once, and a nightly
+# conform. Layer it after a profile: -f values-lowpower.yaml -f values-archive.yaml
+#
+# Secrets (never here): the edge's secret env file / Secret must hold
+#   AXIOM_DB_URL=postgresql://axiom:<password>@node-medallion:5432/axiom_db
+# and the medallion's must hold POSTGRES_PASSWORD, both written from the vault.
+# What this node is: a site's own ingest and archive. No agent runs here and
+# nothing here calls a language model (enforced: every Axiom process reads this).
+node:
+  role: archive
+  functions: [ingest, data_platform]
+  agents: none
+roles:
+  edge:
+    enabled: true
+    # Partner keys and sources (Compose: ./config/edge); without it every push
+    # is refused.
+    configFrom: edge-config
+    # The database's own volume, watched beside the edge's: a database whose
+    # volume fills stops. Alarm at 5 GiB or 10% free (AXIOM_DISK_ALARM_*),
+    # shown in /healthz, `status` and the heartbeat the platform reads.
+    watchVolumes:
+      - {label: database, role: medallion}
+    secretFrom: archive-db
+    env:
+      # The site's own node: rate limits protect a shared host from one tenant
+      # and would only throttle a backfill here.
+      AXIOM_INGEST_BURST: "100000"
+      AXIOM_INGEST_RATE_PER_SECOND: "100000"
+      AXIOM_INGEST_MAX_ROWS_PER_BATCH: "50000"
+      # Compression after N days; retention unset = never delete.
+      AXIOM_SILVER_COMPRESS_AFTER_DAYS: "2"
+      AXIOM_SILVER_RETAIN_DAYS: ""
+      # Space retention (the reclaim companion below): only when the disk is
+      # below its alarm floor or the archive is over AXIOM_ARCHIVE_BUDGET_BYTES,
+      # the oldest data older than this many days is rotated out, oldest first,
+      # until the pressure clears. Empty = never delete (the alarm stays up).
+      AXIOM_ARCHIVE_KEEP_DAYS: "90"
+      AXIOM_ARCHIVE_BUDGET_BYTES: ""
+      # Contributor mode: a batch the forwarder has not delivered is never
+      # deleted; with no forwarder cursor yet, nothing counts as delivered.
+      AXIOM_ARCHIVE_CONTRIBUTOR: "1"
+      # Start only once the database accepts connections (same name on both targets).
+      AXIOM_WAIT_FOR: "node-medallion:5432"
+    # Creates silver (time-partitioned, compressed per the settings above) and
+    # the read-only role ADR-180 promises. AXIOM_READER_PASSWORD comes from the
+    # secret env, written from the vault. Needs a release carrying ensure-schema.
+    init: [axi, data, ensure-schema, --time-partitioned, --reader, archive_reader]
+    # The site's normalizer configuration, where the site package reads it
+    # (HOME is /data). Set `path` to that location in the site's values file.
+    # extraConfig:
+    #   - {name: site-maps, from: site-maps, path: /data/<site-config-dir>}
+    companions:
+      - name: conform
+        # Conforms every source's bronze, daily. AXI_STATE_DIR matches the
+        # edge's, so it sees the same connectors.
+        command:
+          - sh
+          - -c
+          - >-
+            export AXI_STATE_DIR=/data/state;
+            while true; do
+            for d in /data/bronze/*/; do [ -d "$d" ] || continue;
+            axi data conform-run --bronze-root "$d" || echo "conform failed: $d" >&2; done;
+            sleep 86400; done
+        # Measured 2026-10-08: about 165 readings/s at 0.05 CPU, hours for a
+        # day of a continuous site. 0.5 keeps a day's conform well under an hour.
+        cpu: "500m"
+      - name: reclaim
+        # Frees space by retention before the disk fills (see the env above).
+        # Every 10 minutes; acts only under pressure. Needs a release carrying
+        # `data archive-reclaim`.
+        command:
+          - sh
+          - -c
+          - >-
+            export AXI_STATE_DIR=/data/state;
+            while true; do
+            axi data archive-reclaim --outbox-dir /data/outbox
+            || echo "archive reclaim: pressure not cleared" >&2;
+            sleep 600; done
+  medallion:
+    enabled: true
+    secretFrom: archive-db-superuser
+    # Measured on a real site's data (2026-10-08): silver compresses to 77 B a
+    # reading (501 B uncompressed), so about 3.6 M readings a day is about 280 MB
+    # a day once compressed, plus at most ~3.6 GB in the uncompressed window
+    # (compress after 2 days). 100 GiB holds about a year with retention unset.
+    storage: 100Gi

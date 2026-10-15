@@ -1,0 +1,9 @@
+{
+  "title": "Inlet and outlet temperature, daily mean",
+  "object": "daily_stats",
+  "x": "day",
+  "y": "mean",
+  "series": "channel",
+  "only": ["temperature.inlet", "temperature.outlet"],
+  "unit": "unit"
+}

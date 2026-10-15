@@ -1,0 +1,76 @@
+{{- /*
+Blue/green (ADR-170): never down from our own causes. A role with
+blueGreen.enabled runs one StatefulSet per listed slot. The slots share the
+role's data volume and each has its own installed packages. The front Service
+selects the active slot ("both" during a switch, so the endpoints are never
+empty), and a preview Service selects the idle one. Changing `active` changes
+only the selectors: no pod restarts.
+*/ -}}
+{{- $r := .Values.roles -}}
+{{- range $name := keys $r | sortAlpha }}
+{{- $cfg := index $r $name }}
+{{- if and $cfg.enabled (dig "blueGreen" "enabled" false $cfg) }}
+{{- $role := $name }}
+{{- $full := printf "%s-%s" $.Release.Name $role }}
+{{- $active := $cfg.blueGreen.active }}
+{{- $slots := keys $cfg.blueGreen.slots | sortAlpha }}
+{{- $cmd := $cfg.command }}
+{{- $wcfg := $cfg }}
+{{- if eq $role "edge" }}
+{{- $cmd = list "edge-run" (toString $cfg.port) }}
+{{- $wcfg = merge (dict "env" (dict "AXIOM_EDGE_DOWNSTREAM" $cfg.downstream)) $cfg }}
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $full }}-data
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $role) | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: {{ $cfg.storage }}}}
+---
+{{- range $slot := $slots }}
+{{ include "axiom-node.workload" (dict "root" $ "role" $role "slot" $slot "slotPackages" (index $cfg.blueGreen.slots $slot).packages "dataClaim" (printf "%s-data" $full) "cfg" $wcfg "command" $cmd "port" $cfg.port "probePath" (default "/healthz" $cfg.probePath) "priority" "background") }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $role) | nindent 4 }}
+  annotations:
+    axiom.io/front: "true"
+    axiom.io/role: {{ $role | quote }}
+    axiom.io/port: {{ $cfg.port | quote }}
+    axiom.io/active: {{ $active | quote }}
+    axiom.io/slots: {{ join "," $slots | quote }}
+    axiom.io/front-image: {{ $.Values.front.image | quote }}
+    {{- with $cfg.publish }}
+    axiom.io/publish: {{ printf "%s:%v" . $cfg.port | quote }}
+    {{- end }}
+spec:
+  selector:
+    {{- include "axiom-node.labels" (dict "root" $ "role" $role) | nindent 4 }}
+    {{- if ne $active "both" }}
+    axiom.io/slot: {{ $active }}
+    {{- end }}
+  ports: [{name: http, port: {{ $cfg.port }}, targetPort: http}]
+{{- if ne $active "both" }}
+{{- range $slot := $slots }}{{- if ne $slot $active }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-preview
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $role) | nindent 4 }}
+  annotations: {axiom.io/preview: "true"}
+spec:
+  selector:
+    {{- include "axiom-node.labels" (dict "root" $ "role" $role) | nindent 4 }}
+    axiom.io/slot: {{ $slot }}
+  ports: [{name: http, port: {{ $cfg.port }}, targetPort: http}]
+{{- end }}{{- end }}
+{{- end }}
+---
+{{- end }}
+{{- end }}
