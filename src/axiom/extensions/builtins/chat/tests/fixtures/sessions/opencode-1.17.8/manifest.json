@@ -1,0 +1,10 @@
+{
+  "capture": "opencode run against local ollama qwen2.5:7b in a throwaway HOME/XDG; tables session/message/part dumped with their real CREATE TABLE",
+  "harness": "opencode",
+  "kind": "db",
+  "session_id": "ses_ee2fe4297ffeGkpV9439SqOF0Y",
+  "sql": {
+    "store.sql": ".local/share/opencode/opencode.db"
+  },
+  "version": "1.17.8"
+}
