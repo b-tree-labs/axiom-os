@@ -1,0 +1,30 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- file-generation CLI; no runtime MCP tool surface
+[extension]
+name = "context"
+version = "0.1.0"
+description = "Cross-provider project context — generate per-tool assistant context files from the canonical AGENTS.md (ADR-051)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi context` — init / sync / check the per-tool context files generated
+# from AGENTS.md (Cursor, JetBrains Junie, Copilot).
+[[extension.provides]]
+kind = "cmd"
+noun = "context"
+entry = "axiom.extensions.builtins.context.cli:main"
+description = "Generate per-tool assistant context files from the canonical AGENTS.md"
+tier = "advanced"
+intent_groups = ["build", "maintain"]
+# init/sync write files and install a git hook; check shells nothing, but the
+# whole capability is git-repo oriented — gate on git per ADR-047.
+requires = ["git"]

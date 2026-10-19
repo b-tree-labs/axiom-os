@@ -1,0 +1,31 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "search"
+version = "0.1.0"
+description = "Search what this node holds — conversations (titles and message text), signed logbook records and the document corpus — bounded by what the asker may read. One skill on every surface."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi search` itself is declared by the rag extension (its user-facing,
+# starter-tier alias) and now points HERE: one search, the same rows the web
+# palette and the MCP tool return. `axi rag search` stays the corpus-only path.
+
+# /api/v1/search and /api/v1/search/suggest — the app's palette and results page.
+[[extension.provides]]
+kind = "api"
+subpath = "/search"
+entry = "axiom.extensions.builtins.search.api:register_routes"
+description = "Node search: full results and fast palette suggestions"
+
+[extension.mcp]
+enabled = true

@@ -1,0 +1,15 @@
+flowchart TD
+  U["Harnesses and users<br/>CLI · MCP · IDE · chat"]:::user
+  U --> GW["LLM Gateway<br/>tier routing · circuit breakers"]:::core
+  GW --> FLEET["Agent fleet<br/>read → reason → act → publish"]:::core
+  FLEET --> MEM["Memory (CompositionService)<br/>immutable T,U,A,R provenance"]:::core
+  FLEET --> RAG["RAG<br/>retrieval + policy engine"]:::core
+  MEM --> V["Vega<br/>federation · identity · trust graph"]:::vega
+  RAG --> DP["Data platform<br/>medallion: bronze → silver → gold"]:::data
+  V --> DB[("Postgres<br/>one per install · schema-per-extension")]:::db
+  DP --> DB
+  classDef user fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;
+  classDef core fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef db fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;

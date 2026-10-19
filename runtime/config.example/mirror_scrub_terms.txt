@@ -1,0 +1,23 @@
+# mirror_scrub_terms.txt — terms that must not appear in public mirror fixtures
+#
+# Copy to runtime/config/mirror_scrub_terms.txt (gitignored) and add your
+# facility-specific identifiers, staff names, and internal project codenames.
+#
+# Format: one term per line. Lines starting with # are comments.
+#
+# The committed baseline of forbidden terms (consumer name, institution ids,
+# personal paths, credential hints) lives in scripts/build_public_mirror.py and
+# is enforced on every PR by tests/test_mirror.py. This file is the local,
+# gitignored extension point for deployment-specific terms (facility names,
+# staff, internal codenames) a private deployment wants additionally scrubbed.
+
+# Facility infrastructure
+# MY_FACILITY
+# MY_CLOUD
+
+# Add internal project codenames here
+# MY_INTERNAL_PROJECT
+
+# Add staff names here (full names and surnames)
+# Firstname Lastname
+# Lastname
