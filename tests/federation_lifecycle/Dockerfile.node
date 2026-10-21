@@ -1,0 +1,58 @@
+# Federation lifecycle test node.
+#
+# One container = one Axiom node. Installs axi-platform from the local repo
+# (bind-mounted editable in docker-compose.yml), plus openssh-server so that
+# `axi nodes add <name> <user@host>` can fetch peer identity over SSH and
+# promote the registry entry to VERIFIED (per ADR identity binding, v0.10.4+).
+#
+# This image is intentionally minimal — it's a test fixture, not a product
+# container. For production nodes, see the top-level Dockerfile.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/axiom \
+    PATH=/home/axiom/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        openssh-server \
+        openssh-client \
+        curl \
+        ca-certificates \
+        procps \
+        iputils-ping \
+        passwd \
+        adduser \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd \
+    && /usr/sbin/useradd --uid 1000 --create-home --shell /bin/bash axiom
+
+# Install axi-platform. In docker-compose we bind-mount the repo over /src,
+# and the entrypoint does a `pip install -e /src` so code edits are live.
+# For a standalone build, we pre-install from a COPYed snapshot.
+COPY pyproject.toml /tmp/axi/pyproject.toml
+COPY src/ /tmp/axi/src/
+COPY README.md /tmp/axi/README.md
+RUN pip install --no-cache-dir /tmp/axi cryptography && rm -rf /tmp/axi
+
+# SSHD config — allow key-based login for the axiom user, no passwords.
+RUN sed -ri \
+        -e 's/^#?PermitRootLogin.*/PermitRootLogin no/' \
+        -e 's/^#?PasswordAuthentication.*/PasswordAuthentication no/' \
+        -e 's/^#?PubkeyAuthentication.*/PubkeyAuthentication yes/' \
+        -e 's/^#?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' \
+        /etc/ssh/sshd_config \
+    && echo "AcceptEnv PATH" >> /etc/ssh/sshd_config
+
+# Make sure the axi CLI is on PATH for non-login shells invoked by ssh.
+RUN printf 'export PATH=/usr/local/bin:$PATH\n' > /home/axiom/.ssh_env \
+    && mkdir -p /home/axiom/.ssh \
+    && chown -R axiom:axiom /home/axiom
+
+COPY tests/federation_lifecycle/node_entrypoint.sh /usr/local/bin/node_entrypoint.sh
+RUN chmod +x /usr/local/bin/node_entrypoint.sh
+
+EXPOSE 22 8765 8766
+
+ENTRYPOINT ["/usr/local/bin/node_entrypoint.sh"]

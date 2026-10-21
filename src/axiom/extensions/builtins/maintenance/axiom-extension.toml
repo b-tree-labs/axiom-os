@@ -1,0 +1,178 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "maintenance"
+version = "0.1.0"
+description = "Remote maintenance without a login: signed allowlisted requests a site's node fetches itself, and support sessions a person at the site opens and can end (ADR-183)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "maintenance"
+entry = "axiom.extensions.builtins.maintenance.cli:main"
+description = "Remote maintenance requests: what is waiting, approve or deny, and the node's poll"
+tier = "starter"
+intent_groups = ["operate"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "support"
+entry = "axiom.extensions.builtins.maintenance.cli:support_main"
+description = "Open, end or join a time-boxed, recorded support session"
+tier = "starter"
+intent_groups = ["operate"]
+
+[extension.mcp]
+enabled = true
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.apply_update"
+entry = "axiom.extensions.builtins.maintenance.skills:apply_update"
+path = "skills/apply_update"
+description = "Install a version a person approved, from the signed release channel, with checks and rollback. What a node wires apply_update to."
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = [{ id = "version-named", description = "an update needs the version a person approved", fix = "pass version=<the approved version>; see what is approved with 'axi maintenance status'" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.approve"
+entry = "axiom.extensions.builtins.maintenance.skills:approve"
+path = "skills/approve"
+description = "Approve a waiting maintenance request; it runs now."
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = [{ id = "request-waiting", description = "the request must be one that is waiting for approval here", fix = "list what is waiting with 'axi maintenance pending' and pass one of its ids as id", consumes = "request_id", param = "id" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.deny"
+entry = "axiom.extensions.builtins.maintenance.skills:deny"
+path = "skills/deny"
+description = "Deny a waiting maintenance request; it never runs."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = [{ id = "request-waiting", description = "the request must be one that is waiting for a decision here", fix = "list what is waiting with 'axi maintenance pending' and pass one of its ids as id", consumes = "request_id", param = "id" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.keygen"
+entry = "axiom.extensions.builtins.maintenance.skills:keygen"
+path = "skills/keygen"
+description = "Make an operator signing key; the private half goes into the vault."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = [{ id = "key-named", description = "the signing key needs a name, which becomes its key_id on the nodes that trust it", fix = "pass name=<key id>" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.pending"
+entry = "axiom.extensions.builtins.maintenance.skills:pending"
+path = "skills/pending"
+description = "Maintenance requests waiting for a person at this site to approve or deny. Read-only."
+risk = "read"
+side_effects = false
+idempotent = true
+produces = [{ kind = "request_id", how_to_use = "the one waiting request; pass as id to maintenance.approve or maintenance.deny" }]
+next_steps = [{ target = "maintenance.approve", when = "produced:request_id", why = "approve the waiting request (a person's decision)", feeds = { id = "request_id" } }, { target = "maintenance.deny", when = "produced:request_id", why = "deny the waiting request", feeds = { id = "request_id" } }]
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.poll"
+entry = "axiom.extensions.builtins.maintenance.skills:poll"
+path = "skills/poll"
+description = "Fetch this site's maintenance requests from the relay over the outbound connection, act on each, and post the results. watch_s repeats."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.request"
+entry = "axiom.extensions.builtins.maintenance.skills:request"
+path = "skills/request"
+description = "Sign one allowlisted maintenance request for a site and send it to the relay."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.results"
+entry = "axiom.extensions.builtins.maintenance.skills:results"
+path = "skills/results"
+description = "Results a site's node has reported for maintenance requests."
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "maintenance.status"
+entry = "axiom.extensions.builtins.maintenance.skills:status"
+path = "skills/status"
+description = "This node's remote-maintenance level, what is waiting for approval, what ran recently, and what the deployment wired. Read-only."
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "support.attach"
+entry = "axiom.extensions.builtins.maintenance.skills:support_attach"
+path = "skills/attach"
+description = "Join an open support session as the operator (Ctrl-] leaves)."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "support.close"
+entry = "axiom.extensions.builtins.maintenance.skills:support_close"
+path = "skills/close"
+description = "End the support session open on this machine."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "support.list"
+entry = "axiom.extensions.builtins.maintenance.skills:support_list"
+path = "skills/list"
+description = "Support sessions a site has open at the relay."
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "support.attach", when = "ok", why = "join an open session as the operator" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "support.open"
+entry = "axiom.extensions.builtins.maintenance.skills:support_open"
+path = "skills/open"
+description = "Open a time-boxed, recorded support session from this machine. Run by a person at the site, who can end it."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = [{ id = "sessions-allowed", description = "this site must have declared maintenance = sessions", fix = "a person at the site runs 'axi features maintenance sessions'" }]
