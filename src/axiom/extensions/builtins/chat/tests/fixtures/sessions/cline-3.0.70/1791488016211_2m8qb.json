@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "session_id": "1791488016211_2m8qb",
+  "source": "cli",
+  "pid": 72811,
+  "started_at": "2026-10-08T19:33:36.214Z",
+  "ended_at": "2026-10-08T19:36:18.647Z",
+  "exit_code": 0,
+  "status": "completed",
+  "interactive": false,
+  "provider": "ollama",
+  "model": "qwen2.5:7b",
+  "cwd": "/sandbox/work",
+  "workspace_root": "/sandbox/work",
+  "enable_tools": true,
+  "enable_spawn": false,
+  "enable_teams": false,
+  "prompt": "Run this shell command with your command tool: echo @@SECRET@@ . Then call submit_and_exit with the word pong.",
+  "metadata": {
+    "sessionHistoryOrigin": {
+      "mode": "user",
+      "version": "3.0.70"
+    },
+    "title": "Run this shell command with your command tool: echo @@SECRET@@ . Then call submit_and_exit wi",
+    "totalCost": 0,
+    "aggregatedAgentsCost": 0,
+    "usage": {
+      "inputTokens": 5608,
+      "outputTokens": 111,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalCost": 0
+    },
+    "aggregateUsage": {
+      "inputTokens": 5608,
+      "outputTokens": 111,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalCost": 0
+    }
+  },
+  "messages_path": "/sandbox/data/sessions/1791488016211_2m8qb/1791488016211_2m8qb.messages.json"
+}

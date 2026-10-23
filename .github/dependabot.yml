@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # GitHub Actions are SHA-pinned; Dependabot bumps them in ONE weekly batch PR.
+  # See docs/runbooks/repin-policy.md.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns:
+          - "*"
