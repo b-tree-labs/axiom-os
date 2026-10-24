@@ -1,0 +1,324 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "vault"
+version = "0.1.0"
+description = "KEEP — secret storage + capability token issuance. Per ADR-055 + prd-axiom-vault."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.24"
+
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# KEEP — the Steward + Governor that owns this primitive.
+[[extension.provides]]
+kind = "agent"
+name = "keep"
+entry = "axiom.extensions.builtins.vault:keep_persona_path"
+persona = "agents/keep/persona.md"
+description = "KEEP — capability-token lifecycle (issue, validate, expire, revoke) + outbound-call credential chaining via pluggable secrets backends."
+
+[[extension.provides]]
+kind = "tool"
+name = "vault_get_capability"
+entry = "axiom.extensions.builtins.vault.capability_store:get_capability"
+description = "Acquire a fresh-or-cached capability for an action."
+idempotent = true
+
+[[extension.provides]]
+kind = "tool"
+name = "vault_outbound_call"
+entry = "axiom.extensions.builtins.vault.outbound:outbound_call"
+description = "Execute an outbound HTTP call under a capability. The ONLY plaintext-credential site."
+idempotent = false
+side_effects = "calls_network"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "vault"
+entry = "axiom.extensions.builtins.vault.cli:cli"
+subcommands = ["list", "issue", "revoke", "audit", "sweep", "renew", "steward",
+               "backup", "ls", "show", "verify", "restore", "prune", "pin", "unpin", "scrub",
+               "key-info", "key-init"]
+
+# Vault backup skills (axiom.infra.vault_backup; spec-vault-backup.md)
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup"
+entry = "axiom.extensions.builtins.vault.skills.backup:backup"
+path = "skills/backup.py"
+description = "Back up the credential values the harness holds into one encrypted archive"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "backup-key", description = "a backup key must exist, because backups are never written in the clear", fix = "create one with 'axi vault key-init' (it shows the recovery code once), then check it with 'axi vault key-info'" }]
+produces = [{ kind = "backup_id", how_to_use = "pass as id to vault.backup_show, vault.backup_verify, vault.backup_pin or vault.backup_restore", field = "id" }]
+next_steps = [{ target = "vault.backup_verify", when = "produced:backup_id", why = "prove the new backup is intact", feeds = { id = "backup_id" } }, { target = "vault.key_info", when = "ok", why = "check custody: where the backups are and which code opens them" }, { target = "vault.key_init", when = "error", why = "create the backup key when none exists" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_ls"
+entry = "axiom.extensions.builtins.vault.skills.backup:ls"
+path = "skills/backup.py"
+description = "List vault backups"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "vault.backup_show", when = "ok", why = "open one backup's manifest" }, { target = "vault.backup", when = "ok", why = "take a backup if the newest is old" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_show"
+entry = "axiom.extensions.builtins.vault.skills.backup:show"
+path = "skills/backup.py"
+description = "Show one vault backup's manifest (names and fingerprints, no values)"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "backup-exists", description = "the backup must be in the store", fix = "list the backups with 'axi vault ls' and pass one of its ids as id; make one with 'axi vault backup'", consumes = "backup_id", param = "id" }]
+produces = [{ kind = "backup_id", how_to_use = "pass as id to vault.backup_show, vault.backup_verify, vault.backup_pin or vault.backup_restore", field = "id" }]
+next_steps = [{ target = "vault.backup_verify", when = "produced:backup_id", why = "prove it is intact", feeds = { id = "backup_id" } }, { target = "vault.backup_restore", when = "produced:backup_id", why = "restore from it (opens a plan; a person approves)", feeds = { id = "backup_id" } }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_verify"
+entry = "axiom.extensions.builtins.vault.skills.backup:verify"
+path = "skills/backup.py"
+description = "Verify the vault backup store"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "vault.backup", when = "error", why = "make a fresh backup when this one is damaged" }, { target = "vault.key_info", when = "ok", why = "check custody of the recovery code" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_restore"
+entry = "axiom.extensions.builtins.vault.skills.backup:restore"
+path = "skills/backup.py"
+description = "Restore credentials from a backup (dry run unless apply)"
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = [{ id = "recovery-code-exists", description = "the recovery code (or passphrase) must be supplied, because a backup can only be opened with it", fix = "run it in a terminal to be asked for the recovery code, or pass `--code-file PATH` (a file only you can read); if the code is lost, 'axi vault key-info' says what that means and what can still be recovered" }, { id = "backup-exists", description = "the backup must be in the store", fix = "list the backups with 'axi vault ls' and pass one of its ids as id; make one with 'axi vault backup'", consumes = "backup_id", param = "id" }]
+produces = [{ kind = "pre_restore_id", how_to_use = "the safety backup taken first; pass as id to vault.backup_restore to undo" }]
+next_steps = [{ target = "vault.backup_restore", when = "produced:pre_restore_id", why = "undo this restore by restoring the safety backup (opens a plan)", feeds = { id = "pre_restore_id" } }, { target = "vault.audit", when = "ok", why = "check which credentials are healthy now" }, { target = "vault.key_info", when = "error", why = "check the recovery code is the one these backups were made with" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_prune"
+entry = "axiom.extensions.builtins.vault.skills.backup:prune"
+path = "skills/backup.py"
+description = "Apply vault-backup retention (dry run unless apply)"
+risk = "destructive"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "vault.backup_ls", when = "ok", why = "see what is left" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_pin"
+entry = "axiom.extensions.builtins.vault.skills.backup:pin"
+path = "skills/backup.py"
+description = "Exempt a vault backup from pruning"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "backup-exists", description = "the backup must be in the store", fix = "list the backups with 'axi vault ls' and pass one of its ids as id; make one with 'axi vault backup'", consumes = "backup_id", param = "id" }]
+next_steps = [{ target = "vault.backup_unpin", when = "always", why = "make it prunable again when it is no longer needed" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_unpin"
+entry = "axiom.extensions.builtins.vault.skills.backup:unpin"
+path = "skills/backup.py"
+description = "Make a pinned vault backup prunable again"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "backup-exists", description = "the backup must be in the store", fix = "list the backups with 'axi vault ls' and pass one of its ids as id; make one with 'axi vault backup'", consumes = "backup_id", param = "id" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_scrub"
+entry = "axiom.extensions.builtins.vault.skills.backup:scrub"
+path = "skills/backup.py"
+description = "Remove an exposed credential's old value from past backups"
+risk = "destructive"
+side_effects = true
+idempotent = true
+requires = [{ id = "credential-named", description = "the credential to scrub must be named", fix = "pass name=<credential>; list stored names with 'axi secrets list'" }]
+next_steps = [{ target = "vault.backup_verify", when = "ok", why = "prove the rewritten backups still open" }]
+recipes = ["credential-leak-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.key_info"
+entry = "axiom.extensions.builtins.vault.skills.backup:key_info"
+path = "skills/backup.py"
+description = "Whether a vault backup key exists, and key-custody reminders"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "vault.key_init", when = "ok", why = "create the backup key if the report says none exists" }, { target = "vault.backup_verify", when = "ok", why = "prove the code you hold still opens the backups" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.key_init"
+entry = "axiom.extensions.builtins.vault.skills.backup:key_init"
+path = "skills/backup.py"
+description = "Create the vault backup key and show the recovery code once"
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = [{ id = "somewhere-to-show-the-code", description = "the recovery code is shown once, so there must be somewhere to show it (or a passphrase of your choosing)", fix = "run it in a terminal, or pass code_out=<file only you can read>, or pass passphrase" }]
+next_steps = [{ target = "vault.backup", when = "ok", why = "take the first backup" }, { target = "vault.key_info", when = "ok", why = "confirm the key and where custody stands" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.backup_tick"
+entry = "axiom.extensions.builtins.vault.skills.backup:tick"
+path = "skills/backup.py"
+description = "Scheduled vault backup"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+# Daily by default (vault.backup.interval_hours). The tick runs every 30 minutes and decides whether
+# a backup is due and whether anything changed; it never prompts, and with no backup key configured
+# it reports that loudly and writes nothing (it will not write a plaintext backup).
+[[extension.schedule]]
+name = "vault_backup_tick"
+description = "Back up the vault when the interval has elapsed (or a change is pending) and something changed"
+cadence = { kind = "interval", interval_seconds = 1800 }
+action = "vault.backup_tick"
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 2, backoff = "exponential", dedup_window_seconds = 600 }
+
+# KEEP's heartbeat. The dispatcher (agents/background_service.py) only spawns
+# extensions declaring always-on + a heartbeat_command, so declaring this IS
+# the enablement — an operator who does not want KEEP sweeping removes the
+# block or disables the extension.
+#
+# Hourly: unmanaged credential material is a standing condition, not an event.
+# Sweeping more often would page about the same finding repeatedly; less often
+# and a credential pasted into a URL lives a working day before anyone knows.
+#
+# The heartbeat runs `steward` (sweep + renew), not `sweep` alone. Expiry is a
+# second, independent failure mode: a credential can be perfectly managed and
+# still lapse. Hourly against renew's 3-day horizon means a credential is seen
+# as due ~72 times before it dies, so no single failed pass loses it.
+[agent]
+default_consent = "core"  # local credential expiry watch; reads the vault, writes its own state
+startup = "daemon"
+heartbeat_interval = 3600
+heartbeat_command = "vault steward"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's KEEP {version}")
+# on every channel. The canonical principal (@keep:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "KEEP"
+
+# MCP posture (spec-builtin-mcp-server.md §6.3): explicitly opted out.
+# KEEP's tools mint capabilities and execute the platform's only
+# plaintext-credential site (outbound_call); deliberately kept off the
+# default MCP surface every harness registers (same posture as the
+# credential tools noted in the memory manifest).
+[extension.mcp]
+enabled = false
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.audit"
+entry = "axiom.extensions.builtins.vault.skills.audit:run"
+path = "skills/audit"
+description = "Report credentials that are expired, expiring soon, or have no recorded expiry at all. Metadata only, never a value."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = [{ kind = "credential_name", how_to_use = "the first flagged credential; pass as name to vault.declare", field = "credential_name" }]
+next_steps = [{ target = "vault.declare", when = "produced:credential_name", why = "record what can be done about the flagged credential so its finding can clear", feeds = { name = "credential_name" } }, { target = "vault.renew", when = "error", why = "rotate what may rotate itself before it lapses" }]
+recipes = ["credential-finding-clearance", "credential-health-review"]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.declare"
+entry = "axiom.extensions.builtins.vault.skills.declare:run"
+path = "skills/declare"
+description = "Record what can be done about a credential — self_rotatable, human_rotatable, externally_owned or non_expiring — plus a review date or owner. This is what makes an undated credential's finding clearable instead of repeating forever."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "credential-exists", description = "the credential must already be in the store", fix = "list the stored names with 'axi secrets list', then pass one as name; add a missing one with 'axi secrets set {name}'", consumes = "credential_name", param = "name" }]
+produces = []
+next_steps = [{ target = "vault.audit", when = "ok", why = "confirm the finding cleared" }]
+recipes = ["credential-finding-clearance"]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.reconcile"
+entry = "axiom.extensions.builtins.vault.skills.reconcile:run"
+path = "skills/reconcile"
+description = "Compare what the credential store RECORDS against what each issuer actually says: revoked, real expiry, or a value the issuer no longer recognises. Expiry auditing only reads our own metadata, which is what we believed when we wrote it down. Metadata only, never a value."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = []
+next_steps = [{ target = "vault.audit", when = "ok", why = "see which credentials still need a disposition or a renewal" }]
+recipes = ["credential-health-review", "credential-leak-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.renew"
+entry = "axiom.extensions.builtins.vault.skills.renew:run"
+path = "skills/renew"
+description = "Rotate the credentials that are due and permitted to rotate themselves, stating an explicit expiry on each; anything needing a person fails the pass visibly. Metadata only, never a value."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+produces = []
+next_steps = [{ target = "vault.audit", when = "ok", why = "confirm nothing is left due" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.resolve"
+entry = "axiom.extensions.builtins.vault.skills.resolve:run"
+path = "skills/resolve"
+description = "Which stored credential to use for a host, and whether it is still alive. A host often has several (git-scoped, API-scoped, per-project) and the git credential helper is keyed by host alone, so it silently returns one of them. Call this before reaching for a credential helper. Returns names, purposes and expiry health — never a value."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = []
+next_steps = []
+
+[[extension.provides]]
+kind = "skill"
+name = "vault.sweep"
+entry = "axiom.extensions.builtins.vault.skills.sweep:run"
+path = "skills/sweep"
+description = "Look for credential material that is not under management and escalate what it finds. Reports findings; never stores or prints a value."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+produces = []
+next_steps = []

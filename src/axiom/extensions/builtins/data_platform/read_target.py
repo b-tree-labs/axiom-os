@@ -1,0 +1,195 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+"""Where a data read runs.
+
+``axi data`` (and ``neut data``, the same command) is the query surface. It
+is not a local command. A read follows the current binding when this install
+does not hold the medallion, and it opens the medallion on this install when
+it does.
+
+The kit sandbox is not a fallback. ``kit-up``, ``kit-try`` and ``kit-down``
+name that database themselves. A snapshot is a point-in-time subset pulled
+from a bound node and materialized into a sandbox later; a data read does not
+silently become one.
+
+The binding file is the one a site bind already writes, ``site-bindings.json``
+in the platform state directory. This module reads it and does not rewrite it,
+so a laptop that bound before this rule existed keeps that binding.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+
+from axiom.infra.skills import SkillResult
+
+from ._dsn import DSN_ENV_NAMES
+
+STATE_FILENAME = "site-bindings.json"
+
+
+class ReadError(RuntimeError):
+    """A data read that followed a binding and could not."""
+
+
+@dataclass(frozen=True)
+class ReadTarget:
+    """``medallion`` opens this install's database. ``binding`` asks the bound node."""
+
+    where: str
+    site: str = ""
+    face_url: str = ""
+    reason: str = ""
+
+
+def bindings_path() -> Path:
+    from axiom.infra.paths import get_platform_state_dir
+
+    return get_platform_state_dir() / STATE_FILENAME
+
+
+def holds_medallion() -> bool:
+    """This install is the node that serves the medallion.
+
+    Declaring ``data_platform`` says so. A configured database URL says so too:
+    that is how a node already in service points at its medallion, including
+    one that has not written a function list yet. The kit sandbox URL is not
+    one of those names, so bringing a sandbox up does not make this install
+    the medallion.
+    """
+    import os
+
+    from axiom.infra.node_functions import load
+
+    if "data_platform" in load().active_functions:
+        return True
+    return any(os.environ.get(name) for name in DSN_ENV_NAMES)
+
+
+def current_binding() -> tuple[str, str] | None:
+    """``(site, face_url)`` of the current binding, or None.
+
+    A missing or unreadable file is no binding. It is not an error: an install
+    that never bound keeps today's medallion default.
+    """
+    path = bindings_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    bindings = data.get("bindings")
+    if not isinstance(bindings, dict):
+        return None
+    raw = bindings.get(data.get("current") or "")
+    if not isinstance(raw, dict):
+        return None
+    site = str(raw.get("site") or "").strip()
+    face = str(raw.get("face_url") or "").strip().rstrip("/")
+    if not site or not face:
+        return None
+    return site, face
+
+
+def resolve_read_target() -> ReadTarget:
+    """The medallion on this install, unless a binding is the only place data lives."""
+    if holds_medallion():
+        return ReadTarget("medallion", reason="this install holds the medallion")
+    bound = current_binding()
+    if bound is not None:
+        site, face = bound
+        return ReadTarget(
+            "binding",
+            site=site,
+            face_url=face,
+            reason=f"current binding {site} at {face}",
+        )
+    return ReadTarget("medallion", reason="no binding; the medallion on this install")
+
+
+def ask(target: ReadTarget, *, verb: str, params: dict[str, Any] | None = None) -> SkillResult:
+    """Run ``verb`` on the bound node. Never opens a database on this machine."""
+    if target.where != "binding" or not target.face_url:
+        return SkillResult(ok=False, errors=["no binding to follow"])
+    try:
+        payload = _post(target, verb=verb, params=params or {})
+    except ReadError as exc:
+        return SkillResult(ok=False, errors=[str(exc)])
+    if not isinstance(payload, dict):
+        return SkillResult(ok=False, errors=[_unreachable(target, "the node returned no result")])
+    ok = bool(payload.get("ok", True))
+    value = payload.get("value", payload)
+    errors = [str(item) for item in payload.get("errors") or []]
+    return SkillResult(ok=ok and not errors, value=value, errors=errors)
+
+
+def _unreachable(target: ReadTarget, detail: str) -> str:
+    return (
+        f"this install does not hold the medallion. "
+        f"The data read follows {target.site} at {target.face_url}. {detail}"
+    )
+
+
+def _key(face_url: str) -> str:
+    """The read key the keys page stores as ``<first label>-key``, or empty."""
+    host = urlparse(face_url).hostname or ""
+    label = host.split(".")[0] if host else ""
+    if not label:
+        return ""
+    try:
+        from axiom.extensions.builtins.secrets.foreign.store import ForeignCredentialStore
+        from axiom.infra.paths import get_user_state_dir
+
+        with ForeignCredentialStore(get_user_state_dir()).get(f"{label}-key") as secret:
+            return secret.as_str().strip()
+    except Exception:  # noqa: BLE001 — no vault or no key is a failed read, not a crash
+        return ""
+
+
+def _post(target: ReadTarget, *, verb: str, params: dict[str, Any]) -> dict[str, Any]:
+    import urllib.error
+    import urllib.request
+
+    url = f"{target.face_url}/data/query"
+    body = json.dumps({"verb": verb, "params": params}).encode("utf-8")
+    headers = {"content-type": "application/json"}
+    key = _key(target.face_url)
+    if key:
+        headers["authorization"] = f"Bearer {key}"
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise ReadError(
+                _unreachable(target, "That node does not serve data reads yet.")
+            ) from None
+        raise ReadError(_unreachable(target, f"The node answered HTTP {exc.code}.")) from None
+    except urllib.error.URLError as exc:
+        raise ReadError(_unreachable(target, f"The node could not be reached ({exc.reason}).")) from None
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        raise ReadError(_unreachable(target, "The node did not return JSON.")) from None
+    if not isinstance(parsed, dict):
+        raise ReadError(_unreachable(target, "The node did not return a result."))
+    return parsed
+
+
+__all__ = [
+    "ReadError",
+    "ReadTarget",
+    "STATE_FILENAME",
+    "ask",
+    "bindings_path",
+    "current_binding",
+    "holds_medallion",
+    "resolve_read_target",
+]

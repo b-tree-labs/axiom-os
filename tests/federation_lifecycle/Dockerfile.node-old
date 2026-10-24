@@ -1,0 +1,64 @@
+# Federation test node pinned to axi-platform==0.10.3 — the version just
+# BEFORE peer identity binding (0.10.4) landed. Used by
+# test_peer_version_preflight.py to verify that a current leaf refuses
+# to bind identity against a peer below MIN_PEER_VERSION_FOR_IDENTITY_BINDING,
+# and emits the guided "≥ 0.10.4" message.
+#
+# If axi-platform==0.10.3 is not available on PyPI (internal-only releases),
+# we fall back to installing a stubbed `axi` shim that reports version
+# 0.10.3 and exits non-zero on `federation status --json`, which is
+# behaviorally equivalent for the preflight path.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/axiom \
+    PATH=/home/axiom/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        openssh-server \
+        openssh-client \
+        curl \
+        ca-certificates \
+        procps \
+        iputils-ping \
+        passwd \
+        adduser \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd \
+    && /usr/sbin/useradd --uid 1000 --create-home --shell /bin/bash axiom
+
+# Install a stub `axi` that reports version 0.10.3 — this is sufficient
+# to exercise the leaf's preflight check, which ssh-runs `axi --version`
+# and compares to MIN_PEER_VERSION_FOR_IDENTITY_BINDING = "0.10.4".
+# Installing real axi-platform==0.10.3 from PyPI is preferable when it's
+# published; until then the stub gives us deterministic, offline-friendly
+# behavior for the scenario.
+RUN printf '#!/usr/bin/env bash\n\
+if [ "$1" = "--version" ]; then\n\
+    echo "axi 0.10.3"\n\
+    exit 0\n\
+fi\n\
+echo "axi: unknown subcommand (this is a pinned 0.10.3 test stub)" >&2\n\
+exit 2\n' > /usr/local/bin/axi \
+    && chmod +x /usr/local/bin/axi
+
+RUN sed -ri \
+        -e 's/^#?PermitRootLogin.*/PermitRootLogin no/' \
+        -e 's/^#?PasswordAuthentication.*/PasswordAuthentication no/' \
+        -e 's/^#?PubkeyAuthentication.*/PubkeyAuthentication yes/' \
+        -e 's/^#?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' \
+        /etc/ssh/sshd_config \
+    && echo "AcceptEnv PATH" >> /etc/ssh/sshd_config
+
+RUN printf 'export PATH=/usr/local/bin:$PATH\n' > /home/axiom/.ssh_env \
+    && mkdir -p /home/axiom/.ssh \
+    && chown -R axiom:axiom /home/axiom
+
+COPY tests/federation_lifecycle/node_entrypoint.sh /usr/local/bin/node_entrypoint.sh
+RUN chmod +x /usr/local/bin/node_entrypoint.sh
+
+EXPOSE 22
+
+ENTRYPOINT ["/usr/local/bin/node_entrypoint.sh"]
