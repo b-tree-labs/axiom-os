@@ -1,0 +1,35 @@
+flowchart TD
+  U["User<br/>one chat turn"]:::neutral
+  ENTRY["Entry surface<br/>CLI (axi chat) · MCP client · IDE"]:::neutral
+  AGENT["Agent (AXI)<br/>orchestrates the turn"]:::core
+  READ["READ<br/>gather context before reasoning"]:::core
+  MEM[("Memory · CompositionService<br/>immutable T,U,A,R provenance")]:::core
+  RAG[("RAG<br/>retrieval + policy engine")]:::core
+  REASON["REASON<br/>LLM Gateway · tier routing<br/>circuit breakers · audit"]:::core
+  TIER["Sensitivity routing<br/>controlled content stays on a private-network model<br/>eligibility gating · never leaves to cloud"]:::accent
+  ACT["ACT<br/>call skills + tools"]:::core
+  GUARDN["Action guard<br/>mutating ops route through guarded_act<br/>hard-disable · dry-run · authorization via GUARD"]:::accent
+  PUBLISH["PUBLISH<br/>record the outcome"]:::core
+  HERALDN["HERALD<br/>deliver to the right channel"]:::neutral
+  RESP["Response to user"]:::neutral
+
+  U --> ENTRY
+  ENTRY --> AGENT
+  AGENT --> READ
+  READ -->|"recall"| MEM
+  READ -->|"retrieve"| RAG
+  READ --> REASON
+  REASON -->|"classify + route"| TIER
+  REASON --> ACT
+  ACT -->|"guarded"| GUARDN
+  ACT --> PUBLISH
+  PUBLISH -->|"append T,U,A,R"| MEM
+  PUBLISH -->|"deliver"| HERALDN
+  PUBLISH --> RESP
+  RESP --> U
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

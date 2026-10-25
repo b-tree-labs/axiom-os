@@ -1,0 +1,10 @@
+{
+  "capture": "hermes chat -Q against local ollama qwen2.5:7b with HERMES_HOME in a throwaway dir; system prompt wiped; FTS tables/triggers omitted",
+  "harness": "hermes",
+  "kind": "db",
+  "session_id": "20261008_143351_377a2a",
+  "sql": {
+    "store.sql": ".hermes/state.db"
+  },
+  "version": "0.20.4"
+}
