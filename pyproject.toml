@@ -64,7 +64,7 @@ dependencies = [
     # adopter's install dies, several hundred lines into a cargo build.
     # Capped for that platform only: every other platform keeps getting
     # security updates for what is, after all, the crypto library.
-    "cryptography<49; platform_system=='Darwin' and platform_machine=='x86_64'",
+    "cryptography<51; platform_system=='Darwin' and platform_machine=='x86_64'",
     # Web identity (ADR-085): `axiom.webauth` signs/verifies ES256
     # session and access JWTs, importing PyJWT at module scope — so a
     # base install must carry it. Was a silent gap: PyJWT arrived only
@@ -236,7 +236,7 @@ data-platform = [
 # fails on first use). BSD-3 licensed.
 math = [
     "sympy>=1.13",
-    "antlr4-python3-runtime==4.11.*",
+    "antlr4-python3-runtime>=4.11,<4.14",
     "matplotlib>=3.8",   # equation images (mathtext); imported by scidisplay.math_render, undeclared until now
 ]
 dev = [
@@ -315,7 +315,7 @@ Repository = "https://github.com/b-tree-labs/axiom-os"
 "Bug Tracker" = "https://github.com/b-tree-labs/axiom-os/issues"
 
 [build-system]
-# Pin hatchling < 1.27 so wheels carry Metadata-Version 2.4. The
+# Pin hatchling < 1.33 so wheels carry Metadata-Version 2.4. The
 # pypa/gh-action-pypi-publish action's bundled twine rejects 2.5
 # until twine ships the spec update. Revisit when the publish
 # action upgrades twine.
