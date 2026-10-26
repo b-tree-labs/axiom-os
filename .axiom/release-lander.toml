@@ -1,0 +1,123 @@
+# RIVET for this checkout.
+#
+# `mode` stays "warn". The schema runs warn or propose, and a land,
+# merge, or enqueue value is coerced back to warn. That key is the
+# report posture. Landing is the workflow's `land --act`.
+#
+# A green, unprotected, non-draft pull request with no pending human review and no changes-requested review may land. A protected path is held.
+# auto_approver stays off, so a fix diff is not approved by a stand-in reviewer.
+#
+# Approvers are the repository admin and the two maintainers from the
+# collaborator list. There is no CODEOWNERS file. A team review request
+# is not treated as a person.
+#
+# AXIOM_LANDER_KILL=1 stops landing. Merges stay pinned with
+# --match-head-commit. Webhook fields are environment variable names.
+# If those variables are empty, the report says "no fixer configured"
+# and an eligible green pull request still lands.
+
+mode = "warn"
+language = "python"
+test_command = "pytest"
+forge = "github"
+window_hours = 6
+suite_cost = "learned"
+selector = "testmon"
+land_method = "merge"
+signals = ["batch_label", "session", "ticket", "branch_prefix", "exact_files", "affected_scope"]
+
+# Logins whose own approval counts toward landing. Empty means an
+# author's approval never counts. A repo whose only human is its owner
+# should list that owner here.
+self_landers = ["benjaminbooth"]
+
+[watch]
+env = "AXIOM_LANDER_REPOS"
+
+[token]
+env = "GH_TOKEN"
+scopes = ["repo"]
+
+[selector_options]
+database = ".testmondata"
+full_contexts = ["merge-queue", "main", "nightly"]
+
+[fix_provider]
+name = "handoff"
+
+[fix_provider.webhook]
+url_env = "RELEASE_FIX_WEBHOOK_URL"
+key_env = "RELEASE_FIX_WEBHOOK_KEY"
+key_header = "X-Fix-Key"
+separate_reviewer = true
+
+[raci]
+approvers = ["@benjaminbooth:github", "@redrossa:github", "@luker-robinson2:github"]
+auto_allowed = ["merge"]
+needs_approval = ["repair", "batch", "update_branch", "enqueue", "close", "rerun"]
+max_rounds = 3
+kill_switch_env = "AXIOM_LANDER_KILL"
+approval_ttl_hours = 72
+# auto_approver is off.
+
+[claims]
+label = "rivet:claimed"
+claim_ttl_s = 3600
+foreign_labels = ["janna:working"]
+
+# Standard protected paths. These add to the built-in route. A pull
+# request that touches one is held for a person. Dependency patterns
+# match in any directory, including a grouped Dependabot update that
+# only touches those files.
+[human_paths]
+behavior = [
+  '(^|/)behaviors?(/|$)',
+  '(^|/)[^/]*behavior[^/]*$',
+]
+pricing = [
+  '(^|/)(pricing|billing)(/|$)',
+  '(^|/)price[^/]*$',
+]
+security = [
+  '(^|/)(security|auth|secrets?)(/|$)',
+  '(^|/)(auth|secrets?|credentials?)(\.[^/]+)?$',
+]
+data = [
+  '(^|/)migrations?(/|$)',
+  '(^|/)schema(/|$)',
+  '\.sql$',
+]
+"test-setup" = [
+  '(^|/)conftest\.py$',
+  '(^|/)pytest\.ini$',
+  '(^|/)tox\.ini$',
+  '(^|/)noxfile\.py$',
+]
+workflow = [
+  '(^|/)\.github/workflows/[^/]+$',
+  '(^|/)\.gitlab-ci\.yml$',
+  '(^|/)Jenkinsfile$',
+  '(^|/)\.circleci/',
+  '(^|/)azure-pipelines[^/]*\.ya?ml$',
+]
+dependency = [
+  '(^|/)pyproject\.toml$',
+  '(^|/)[^/]*requirements[^/]*\.txt$',
+  '(^|/)poetry\.lock$',
+  '(^|/)uv\.lock$',
+  '(^|/)Pipfile(\.lock)?$',
+  '(^|/)setup\.(py|cfg)$',
+  '(^|/)constraints\.txt$',
+  '(^|/)package\.json$',
+  '(^|/)package-lock\.json$',
+  '(^|/)npm-shrinkwrap\.json$',
+  '(^|/)yarn\.lock$',
+  '(^|/)pnpm-lock\.yaml$',
+  '(^|/)bun\.lockb$',
+  '(^|/)Dockerfile[^/]*$',
+  '(^|/)docker-compose[^/]*\.ya?ml$',
+  '(^|/)compose[^/]*\.ya?ml$',
+  '(^|/)go\.(mod|sum)$',
+  '(^|/)Cargo\.(toml|lock)$',
+  '(^|/)Gemfile(\.lock)?$',
+]

@@ -1,0 +1,50 @@
+# Facility-policy export-control term list (additive to built-in defaults).
+#
+# Copy to `runtime/config/export_control_terms.txt` and edit. Substring match,
+# case-insensitive. One term per line. Lines starting with # are comments.
+#
+# ── Scope ─────────────────────────────────────────────────────────────────────
+#
+# Built-in defaults (axiom/src/axiom/infra/_export_control_terms_default.txt)
+# cover *legally* export-controlled categories: weapons-usable / SNM / HEU /
+# ITAR / EAR / 10 CFR 810.
+#
+# This file is for terms your *facility policy* wants protected on top of
+# the legal baseline:
+#   - vendor-proprietary or internal-only code names
+#   - facility-specific operational details that aren't legally EC but
+#     are still considered sensitive
+#   - tools / models you've explicitly classified up at the facility level
+#
+# A term that's legitimately taught in an undergraduate reactor-physics
+# course (e.g. `prompt criticality`, `RELAP5`, `SCRAM`, `enrichment`) does
+# NOT belong here unless your facility policy requires the extra layer.
+# Putting them here will block legitimate research and teaching workflows.
+#
+# ── Examples (uncomment / edit as needed) ─────────────────────────────────────
+#
+# Internal / proprietary tooling
+# ─────────────────────────────
+# OurInternalCode
+# VendorXTool
+#
+# Reactor physics / simulation codes (uncomment if your policy requires)
+# ──────────────────────────────────────────────────────────────────────
+# ORIGEN
+# RELAP5
+# RELAP7
+# PARCS
+# TRITON
+#
+# Reactor operations terminology (uncomment if your policy requires)
+# ──────────────────────────────
+# SCRAM
+# prompt critical
+# prompt criticality
+# critical assembly
+# critical mass
+# fissile material
+# enrichment
+#
+# Add your facility-specific terms below
+# ──────────────────────────────────────

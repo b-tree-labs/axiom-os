@@ -1,0 +1,36 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "sites"
+version = "0.1.0"
+description = "A tenant site's readiness checklist (ADR-178 D4): every check ok, waiting, failing or not applicable"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.68"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "sites"
+entry = "axiom.extensions.builtins.sites.cli:main"
+description = "A tenant site's readiness checklist (ADR-178)"
+tier = "starter"
+intent_groups = ["operate"]
+
+[[extension.provides]]
+kind = "skill"
+name = "sites.checklist"
+entry = "axiom.extensions.builtins.sites.skills.checklist:run"
+path = "skills/checklist"
+description = "Run every ADR-178 readiness check for a site: ok, waiting, failing (with the fix) or not applicable. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []

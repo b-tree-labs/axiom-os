@@ -1,0 +1,15 @@
+# Reference data: named facts this contribution cites. Not a transform.
+# A number with no unit fails kit-check. The platform does not interpret the names.
+
+[line]
+name = "line-a"
+
+[[quantity]]
+name = "nozzle_height"
+value = 180
+unit = "mm"
+
+[[quantity]]
+name = "fill_volume"
+value = 500
+unit = "mL"
