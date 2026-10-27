@@ -318,7 +318,7 @@ Repository = "https://github.com/b-tree-labs/axiom-os"
 "Bug Tracker" = "https://github.com/b-tree-labs/axiom-os/issues"
 
 [build-system]
-# Pin hatchling < 1.27 so wheels carry Metadata-Version 2.4. The
+# Pin hatchling < 1.33 so wheels carry Metadata-Version 2.4. The
 # pypa/gh-action-pypi-publish action's bundled twine rejects 2.5
 # until twine ships the spec update. Revisit when the publish
 # action upgrades twine.
