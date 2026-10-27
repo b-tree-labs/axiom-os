@@ -1,0 +1,19 @@
+# Which document-editor connector kind serves a given share URL. THIS IS DATA,
+# NOT CODE. A route matches when `contains` is a substring of the URL.
+#
+# To point a URL pattern at a different editor, or add a backend, in a LIVE
+# deployment WITHOUT a code patch: drop an `editor-routing.toml` with the same
+# shape into the config dir ($AXIOM_CONFIG_DIR, else ~/.axi/config). Its routes
+# are checked BEFORE these defaults, and the file is read at call time.
+
+[[route]]
+contains = "sharepoint.com"
+vendor = "onedrive"
+
+[[route]]
+contains = "onedrive"
+vendor = "onedrive"
+
+[[route]]
+contains = "file://"
+vendor = "local"

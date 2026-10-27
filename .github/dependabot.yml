@@ -1,0 +1,200 @@
+version: 2
+updates:
+  # GitHub Actions are SHA-pinned; Dependabot bumps them in ONE weekly batch PR.
+  # See docs/runbooks/repin-policy.md.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Pip, npm, and Docker are grouped per area (one open pull request per
+  # manifest directory), on the same weekly cadence. The lander holds a
+  # pull request that only touches these files for a person.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Deliberate pins: the LaTeX parser's generated grammar needs the 4.11 antlr4 runtime, and
+    # cryptography 49+ ships no Intel-Mac wheel. A bump of either breaks a test the narrowed PR
+    # selection may not run (2026-10-26).
+    ignore:
+      - dependency-name: "antlr4-python3-runtime"
+      - dependency-name: "cryptography"
+        versions: [">=49"]
+    groups:
+      pip-root:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /packages/axiom-ext-data-platform
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pip-data-platform:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /packages/axiom-tests
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pip-axiom-tests:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /src/axiom/extensions/builtins/diagnostics
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pip-diagnostics:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: /infra/smoke/smoke_normalizer
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pip-smoke-normalizer:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /packages/axiom-design-tokens
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-design-tokens:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /src/axiom/extensions/builtins/webgate/frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-webgate:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /src/axiom/extensions/builtins/receipts/webui
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-receipts:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-root:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /infra/images/axiom-runtime
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-runtime:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /infra/llm-server
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-llm-server:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /src/axiom/extensions/builtins/signals/infra
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-signals:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /src/axiom/extensions/builtins/data_platform/deploy/ingest-edge/docker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docker-ingest-edge:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker-compose
+    directory: /src/axiom/setup
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      compose-setup:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker-compose
+    directory: /src/axiom/extensions/builtins/data_platform/deploy/ingest-edge/docker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      compose-ingest-edge:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker-compose
+    directory: /tests/federation_lifecycle
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      compose-federation-tests:
+        patterns:
+          - "*"

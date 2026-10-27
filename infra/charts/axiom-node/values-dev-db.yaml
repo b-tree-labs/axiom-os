@@ -1,0 +1,15 @@
+# The development database `axi infra` starts on a laptop: the medallion role
+# with pgvector. The single-host names, the data at the volume root, and the
+# published port are kept exactly as the hand-written file had them, so an
+# existing install keeps its data. src/axiom/setup/docker-compose.yml is
+# generated from this (a test fails if it drifts).
+roles:
+  medallion:
+    enabled: true
+    image: pgvector/pgvector:pg16
+    passwordSecret: {name: axiom-pg, key: AXIOM_PG_PASSWORD}
+    pgdataSubdir: ""
+    shmSize: 1Gi
+    publish: "5432:5432"
+    compose: {containerName: axiom-postgres, volumeName: axiom-pgdata, serviceName: postgres}
+    resources: none           # as before: no limits on a developer's machine

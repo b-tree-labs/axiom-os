@@ -1,0 +1,162 @@
+# RIVET for this checkout.
+#
+# `mode` stays "warn". The schema runs warn or propose, and a land,
+# merge, or enqueue value is coerced back to warn. That key is the
+# report posture. Landing is the workflow's `land --act`.
+#
+# A green, unprotected, non-draft pull request with no pending human review and no changes-requested review may land. A protected path is held.
+# auto_approver stays off, so a fix diff is not approved by a stand-in reviewer.
+#
+# Approvers are the repository admin and the two maintainers from the
+# collaborator list. There is no CODEOWNERS file. A team review request
+# is not treated as a person.
+#
+# AXIOM_LANDER_KILL=1 stops landing. Merges stay pinned with
+# --match-head-commit. Webhook fields are environment variable names.
+# If those variables are empty, the report says "no fixer configured"
+# and an eligible green pull request still lands.
+
+mode = "warn"
+language = "python"
+test_command = "pytest"
+forge = "github"
+window_hours = 6
+suite_cost = "learned"
+selector = "testmon"
+land_method = "merge"
+signals = ["batch_label", "session", "ticket", "branch_prefix", "exact_files", "affected_scope"]
+
+# Logins whose own approval counts toward landing. Empty means an
+# author's approval never counts. A repo whose only human is its owner
+# should list that owner here.
+self_landers = ["benjaminbooth"]
+
+[watch]
+env = "AXIOM_LANDER_REPOS"
+
+[token]
+env = "GH_TOKEN"
+scopes = ["repo"]
+
+[selector_options]
+database = ".testmondata"
+full_contexts = ["merge-queue", "main", "nightly"]
+
+[fix_provider]
+name = "handoff"
+
+[fix_provider.webhook]
+url_env = "RELEASE_FIX_WEBHOOK_URL"
+key_env = "RELEASE_FIX_WEBHOOK_KEY"
+key_header = "X-Fix-Key"
+separate_reviewer = true
+
+[raci]
+approvers = ["@benjaminbooth:github", "@redrossa:github", "@luker-robinson2:github"]
+auto_allowed = ["merge"]
+needs_approval = ["repair", "batch", "update_branch", "enqueue", "close", "rerun"]
+max_rounds = 3
+kill_switch_env = "AXIOM_LANDER_KILL"
+approval_ttl_hours = 72
+# auto_approver is off.
+
+[claims]
+label = "rivet:claimed"
+claim_ttl_s = 3600
+foreign_labels = ["janna:working"]
+
+# Standard protected paths. These add to the built-in route. A pull
+# request that touches one is held for a person. Dependency patterns
+# match in any directory, including a grouped Dependabot update that
+# only touches those files.
+[human_paths]
+behavior = [
+  '(^|/)behaviors?(/|$)',
+  '(^|/)[^/]*behavior[^/]*$',
+]
+pricing = [
+  '(^|/)(pricing|billing)(/|$)',
+  '(^|/)price[^/]*$',
+]
+security = [
+  '(^|/)(security|auth|secrets?)(/|$)',
+  '(^|/)(auth|secrets?|credentials?)(\.[^/]+)?$',
+]
+data = [
+  '(^|/)migrations?(/|$)',
+  '(^|/)schema(/|$)',
+  '\.sql$',
+]
+"test-setup" = [
+  '(^|/)conftest\.py$',
+  '(^|/)pytest\.ini$',
+  '(^|/)tox\.ini$',
+  '(^|/)noxfile\.py$',
+]
+workflow = [
+  '(^|/)\.github/workflows/[^/]+$',
+  '(^|/)\.gitlab-ci\.yml$',
+  '(^|/)Jenkinsfile$',
+  '(^|/)\.circleci/',
+  '(^|/)azure-pipelines[^/]*\.ya?ml$',
+]
+dependency = [
+  '(^|/)pyproject\.toml$',
+  '(^|/)[^/]*requirements[^/]*\.txt$',
+  '(^|/)poetry\.lock$',
+  '(^|/)uv\.lock$',
+  '(^|/)Pipfile(\.lock)?$',
+  '(^|/)setup\.(py|cfg)$',
+  '(^|/)constraints\.txt$',
+  '(^|/)package\.json$',
+  '(^|/)package-lock\.json$',
+  '(^|/)npm-shrinkwrap\.json$',
+  '(^|/)yarn\.lock$',
+  '(^|/)pnpm-lock\.yaml$',
+  '(^|/)bun\.lockb$',
+  '(^|/)Dockerfile[^/]*$',
+  '(^|/)docker-compose[^/]*\.ya?ml$',
+  '(^|/)compose[^/]*\.ya?ml$',
+  '(^|/)go\.(mod|sum)$',
+  '(^|/)Cargo\.(toml|lock)$',
+  '(^|/)Gemfile(\.lock)?$',
+]
+
+# CI health (`axi release ci-health`, the hourly `ci-sweep`, `ci-lint`).
+# Every threshold RIVET acts on is here. The sweep reads billing and run
+# APIs only; it never starts an Actions job.
+#
+# Budget state: ok below warn_pct, warn from warn_pct, stop from stop_pct.
+# At warn, `land --act` waits for a batch of warn_batch_min ready pull
+# requests (or batch_max_wait_hours) and refuses blind re-runs. At stop,
+# only release pull requests land; repairs and branch updates pause.
+# AXIOM_CI_BUDGET_STATE=ok|warn|stop overrides the recorded state for a
+# runner whose token cannot read billing.
+[ci_health]
+# Monthly Actions budget in dollars. 0 reads the forge's own budget.
+budget_dollars = 250
+budget_basis = "net"
+warn_pct = 70
+stop_pct = 90
+# Alert when the month's projection exceeds last month by this multiple.
+run_rate_multiple = 1.5
+# Alert when one waste signal is more than this share of window minutes.
+waste_share = 0.25
+window_days = 14
+chronic_red_runs = 3
+default_branch = "main"
+# Never cancelled, whatever the sweep finds.
+release_workflows = ["release", "publish", "tag", "deploy"]
+max_cancels = 20
+# Jobs whose logs carry `selection: <selected>/<total> reason=<reason>`.
+selection_jobs = ["unit", "test"]
+# Workflows whose runs carry a selection job. Empty: the one with the most PR minutes.
+selection_workflows = []
+selection_log_sample = 10
+intended_full_reasons = ["full-context"]
+warn_batch_min = 3
+batch_max_wait_hours = 6
+release_labels = ["release"]
+release_branch_prefixes = ["release/"]
+notify_recipients = ["@operator"]
+long_job_minutes = 20

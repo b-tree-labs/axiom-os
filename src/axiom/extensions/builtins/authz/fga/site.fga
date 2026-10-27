@@ -1,0 +1,54 @@
+# Per-site (tenant) read-authorization model for GUARD's OpenFgaSubstrate.
+#
+# ADR-050 (site/tenant vocabulary) + ADR-083 (GUARD → substrate seam). This is
+# the authorization model behind "a partner sees only their own site" — the
+# multi-tenant read gate for a consumer's partner portal, the telemetry read
+# verbs, and RAG retrieval. It is deliberately generic (no consumer or site
+# named here, which the public-mirror guard enforces):
+# the concrete grants (which user reads which site) are TUPLES provisioned per
+# deployment, never baked into the model.
+#
+# The three cases the program requires all fall out of tuples — no bespoke code:
+#   * single-site researcher  → one `site:<id>#viewer@user:<u>` tuple
+#   * joint-org researcher    → several viewer tuples, one per granted site
+#                               (ReBAC expresses "a set of sites" natively)
+#   * admin / operator        → `platform:<p>#admin@group:operators#member`
+#                               once, + each site's `parent` → all sites at once
+#
+# GUARD maps a read ActionEnvelope onto (user, "viewer", site:<id>) via a
+# TupleMapper (see ../openfga.py); a hit on `blocked` is deny-overrides.
+
+model
+  schema 1.1
+
+type user
+
+type group
+  relations
+    # Direct members, plus nested groups via `group#member`.
+    define member: [user, group#member]
+
+# The deployment root. One `platform` object anchors the rare cross-all-sites
+# grant: operators are admins of the platform, and every site declares it as
+# `parent`, so a single admin grant confers viewer on all sites without
+# enumerating them (the "admin/operator sees everything" oversight path).
+type platform
+  relations
+    define admin: [user, group#member]
+
+type site
+  relations
+    # Which platform this site belongs to — the anchor for cross-all access.
+    define parent: [platform]
+
+    # Positive grants, most- to least-privileged. `owner` satisfies `editor`
+    # satisfies `viewer`, so one high tuple covers the lower checks. A viewer of
+    # a site may read that site's data; that is the partner's grant.
+    define owner: [user, group#member]
+    define editor: [user, group#member] or owner
+    # A platform admin is a viewer of every child site — cross-all, one grant.
+    define viewer: [user, group#member] or editor or admin from parent
+
+    # Explicit block. Checked first by the substrate and mapped to DENY,
+    # regardless of any positive grant (a suspended account, a data embargo).
+    define blocked: [user, group#member]

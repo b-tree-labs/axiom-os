@@ -1,0 +1,260 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# AXI — the Loop agent (REPL protagonist).
+# Consumer layers rebrand him: a domain consumer might call him "Neut", others → their own name.
+# Under the hood, it's always AXI.
+
+# mcp: not-applicable -- hosts AXI, the interactive chat loop that CONSUMES tools; declares no manifest tools. Its read-only command forms are skills (skills/, surfaces = mcp) projected as axiom_chat__<verb>
+[extension]
+name = "chat"
+version = "0.4.0"
+description = "Interactive conversational agent — houses AXI, the Loop agent who connects Read/Eval/Print into compound cycles."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# AXI — the Loop agent the extension exists to host.
+[[extension.provides]]
+kind = "agent"
+name = "axi"
+entry = "axiom.extensions.builtins.chat.agent:ChatAgent"
+persona = "agents/axi/persona.md"
+description = "AXI — conversational loop agent: multi-turn tool-use with approval gates, RAG context, streaming, and session continuity"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "chat"
+functions = ["assistant"]  # ADR-164: the node functions that own this command
+entry = "axiom.extensions.builtins.chat.commands.cli:main"
+description = "Interactive agent with tool calling"
+tier = "starter"
+intent_groups = ["start"]
+
+# Chat's slice of /api/v1 — conversation CRUD (and, as it lands, message
+# streaming) on the shared site/tenant-scoped session store. Contributed
+# through the webapp registry so the client sees one surface; webapp never
+# imports chat. See the webapp contribution registry.
+[[extension.provides]]
+kind = "api"
+subpath = "/chat"
+entry = "axiom.extensions.builtins.chat.api:register_routes"
+description = "Chat conversations + messages under /api/v1/chat"
+
+# Read forms of chat commands (ADR-056), projected over MCP as axiom_chat__<verb>.
+[[extension.provides]]
+kind = "skill"
+name = "chat.tools"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:tools"
+description = "List the tools the Axiom chat agent can call, each with its permission, whether it writes, and where it comes from"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "chat.skills", when = "ok", why = "see which platform skills the chat agent can call" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.stats"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:stats"
+description = "Per-turn latency, tokens, tool calls, cost and provider for a stored Axiom chat session, with the next steps the numbers earn"
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.where"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:where"
+description = "Which model answers an Axiom chat, where it runs (local, cloud, remote node) and where retrieval comes from"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "chat.sources", when = "ok", why = "see what grounded the last reply" }]
+recipes = ["session-handoff"]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.sources"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:sources"
+description = "What grounded the last reply of an Axiom chat and whether its citations hold"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "chat.where", when = "ok", why = "see where the model and retrieval run" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.skills"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:skills"
+description = "The platform's skills and whether the Axiom chat agent can call each now, and the setting that enables the rest"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "chat.tools", when = "ok", why = "see the tools the chat agent can call now" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.agents"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:agents"
+description = "The platform's declared agents: what each does, whether it runs and whether it is alive"
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.mcp"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:mcp"
+description = "The MCP surface Axiom provides: its servers and which harnesses have them registered"
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.memory_search"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:memory_search"
+description = "Recall from the caller's Axiom memory through the serving gate; withheld content is counted and explained, never shown"
+risk = "read"
+side_effects = false
+idempotent = true
+produces = [{ kind = "fragment_id", how_to_use = "pass as id to chat.memory_show to open the memory and read where it came from" }]
+next_steps = [{ target = "chat.memory_show", when = "produced:fragment_id", why = "open the first result and read where it came from", feeds = { id = "fragment_id" } }]
+recipes = ["memory-verify"]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.memory_show"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:memory_show"
+description = "Open one Axiom memory by id or unique id prefix, through the serving gate"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "fragment-given", description = "the memory to open must be named by id", fix = "find one with chat.memory_search (it returns fragment_id) or chat.memory_recent, and pass it as id", consumes = "fragment_id", param = "id" }]
+recipes = ["memory-verify"]
+
+[[extension.provides]]
+kind = "skill"
+name = "chat.memory_recent"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.chat.skills.read:memory_recent"
+description = "The caller's newest Axiom memories, through the serving gate"
+risk = "read"
+side_effects = false
+idempotent = true
+produces = [{ kind = "fragment_id", how_to_use = "pass as id to chat.memory_show to open the memory and read where it came from" }]
+next_steps = [{ target = "chat.memory_show", when = "produced:fragment_id", why = "open the newest one in full", feeds = { id = "fragment_id" } }]
+
+# `axi code` alias removed 2026-05-04 — it was a Claude-Code-flavoured
+# alias for `axi chat` that confused new users (cluttered the menu with
+# a duplicate entry pointing at the same handler).  Use `axi chat` to
+# address AXI directly.
+
+# Transitional pre-AEOS bridge sections — runtime consumers (connection
+# registry, post-setup hooks) read these at startup.
+
+[[connections]]
+name = "anthropic"
+display_name = "Anthropic Claude"
+kind = "api"
+credential_env_var = "ANTHROPIC_API_KEY"
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = "https://console.anthropic.com/settings/keys"
+
+[[connections]]
+name = "openai"
+display_name = "OpenAI"
+kind = "api"
+credential_env_var = "OPENAI_API_KEY"
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = "https://platform.openai.com/api-keys"
+
+[[connections]]
+name = "llm-provider"
+display_name = "LLM Provider (cloud)"
+kind = "api"
+credential_type = "none"
+category = "llm"
+description = "Interactive setup: choose Anthropic, OpenAI, or other cloud LLM"
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_llm_provider"
+
+[[connections]]
+name = "ollama"
+display_name = "Ollama"
+kind = "cli"
+endpoint = "ollama"
+credential_type = "none"
+health_check = "cli_version"
+category = "llm"
+docs_url = "https://ollama.com/download"
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_ollama"
+ensure_module = "axiom.extensions.builtins.chat.connections"
+ensure_function = "ensure_ollama_running"
+
+[connections.install_commands]
+macos = "brew install ollama"
+linux = "curl -fsSL https://ollama.com/install.sh | sh"
+
+[[connections]]
+name = "qwen-selfhosted"
+display_name = "Qwen 3.5 on a self-hosted node (org VPN)"
+kind = "api"
+endpoint = "https://example-host.example.org:41883/v1"
+model = "unsloth/Qwen3.5-122B-A10B-GGUF:Q4_K_M"
+credential_env_var = "SELFHOSTED_API_KEY"
+credential_type = "api_key"
+health_check = "tcp_connect"
+health_endpoint = "example-host.example.org:41883"
+routing_tier = "restricted"
+verify_ssl = false
+category = "llm"
+capabilities = ["read", "write"]
+required = false
+docs_url = ""
+post_setup_module = "axiom.extensions.builtins.chat.connections"
+post_setup_function = "setup_internal_llm"
+vpn_name = "Internal VPN"
+vpn_connect_guide = "Connect to your organization's VPN before using this provider."
+
+[[connections]]
+name = "pandoc"
+display_name = "Pandoc"
+kind = "cli"
+endpoint = "pandoc"
+credential_type = "none"
+health_check = "cli_version"
+category = "tools"
+docs_url = "https://pandoc.org/installing.html"
+
+[connections.install_commands]
+macos = "brew install pandoc"
+linux = "sudo apt-get install -y pandoc"
+
+# [sender] — ADR-066 servant-naming render metadata. HERALD renders
+# this as the locale-appropriate possessive surface ("Ben's AXI {version}")
+# on every channel. The canonical principal (@axi:<context>) is derived,
+# not declared here.
+[sender]
+display_name = "AXI"

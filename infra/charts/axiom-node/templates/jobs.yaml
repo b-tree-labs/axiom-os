@@ -1,0 +1,79 @@
+{{- /*
+Scheduled work rendered as CronJobs so a cluster still runs it. ADR-198:
+this is not the scheduler. PULSE is the only clock; a job is a cadence
+registered with it, and a CronJob per job is the shape that decision retires.
+A job may use a role's volume (`dataFrom`), in which case it runs on that
+role's node; otherwise it gets a scratch directory. A job runs to completion
+and is never two at once (Forbid), so a slow run is not doubled.
+*/ -}}
+{{- range $name, $job := .Values.jobs }}
+{{- if (default true $job.enabled) }}
+{{- $pk := mergeOverwrite (deepCopy $.Values.packages) (default dict $job.packages) }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $name) | nindent 4 }}
+  annotations: {axiom.io/role: {{ $name | quote }}, axiom.io/priority: "background"}
+spec:
+  schedule: {{ required (printf "jobs.%s.schedule" $name) $job.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          priorityClassName: {{ $.Release.Name }}-background
+          securityContext: {runAsUser: {{ $.Values.runAsUser }}, runAsNonRoot: true, fsGroup: {{ $.Values.runAsUser }}}
+          {{- with $job.dataFrom }}
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/instance: {{ $.Release.Name }}
+                      app.kubernetes.io/component: {{ . }}
+          {{- end }}
+          containers:
+            - name: {{ $name }}
+              image: {{ include "axiom-node.image" $ | quote }}
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              args: {{ toJson (required (printf "jobs.%s.command" $name) $job.command) }}
+              env:
+                - {name: AXIOM_PACKAGES, value: {{ $pk.pin | quote }}}
+                - {name: AXIOM_PACKAGES_VERSION, value: {{ $pk.version | quote }}}
+                - {name: AXIOM_NODE_CONFIG, value: /tmp/axiom-node.toml}
+                - {name: AXIOM_NODE_TOML, value: {{ include "axiom-node.nodeToml" (dict "root" $ "cfg" $job) | quote }}}
+                {{- range $k, $v := $job.env }}
+                - {name: {{ $k }}, value: {{ $v | quote }}}
+                {{- end }}
+              {{- with $job.secretFrom }}
+              envFrom: [{secretRef: {name: {{ . }}}}]
+              {{- end }}
+              resources: {requests: {cpu: {{ default "100m" $job.cpu | quote }}, memory: {{ default "128Mi" $job.memory | quote }}}, limits: {memory: {{ default "512Mi" $job.memory | quote }}}}
+              volumeMounts:
+                - {name: data, mountPath: /data}
+                {{- with $job.configFrom }}
+                - {name: config, mountPath: /config, readOnly: true}
+                {{- end }}
+          volumes:
+            {{- if $job.dataFrom }}
+            {{- $target := index $.Values.roles $job.dataFrom }}
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ if dig "blueGreen" "enabled" false $target }}{{ printf "%s-%s-data" $.Release.Name $job.dataFrom }}{{ else }}{{ printf "data-%s-%s-0" $.Release.Name $job.dataFrom }}{{ end }}
+            {{- else }}
+            - name: data
+              emptyDir: {}
+            {{- end }}
+            {{- with $job.configFrom }}
+            - name: config
+              configMap: {name: {{ . }}}
+            {{- end }}
+---
+{{- end }}
+{{- end }}

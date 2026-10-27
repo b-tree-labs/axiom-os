@@ -1,0 +1,43 @@
+# Data Retention Policies
+#
+# Configures automated cleanup of agent state by category.
+# Copy to runtime/config/retention.yaml and customize for your facility.
+#
+# M-O enforces these policies during its periodic sweep cycle.
+# All deletions are logged to the audit trail for compliance.
+
+retention:
+  # Raw voice memos — large files, transcript is the derived artifact
+  raw_voice:
+    days: 7
+    after: processed     # Countdown starts when file mtime is set (post-processing)
+
+  # Raw signal sources (GitLab exports, Teams transcripts, chat)
+  raw_signals:
+    days: 30
+    after: ingested      # From file creation time
+
+  # Processed transcripts and synthesized signals
+  transcripts:
+    days: 90
+    after: created
+
+  # Chat sessions
+  sessions:
+    days: 30
+    after: last_accessed  # Uses file atime
+
+  # Generated drafts (changelogs, briefings)
+  drafts:
+    days: 14
+    after: created
+
+# Legal hold — when enabled, ALL automated deletion is suspended.
+# Use for litigation holds, regulatory investigations, or audits.
+legal_hold:
+  enabled: false
+
+# Audit logging — all retention actions are logged in JSONL format.
+audit:
+  log_deletions: true
+  log_path: runtime/logs/retention_audit.jsonl
