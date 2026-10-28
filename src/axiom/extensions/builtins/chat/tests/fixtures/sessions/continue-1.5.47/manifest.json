@@ -1,0 +1,11 @@
+{
+  "capture": "cn --config (local ollama qwen2.5:3b) with HOME throwaway",
+  "files": {
+    "3c2a9b06-ce2b-4313-8cbf-6e6a6b33c8ed.json": ".continue/sessions/3c2a9b06-ce2b-4313-8cbf-6e6a6b33c8ed.json",
+    "sessions.json": ".continue/sessions/sessions.json"
+  },
+  "harness": "continue",
+  "kind": "file",
+  "session_id": "3c2a9b06-ce2b-4313-8cbf-6e6a6b33c8ed",
+  "version": "1.5.47"
+}

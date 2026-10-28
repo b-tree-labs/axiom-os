@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tuning an agent</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+</style>
+</helmet>
+
+<div style="width: 1320px; height: 1060px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; padding: 26px 28px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+
+  <div>
+    <h1 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px">Tune — <a href="Agent.dc.html" style="color: #e7e9ec; text-decoration: none; border-bottom: 1px solid #3a3f47">@warden:local</a></h1>
+    <div style="font-size: 12.5px; color: #98a1ad">Four dials for the coarse axes, and conversation for everything else.</div>
+  </div>
+
+  <div style="display: flex; gap: 18px; flex-grow: 1; min-height: 0">
+
+    <!-- ============ THE DIALS ============ -->
+    <div style="width: 648px; flex-shrink: 0; display: flex; flex-direction: column; gap: 11px">
+
+      <sc-for list="{{dials}}" as="d" hint-placeholder-count="4">
+        <div style="box-sizing: border-box; background: #161a21; border: 1px solid {{d.bd}}; border-radius: 9px; padding: 13px 15px">
+          <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px">
+            <span style="font-size: 13.5px; font-weight: 600">{{d.name}}</span>
+            <span style="font-size: 12px; color: #98a1ad; flex-grow: 1">{{d.question}}</span>
+            <sc-if value="{{d.changed}}" hint-placeholder-val="{{false}}">
+              <span style="font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: rgba(240, 161, 94, 0.16); color: #f0a15e">CHANGED</span>
+            </sc-if>
+          </div>
+
+          <div style="display: flex; gap: 4px; margin-bottom: 10px">
+            <sc-for list="{{d.stops}}" as="s" hint-placeholder-count="4">
+              <button type="button" onClick="{{s.pick}}" style="flex-grow: 1; box-sizing: border-box; padding: 7px 5px; border-radius: 6px; border: 1px solid {{s.bd}}; background: {{s.bg}}; color: {{s.fg}}; font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.3">{{s.label}}</button>
+            </sc-for>
+          </div>
+
+          <div style="font-size: 12.5px; line-height: 1.55; color: #c4c8ce">{{d.effect}}</div>
+
+          <sc-if value="{{d.locked}}" hint-placeholder-val="{{false}}">
+            <div style="margin-top: 9px; box-sizing: border-box; padding: 7px 11px; border-left: 2px solid #e8a0a0; background: rgba(232, 160, 160, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.5; color: #c4c8ce"><strong style="color: #e8a0a0; font-weight: 600">Harm is not on this dial.</strong> It is shown so you can see it is unreachable, rather than wonder whether it exists. No setting here lets an agent act on a harm-class finding alone.</div>
+          </sc-if>
+
+          <sc-if value="{{d.suppresses}}" hint-placeholder-val="{{false}}">
+            <div style="margin-top: 9px; box-sizing: border-box; padding: 7px 11px; border-left: 2px solid #f0a15e; background: rgba(240, 161, 94, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.5; color: #c4c8ce">{{d.suppressText}}</div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <!-- reason + expiry -->
+      <div style="box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-radius: 9px; padding: 13px 15px">
+        <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #f0a15e; margin-bottom: 9px">EVERY CHANGE CARRIES BOTH OF THESE</div>
+        <div style="display: grid; grid-template-columns: 74px 1fr; gap: 8px 12px; font-size: 12.5px; align-items: start">
+          <span style="color: #98a1ad; padding-top: 2px">Reason</span>
+          <span style="box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 6px; padding: 6px 10px; color: #c4c8ce; font-style: italic">"Too noisy during the conform backfill. Turn it back up when that lands."</span>
+          <span style="color: #98a1ad; padding-top: 2px">Expires</span>
+          <span style="display: flex; gap: 5px">
+            <sc-for list="{{expiries}}" as="e" hint-placeholder-count="4">
+              <button type="button" onClick="{{e.pick}}" style="padding: 5px 10px; border-radius: 6px; border: 1px solid {{e.bd}}; background: {{e.bg}}; color: {{e.fg}}; font-size: 11.5px; font-weight: 600">{{e.label}}</button>
+            </sc-for>
+          </span>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; line-height: 1.5; color: #98a1ad">{{expiryNote}}</div>
+        <div style="display: flex; gap: 8px; margin-top: 12px">
+          <button type="button" style="padding: 8px 16px; border-radius: 7px; border: none; background: #bf5700; color: #ffffff; font-size: 12.5px; font-weight: 600">Apply</button>
+          <button type="button" style="padding: 8px 16px; border-radius: 7px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Back to fleet default</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TEACH IT ============ -->
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+
+      <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
+          <span style="font-size: 13.5px; font-weight: 600; flex-grow: 1">Teach it</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: rgba(191, 87, 0, 0.2); color: #f0a15e">@warden</span>
+        </div>
+        <div style="font-size: 12.5px; color: #98a1ad; margin-bottom: 11px">The dials are four coarse axes. Everything else you want changed, you say.</div>
+
+        <sc-if value="{{taught}}" hint-placeholder-val="{{false}}">
+          <div style="box-sizing: border-box; background: #0f131a; border: 1px solid #3a3226; border-radius: 8px; padding: 12px 14px; margin-bottom: 11px">
+            <div style="font-size: 12.5px; line-height: 1.5; color: #e7e9ec; font-style: italic; margin-bottom: 11px">&ldquo;Whenever a credential is idle but its expiry is still months out, ask @tidy whether the job that used it still exists before you raise it.&rdquo;</div>
+            <div style="height: 1px; background: #2a303a; margin-bottom: 11px"></div>
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #f0a15e; margin-bottom: 9px">WHAT IT WOULD CHANGE, BEFORE IT CHANGES ANYTHING</div>
+            <div style="display: grid; grid-template-columns: 96px 1fr; gap: 8px 12px; font-size: 12.5px; line-height: 1.5">
+              <span style="color: #98a1ad">Rule</span>
+              <span style="color: #c4c8ce">On a <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">secrets.rotate</span> finding where the policy is by-use and the expiry is over 90 days out, check the owning job first and stay silent if it is gone.</span>
+              <span style="color: #98a1ad">Skill spec</span>
+              <span style="color: #c4c8ce"><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">secrets.rotate</span> gains a precondition. Version 4, reversible.</span>
+              <span style="color: #98a1ad">New tool</span>
+              <span style="color: #c4c8ce">@warden may call @tidy&rsquo;s <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">hygiene.branch_status</span>, read only.</span>
+              <span style="color: #98a1ad">Ceiling</span>
+              <span style="color: #7fc8a0">Unchanged. This narrows what it raises, never what it may do alone.</span>
+              <span style="color: #98a1ad">Expires</span>
+              <span style="color: #c4c8ce">In 6 months, on 28 March 2027.</span>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 12px">
+              <button type="button" onClick="{{apply}}" style="padding: 7px 15px; border-radius: 7px; border: none; background: #bf5700; color: #ffffff; font-size: 12.5px; font-weight: 600">Apply it</button>
+              <button type="button" onClick="{{reset}}" style="padding: 7px 15px; border-radius: 7px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Say it differently</button>
+            </div>
+            <div style="margin-top: 10px; font-size: 11.5px; line-height: 1.5; color: #98a1ad">Nothing is wired until you apply it. An instruction that would let it act alone on a harm-class finding is refused here rather than silently narrowed.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{untaught}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 11px">
+            <sc-for list="{{shapes}}" as="sh" hint-placeholder-count="3">
+              <button type="button" onClick="{{sh.pick}}" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">{{sh.t}}</button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div style="box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 8px; padding: 9px 12px; display: flex; align-items: center; gap: 9px">
+          <label for="teach" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Tell this agent how to behave</label>
+          <input id="teach" type="text" placeholder="{{ghost}}" style="flex-grow: 1; background: transparent; border: none; color: #e7e9ec; font-size: 12.5px; outline: none">
+          <button type="button" onClick="{{send}}" style="padding: 5px 12px; border-radius: 6px; border: none; background: #bf5700; color: #ffffff; font-size: 12px; font-weight: 600; flex-shrink: 0">Send</button>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px">
+        <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px">
+          <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-grow: 1">WHAT IT HAS BEEN TAUGHT</span>
+          <span style="font-size: 11.5px; color: #98a1ad">3 standing, 1 expiring soon</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <sc-for list="{{learned}}" as="t" hint-placeholder-count="3">
+            <div style="border-left: 2px solid {{t.edge}}; padding-left: 12px">
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px">
+                <span style="font-size: 11.5px; color: #6b7480">{{t.when}}</span>
+                <div style="flex-grow: 1"></div>
+                <span style="font-size: 11.5px; color: {{t.fg}}">{{t.effect}}</span>
+              </div>
+              <div style="font-size: 12.5px; line-height: 1.5; color: #c4c8ce; font-style: italic; margin-bottom: 4px">{{t.said}}</div>
+              <div style="font-size: 11.5px; color: #6b7480">{{t.became}}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="height: 1px; background: #2a303a; margin: 14px 0"></div>
+        <div style="font-size: 12.5px; line-height: 1.55; color: #98a1ad">Each one is a version of this agent you can read, roll back and expire. Later the same door makes a new agent, or clones this one with what it has learned.</div>
+      </div>
+
+      <div style="box-sizing: border-box; background: #1c212b; border-left: 3px solid #bf5700; border-radius: 0 9px 9px 0; padding: 12px 15px">
+        <div style="font-size: 12.5px; line-height: 1.55; color: #c4c8ce">Running more often is <strong style="color: #e7e9ec">cadence</strong>. Acting more without asking is <strong style="color: #e7e9ec">ceiling</strong>. &ldquo;Be more proactive&rdquo; means either one, so they never share a control.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1320,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { run: "on", cadence: "15m", ceiling: "waste", attention: "needs", expiry: "30d", taught: false, shape: 0 };
+  }
+
+  renderVals() {
+    const S = this.state;
+
+    const defs = [
+      {
+        key: "run", name: "Run", question: "is it working at all?", base: "on",
+        stops: [
+          { id: "on", label: "Running" },
+          { id: "paused", label: "Paused" },
+          { id: "off", label: "Stopped" }
+        ],
+        effects: {
+          on: "Wakes on its schedule and reports every run, including the silent ones.",
+          paused: "Keeps its state and its conditions, wakes nobody. Resumes where it left off. Its row stays visible and says paused, so it does not read as dark.",
+          off: "Will not run until re-enabled. The liveness strip shows it stopped by you, which is a different fact from gone quiet."
+        }
+      },
+      {
+        key: "cadence", name: "Cadence", question: "how often does it wake?", base: "15m",
+        stops: [
+          { id: "5m", label: "Every 5m" },
+          { id: "15m", label: "Every 15m" },
+          { id: "1h", label: "Hourly" },
+          { id: "1d", label: "Daily" },
+          { id: "manual", label: "On ask" }
+        ],
+        effects: {
+          "5m": "Twelve times an hour. Worth it only for something whose window of usefulness is minutes.",
+          "15m": "The fleet default for this agent kind.",
+          "1h": "Four times less work and four times less warning. Fine for anything measured in days.",
+          "1d": "One pass a night. A finding can be up to 24 hours old before you see it.",
+          manual: "Runs only when asked, from here or from chat. Nothing is scheduled, so nothing is missed on a schedule either."
+        }
+      },
+      {
+        key: "ceiling", name: "Ceiling", question: "how far may it go without asking?", base: "waste",
+        stops: [
+          { id: "propose", label: "Propose only" },
+          { id: "noise", label: "Act on noise" },
+          { id: "waste", label: "…and waste" },
+          { id: "loss", label: "…and loss" },
+          { id: "harm", label: "Harm", locked: true }
+        ],
+        effects: {
+          propose: "Acts on nothing. Every finding becomes a case, including ones you would never have wanted to see.",
+          noise: "Handles only what is aggregated into weekly counts. Nearly everything still reaches you.",
+          waste: "Handles noise and waste alone. Loss and harm become cases. This is the fleet default.",
+          loss: "Also acts on loss-class findings alone. That includes anything whose worst outcome is losing work, so the reason for this one matters more than for any other dial."
+        }
+      },
+      {
+        key: "attention", name: "Attention", question: "what reaches you?", base: "needs",
+        stops: [
+          { id: "all", label: "Everything" },
+          { id: "needs", label: "What needs me" },
+          { id: "harmonly", label: "Harm only" },
+          { id: "none", label: "Nothing" }
+        ],
+        effects: {
+          all: "Every run appears and notifies, including the ones that found nothing. Useful for a week after a change, unbearable after that.",
+          needs: "Runs still appear under Done; only cases notify. The fleet default.",
+          harmonly: "Only harm-class cases notify. Everything else waits here until you come looking.",
+          none: "Nothing notifies. The page is still complete and still counts what you are not being told."
+        }
+      }
+    ];
+
+    const suppress = {
+      harmonly: "With this setting, 2 of today's 3 cases would not have notified you. They are still on the page, and the Needs you count still says 3.",
+      none: "With this setting, all 3 of today's cases would have notified nobody. The count on the rail still says 3, because the page does not lie about what it holds."
+    };
+
+    const dials = defs.map((d) => {
+      const cur = S[d.key];
+      const changed = cur !== d.base;
+      return {
+        name: d.name, question: d.question, changed,
+        bd: changed ? "#3a3226" : "#2a303a",
+        effect: d.effects[cur] || "",
+        locked: d.key === "ceiling",
+        suppresses: d.key === "attention" && !!suppress[cur],
+        suppressText: suppress[cur] || "",
+        stops: d.stops.map((s) => {
+          const on = cur === s.id;
+          if (s.locked) {
+            return {
+              label: s.label, bg: "transparent", bd: "#2a303a", fg: "#4a5058",
+              pick: () => this.setState({})
+            };
+          }
+          return {
+            label: s.label,
+            bg: on ? "rgba(191, 87, 0, 0.24)" : "transparent",
+            bd: on ? "#bf5700" : "#2a303a",
+            fg: on ? "#e7e9ec" : "#98a1ad",
+            pick: () => {
+              const nx = {};
+              nx[d.key] = s.id;
+              this.setState(nx);
+            }
+          };
+        })
+      };
+    });
+
+    const expDefs = [
+      { id: "1d", label: "A day" },
+      { id: "7d", label: "A week" },
+      { id: "30d", label: "A month" },
+      { id: "never", label: "Never" }
+    ];
+    const expiries = expDefs.map((e) => {
+      const on = S.expiry === e.id;
+      return {
+        label: e.label,
+        bg: on ? (e.id === "never" ? "rgba(232, 160, 160, 0.18)" : "rgba(191, 87, 0, 0.24)") : "transparent",
+        bd: on ? (e.id === "never" ? "#e8a0a0" : "#bf5700") : "#2a303a",
+        fg: on ? "#e7e9ec" : "#98a1ad",
+        pick: () => this.setState({ expiry: e.id })
+      };
+    });
+
+    const notes = {
+      "1d": "Back to the fleet default tomorrow unless you set it again.",
+      "7d": "Back to the fleet default in a week unless you set it again.",
+      "30d": "Back to the fleet default in a month unless you set it again.",
+      never: "Permanent. Allowed, and it is the setting that turns into policy nobody remembers choosing. It shows as never-expiring on the agent's row for as long as it stands."
+    };
+
+    // Teaching by conversation. The ghost text is the lesson: it shows the
+    // three shapes an instruction can take, because nobody guesses them.
+    const ghosts = [
+      "Whenever a runner token passes 90 days idle, rotate it without asking me\u2026",
+      "Whenever you find one you cannot check, delegate to @tidy first\u2026",
+      "Never raise anything about a key that signs releases\u2026"
+    ];
+    const shapes = [
+      { t: "Whenever\u2026 always\u2026" },
+      { t: "Whenever\u2026 delegate to\u2026" },
+      { t: "Never\u2026" }
+    ].map((x, i) => ({ t: x.t, pick: () => this.setState({ shape: i }) }));
+
+    const learned = [
+      {
+        when: "2 Jul", said: "It signs releases, so it is idle by design between tags. Stop raising it under 180 days.",
+        became: "Precondition on secrets.rotate \u00b7 no new tools \u00b7 expires 2 Jan",
+        effect: "suppressed 4", edge: "#f0a15e", fg: "#f0a15e"
+      },
+      {
+        when: "14 Aug", said: "If a runner token has been idle three months, rotate it without asking.",
+        became: "Ceiling raised to loss for this finding only \u00b7 expires 14 Feb",
+        effect: "acted 2", edge: "#7fb3d5", fg: "#7fb3d5"
+      },
+      {
+        when: "3 Sep", said: "Tell me in one weekly line how many you handled, not each one.",
+        became: "Attention \u2192 needs me \u00b7 weekly digest wired \u00b7 expires 3 Dec",
+        effect: "folded 31", edge: "#3a3f47", fg: "#98a1ad"
+      }
+    ];
+
+    return {
+      dials, expiries, expiryNote: notes[S.expiry],
+      taught: S.taught, untaught: !S.taught,
+      ghost: ghosts[S.shape], shapes, learned,
+      send: () => this.setState({ taught: true }),
+      apply: () => this.setState({ taught: false }),
+      reset: () => this.setState({ taught: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

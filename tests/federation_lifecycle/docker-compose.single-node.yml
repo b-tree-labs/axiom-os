@@ -1,0 +1,29 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Single-node scenario — used by tests that don't need federation peers,
+# only a container with the axi CLI installed (e.g. update fail-stop).
+
+services:
+  solo:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    image: axiom-fed-node:dev
+    hostname: solo
+    environment:
+      AXIOM_NODE_NAME: solo
+      AXIOM_NODE_ROLE: solo
+    volumes:
+      - solo_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+networks:
+  fednet:
+    driver: bridge
+
+volumes:
+  solo_state:
+  harness_keys:

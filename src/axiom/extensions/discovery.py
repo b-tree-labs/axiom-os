@@ -1,0 +1,1182 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""Extension discovery and loading.
+
+Scans extension directories for valid packages with axiom-extension.toml,
+loads chat tools, skills, CLI commands, and provider registrations.
+
+Discovery order (highest precedence first):
+  1. Project extensions:  <project>/<dot-dir>/extensions/  (repo-local, found by walking cwd)
+  2. User extensions:     ~/<state-dir>/extensions/ (personal, cross-project)
+  3. Builtin extensions:  tools/extensions/builtins/ (shipped with package)
+
+Key design choice: uses importlib.util.spec_from_file_location() to load
+user extension modules directly from file paths — no pip install, no sys.path
+manipulation. Builtin extensions use importlib.import_module() since they are
+part of the installed package.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import logging
+import os
+import sys
+import types
+from pathlib import Path
+from typing import Any
+
+from axiom.extensions.contracts import (
+    MANIFEST_FILENAME,
+    Extension,
+    Skill,
+    parse_manifest,
+)
+from axiom.infra.paths import (
+    get_project_state_dir,
+    get_user_state_dir,
+)
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Extension directory resolution
+# ---------------------------------------------------------------------------
+
+
+def _builtin_extensions_dir() -> Path:
+    """Builtin extensions shipped inside the package.
+
+    Always relative to this file — works in source checkout AND installed wheel.
+    """
+    return Path(__file__).resolve().parent / "builtins"
+
+
+def _state_dir_names() -> list[str]:
+    """Every dot-directory name an extension may live under, in one order for every process.
+
+    The installed products' names (``.<cli_name>`` of each portfolio member, and of the active
+    branding), sorted, then the platform's own ``.axi``. It does not depend on which command
+    started the process: a product's CLI and an MCP server a desktop app started under the bare
+    platform name used to scan different directories (``~/.<product>/extensions`` against
+    ``~/.axi/extensions``), so an extension a person added showed in one and was an "unknown
+    tool" in the other.
+    """
+    from axiom.infra.branding import BrandingConfig, get_branding
+
+    platform = BrandingConfig.cli_name
+    names: set[str] = set(_portfolio_cli_names())
+    active = get_branding().cli_name
+    if active:
+        names.add(active)
+    names.discard(platform)
+    return [*sorted(n for n in names if n), platform]
+
+
+def _portfolio_cli_names() -> list[str]:
+    """``cli_name`` of every installed portfolio member, cached like the installed-package scan."""
+    from axiom.extensions import index_cache
+
+    key = None
+    if index_cache.enabled():
+        try:
+            key = index_cache.fingerprint("portfolio-cli-names", _site_fingerprint_parts())
+            hit = index_cache.load("portfolio-cli-names", key)
+            if isinstance(hit, list) and all(isinstance(n, str) for n in hit):
+                return hit
+        except Exception:  # noqa: BLE001 - a broken cache is a miss
+            key = None
+    try:
+        import concurrent.futures
+
+        from axiom.infra.branding import discover_portfolio_members
+
+        # entry_points() walks every distribution, which can hang on Python 3.14 like
+        # distributions() does (see _scan_installed_package_extension_dirs): bound it.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            members = pool.submit(discover_portfolio_members).result(timeout=3)
+    except Exception:  # noqa: BLE001 - not cached, so the next start tries again
+        return []
+    names = sorted({m.cli_name for m in members if m.cli_name})
+    if key is not None:
+        try:
+            index_cache.store("portfolio-cli-names", key, names)
+        except Exception:  # noqa: BLE001
+            pass
+    return names
+
+
+def _project_extensions_dirs() -> list[Path]:
+    """Project-local extensions: ``<project>/.<name>/extensions/`` for each :func:`_state_dir_names`.
+
+    Resolution order:
+      1. AXIOM_ROOT env var (explicit override)
+      2. Walk up from cwd; the nearest ancestor holding any of them wins
+
+    Empty if no project root is found (e.g. a clean directory).
+    """
+    names = _state_dir_names()
+    env_root = os.environ.get("AXIOM_ROOT")
+    if env_root:
+        root = Path(env_root).resolve()
+        found = [root / f".{n}" / "extensions" for n in names]
+        found = [d for d in found if d.is_dir()]
+        if not found:
+            # The resolver warns about a retired directory where the current one should be.
+            candidate = get_project_state_dir(root) / "extensions"
+            if candidate.is_dir():
+                found = [candidate]
+        return found
+
+    # Probe, don't resolve: this loop inspects every ancestor of cwd, most of
+    # which are not the project root. get_project_state_dir() warns when a
+    # retired state directory sits where the current one should be, and that
+    # warning belongs to resolving *the* project's state dir, not to walking
+    # past somebody else's directory. Routing the probe through it painted
+    # stderr mid-turn whenever any ancestor still held a legacy dir.
+    path = Path.cwd().resolve()
+    while path != path.parent:
+        found = [path / f".{n}" / "extensions" for n in names]
+        found = [d for d in found if d.is_dir()]
+        if found:
+            return found
+        path = path.parent
+    return []
+
+
+def _project_extensions_dir() -> Path | None:
+    """The first project-local extensions directory, or None (kept for callers of the old name)."""
+    found = _project_extensions_dirs()
+    return found[0] if found else None
+
+
+def user_extension_dirs() -> list[Path]:
+    """User-level extensions: ``~/.<name>/extensions/`` for each :func:`_state_dir_names`, in order.
+
+    ``AXI_STATE_DIR`` names the one state directory a test or an isolated runtime uses, so it is
+    then the only user tier.
+    """
+    from axiom.infra.brand_migration import getenv
+
+    override = getenv("AXI_STATE_DIR")
+    if override:
+        return [Path(override) / "extensions"]
+    home = Path.home()
+    return [home / f".{n}" / "extensions" for n in _state_dir_names()]
+
+
+def _user_extensions_dir() -> Path:
+    """Where a person's extensions are written: ``<branded state dir>/extensions/``."""
+    return get_user_state_dir() / "extensions"
+
+
+def _norm_pkg(name: str) -> str:
+    """Normalize a package/dist name for comparison (PEP 503-ish)."""
+    return name.strip().lower().replace("_", "-")
+
+
+# The platform base is always inherited by every brand (coreutils/systemd are
+# never hidden from a distribution). Its own builtins are discovered via the
+# builtins dir, not this installed scan, but it's listed here so the predicate
+# never hides it when a domain brand is active.
+_PLATFORM_BASE_PKG = "axiom-os-lm"
+
+
+def _is_hidden_sibling(dist_name: str, active_pkg: str, member_pkgs: set[str]) -> bool:
+    """ADR-048: should this installed package's extensions be hidden from the
+    *active brand*?
+
+    Hidden iff the package is a registered portfolio member (a sibling
+    distribution) that is neither the active brand nor the platform base.
+    Genuine third-party plugins are NOT portfolio members, so they are never
+    hidden — discovery stays universal for the marketplace (Vyzier) case.
+    """
+    n = _norm_pkg(dist_name)
+    members = {_norm_pkg(m) for m in member_pkgs}
+    keep = {_norm_pkg(active_pkg), _norm_pkg(_PLATFORM_BASE_PKG)}
+    return n in members and n not in keep
+
+
+def _brand_hidden_packages() -> set[str]:
+    """Normalized set of installed-package names to hide under the active brand
+    per ADR-048. Empty on any failure (fail open — never wrongly hide)."""
+    try:
+        from axiom.infra.branding import discover_portfolio_members, get_branding
+
+        active = get_branding().package_name
+        members = {m.package_name for m in discover_portfolio_members()}
+        return {_norm_pkg(m) for m in members if _is_hidden_sibling(m, active, members)}
+    except Exception:
+        return set()
+
+
+def _site_fingerprint_parts() -> list[str]:
+    """What the installed-package scan depends on, as cheap stat tokens.
+
+    Installing, upgrading or removing a distribution rewrites its ``*.dist-info``
+    in a site directory, which changes that directory's mtime; an editable
+    install adds or changes a ``*.pth`` / ``__editable__*`` file there. So the
+    site directories themselves, plus the ``.pth`` files in them, are enough to
+    know the scan's answer cannot have changed. The working directory (which
+    ``python -m`` puts first on ``sys.path``) is volatile and never an input.
+    """
+    from axiom.extensions import index_cache
+
+    cwd = os.path.realpath(os.getcwd())
+    parts: list[str] = []
+    seen: set[str] = set()
+    for entry in sys.path:
+        if not entry:
+            continue
+        real = os.path.realpath(entry)
+        if real == cwd or real in seen or not os.path.isdir(real):
+            continue
+        seen.add(real)
+        parts.append(index_cache.stat_token(real))
+        if "-packages" in real:  # site-packages / dist-packages: pth files live here
+            try:
+                for name in sorted(os.listdir(real)):
+                    if name.endswith(".pth"):
+                        parts.append(index_cache.stat_token(os.path.join(real, name)))
+            except OSError:
+                pass
+    parts.append(index_cache.stat_token(__file__))
+    return parts
+
+
+def _installed_package_extension_dirs() -> list[Path]:
+    """Installed-package extension dirs, from the startup cache when it is valid.
+
+    The scan reads the metadata of every distribution in the environment
+    (hundreds of files on a typical venv), which cost ~0.35 s per call and was
+    paid several times per command. Its answer only changes when the
+    environment does, so it is cached against a fingerprint of the site
+    directories (see ``_site_fingerprint_parts``). A miss, or any cache error,
+    falls through to the scan itself.
+    """
+    from axiom.extensions import index_cache
+
+    # AXI_FULL_PARSER asks for the old eager behaviour, so it is never answered from a cache.
+    if not index_cache.enabled() or os.environ.get("AXI_FULL_PARSER"):
+        return _scan_installed_package_extension_dirs()
+    try:
+        key = index_cache.fingerprint("installed-ext-dirs", _site_fingerprint_parts())
+        hit = index_cache.load("installed-ext-dirs", key)
+        if isinstance(hit, list) and all(isinstance(p, str) for p in hit):
+            dirs = [Path(p) for p in hit]
+            if all(d.is_dir() for d in dirs):
+                return dirs
+    except Exception:  # noqa: BLE001 - a broken cache is a miss
+        key = None
+    dirs = _scan_installed_package_extension_dirs()
+    if key is not None and _scan_completed:
+        index_cache.store("installed-ext-dirs", key, [str(d) for d in dirs])
+    return dirs
+
+
+#: Set by the scan when it ran to the end. A scan cut short by the Python 3.14
+#: ``distributions()`` timeout returns an empty list that must NOT be cached,
+#: or one slow start-up would hide every installed extension until the
+#: environment next changed.
+_scan_completed = False
+
+
+def _scan_installed_package_extension_dirs() -> list[Path]:
+    """Discover extensions from installed packages (e.g., a domain consumer).
+
+    Scans site-packages for packages that have an extensions/builtins/
+    directory containing extension manifests. This allows domain packages
+    installed via pip to register their extensions with Axiom.
+
+    Convention: any installed package with the structure:
+        <package>/extensions/builtins/<ext_name>/neut-extension.toml
+    or:
+        <package>/extensions/builtins/<ext_name>/axiom-extension.toml
+    will be discovered.
+
+    **Performance:** resolves package locations via ``dist.locate_file``
+    rather than ``importlib.import_module``. Triggering real imports for
+    every installed distribution was the primary CLI-startup bottleneck
+    (~4 s with a typical site-packages) because heavy packages like
+    numpy or pandas execute meaningful work in their ``__init__``.
+    ``locate_file`` only resolves a file path from dist metadata, so
+    this function now runs in well under 200 ms on typical venvs.
+    """
+    global _scan_completed
+    _scan_completed = False
+    dirs: list[Path] = []
+    try:
+        import concurrent.futures
+        import importlib.metadata
+
+        # distributions() can hang on Python 3.14+ due to metaclass
+        # overhead. Guard with a timeout so CLI startup is never blocked.
+        def _scan_dists():
+            return list(importlib.metadata.distributions())
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            try:
+                all_dists = pool.submit(_scan_dists).result(timeout=3)
+            except (concurrent.futures.TimeoutError, Exception):
+                return dirs  # not cached: see _scan_completed
+
+        # Discovery is UNIVERSAL (ADR-048 / AEOS §2.10 "presence, not power"):
+        # every installed package's extensions are loaded so they remain
+        # invocable. Brand-scoping is a *surfacing* concern applied at listing
+        # time via surfaced_extensions(), not here — the .desktop OnlyShowIn
+        # model: on PATH everywhere, shown in the menu only under claiming brands.
+        for dist in all_dists:
+            if dist.name in ("axi-platform", "axiom-os-lm", "axiom-os", "axiom"):
+                continue  # Skip ourselves
+            try:
+                top_level = dist.read_text("top_level.txt")
+                if top_level is None:
+                    # Infer top-level package from dist name (dist.files is
+                    # slow on 3.14+ — it stat()s every file in RECORD).
+                    inferred = dist.name.replace("-", "_")
+                    top_packages = {inferred} if inferred.isidentifier() else set()
+                else:
+                    top_packages = {line.strip() for line in top_level.splitlines() if line.strip()}
+
+                for pkg_name in top_packages:
+                    # Fast path — resolve via dist metadata (never triggers
+                    # module import). Works for normally-installed wheels.
+                    pkg_path: Path | None = None
+                    try:
+                        located = dist.locate_file(pkg_name)
+                        if located is not None:
+                            candidate = Path(str(located))
+                            if candidate.is_dir():
+                                pkg_path = candidate
+                    except Exception:
+                        pkg_path = None
+
+                    # Fallback — editable installs (PEP 660 / legacy
+                    # pip-editable) don't live under site-packages, so
+                    # locate_file resolves to a non-existent path. Resolve
+                    # the package's real directory WITHOUT executing it.
+                    #
+                    # Importing an extension package's ``__init__`` can pull
+                    # in heavy serving/compute dependencies (numpy, pandas,
+                    # h5py, an ORM, a web framework). Help rendering walks
+                    # *every* installed package to list verbs from their
+                    # manifests, so a single editable sibling here dragged the
+                    # whole stack into a process that was only about to print
+                    # one line of help — the 9x-startup regression this guard
+                    # (``tests/cli/test_startup_cost.py``) exists to catch.
+                    # ``find_spec`` runs the finder — enough to learn the
+                    # package's location — but never the module body, so the
+                    # heavy import is deferred to the moment a verb from that
+                    # package is actually invoked.
+                    #
+                    # The two callers that need the whole tree resolved the
+                    # old, eager way announce themselves: argcomplete sets
+                    # ``_ARGCOMPLETE`` and ``AXI_FULL_PARSER`` forces it. They
+                    # are about to build every parser regardless, so they keep
+                    # the import path; everyone else gets the cheap resolution.
+                    if pkg_path is None:
+                        if os.environ.get("_ARGCOMPLETE") or os.environ.get("AXI_FULL_PARSER"):
+                            try:
+                                mod = importlib.import_module(pkg_name)
+                                if mod.__file__:
+                                    pkg_path = Path(mod.__file__).parent
+                            except (ImportError, AttributeError):
+                                continue
+                        else:
+                            try:
+                                spec = importlib.util.find_spec(pkg_name)
+                            except (ImportError, AttributeError, ValueError):
+                                spec = None
+                            if spec is None:
+                                continue
+                            if spec.submodule_search_locations:
+                                pkg_path = Path(next(iter(spec.submodule_search_locations)))
+                            elif spec.origin and spec.origin not in (
+                                "built-in",
+                                "frozen",
+                            ):
+                                pkg_path = Path(spec.origin).parent
+
+                    if pkg_path is None or not pkg_path.is_dir():
+                        continue
+                    builtins = pkg_path / "extensions" / "builtins"
+                    if not builtins.is_dir():
+                        continue
+                    # Verify it has at least one extension manifest —
+                    # cheap stat-only scan, no TOML parsing.
+                    has_manifest = any(
+                        (child / MANIFEST_FILENAME).exists()
+                        or (child / "neut-extension.toml").exists()
+                        for child in builtins.iterdir()
+                        if child.is_dir()
+                    )
+                    if has_manifest:
+                        dirs.append(builtins)
+            except Exception:
+                continue
+        _scan_completed = True
+    except Exception:
+        pass
+    return dirs
+
+
+def get_extension_dirs() -> list[Path]:
+    """Return extension directories in discovery order.
+
+    Discovery order (highest precedence first):
+      1. Project-local:  <project>/.<name>/extensions/ for each name below
+      2. User-level:     ~/.<name>/extensions/ for each name below
+      3. Installed packages: site-packages/<pkg>/extensions/builtins/
+      4. Builtins:       axiom/extensions/builtins/
+
+    ``<name>`` runs over the installed products' command names, sorted, then the platform's
+    own ``axi`` (:func:`_state_dir_names`). The list is the same whichever command started the
+    process, so a product's CLI and an MCP server see the same extensions
+    (``tests/test_extension_dirs_are_the_same_for_every_entry_point.py``).
+
+    Earlier entries win when names collide (user can override builtins).
+    """
+    dirs: list[Path] = []
+    for directory in (*_project_extensions_dirs(), *user_extension_dirs()):
+        if directory.is_dir() and directory not in dirs:
+            dirs.append(directory)
+    # Installed packages (e.g., a domain consumer)
+    dirs.extend(_installed_package_extension_dirs())
+    # Axiom builtins (lowest priority)
+    builtin_dir = _builtin_extensions_dir()
+    if builtin_dir.is_dir():
+        dirs.append(builtin_dir)
+    return dirs
+
+
+# ---------------------------------------------------------------------------
+# Discovery
+# ---------------------------------------------------------------------------
+
+
+def discover_extensions(*search_dirs: Path) -> list[Extension]:
+    """Scan extension directories for valid packages.
+
+    Args:
+        *search_dirs: Override default search dirs (for testing).
+                      If empty, uses get_extension_dirs().
+
+    Returns:
+        List of Extension objects, deduplicated by name (first wins).
+    """
+    dirs = list(search_dirs) if search_dirs else get_extension_dirs()
+    seen_names: set[str] = set()
+    extensions: list[Extension] = []
+
+    for ext_dir in dirs:
+        if not ext_dir.is_dir():
+            continue
+        for child in sorted(ext_dir.iterdir()):
+            if not child.is_dir():
+                continue
+            # Check both axiom-extension.toml and neut-extension.toml
+            try:
+                manifest = child / MANIFEST_FILENAME
+                if not manifest.exists():
+                    manifest = child / "neut-extension.toml"
+                if not manifest.exists():
+                    continue
+            except PermissionError:
+                # An extension directory we may not search. Linux raises here where other platforms see
+                # "no manifest"; either way the extension is skipped, but it is said, with the fix.
+                logger.warning(
+                    "Extension directory %s is not readable (permission denied), so it was skipped. "
+                    "Fix: chmod u+rx '%s'",
+                    child,
+                    child,
+                )
+                continue
+            try:
+                ext = parse_manifest(manifest)
+                if ext.name in seen_names:
+                    logger.debug("Skipping duplicate extension: %s", ext.name)
+                    continue
+                seen_names.add(ext.name)
+                extensions.append(ext)
+            except Exception as e:
+                logger.warning("Failed to parse extension %s: %s", child.name, e)
+
+    return extensions
+
+
+_REAL_DISCOVER_EXTENSIONS = discover_extensions
+_REAL_PARSE_MANIFEST = parse_manifest
+
+
+def _extension_source_package(ext: Extension) -> str | None:
+    """Top-level package an installed extension ships in, derived from its path
+    (``.../<pkg>/extensions/builtins/<name>``). ``None`` for project-/user-level
+    extensions, which live outside any package's ``extensions/builtins`` tree.
+    """
+    parts = ext.root.parts
+    try:
+        i = len(parts) - 1 - parts[::-1].index("builtins")
+    except ValueError:
+        return None
+    if i >= 2 and parts[i - 1] == "extensions":
+        return parts[i - 2]
+    return None
+
+
+def surfaced_extensions(*search_dirs: Path) -> list[Extension]:
+    """The brand-scoped *listing* view of :func:`discover_extensions` (ADR-048).
+
+    Discovery is universal — every installed extension is loaded and remains
+    invocable (AEOS §2.10: surfacing governs presence, not power). This view is
+    what *listing* surfaces (``ext list``, ``agents status``, menus, completion)
+    should iterate: it hides portfolio-sibling extensions that the active brand
+    doesn't claim, exactly like a desktop environment honoring ``OnlyShowIn`` —
+    the entry stays on PATH, it's just not shown in this menu.
+
+    Resolution paths (running a command, dispatching a heartbeat, loading hooks)
+    must keep using :func:`discover_extensions`, never this.
+    """
+    hidden = _brand_hidden_packages()
+    if not hidden:
+        return discover_extensions(*search_dirs)
+    out: list[Extension] = []
+    for ext in discover_extensions(*search_dirs):
+        pkg = _extension_source_package(ext)
+        if pkg is not None and _norm_pkg(pkg) in hidden:
+            continue  # sibling distribution's extension — not shown under this brand
+        out.append(ext)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Module loading (importlib, no sys.path)
+# ---------------------------------------------------------------------------
+
+
+def _load_module_from_file(name: str, file_path: Path) -> types.ModuleType:
+    """Load a Python module from an arbitrary file path.
+
+    Uses importlib.util.spec_from_file_location — no sys.path manipulation.
+    Forces reload on each call to pick up changes immediately (hot-reload).
+    """
+    spec = importlib.util.spec_from_file_location(name, str(file_path))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module from {file_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+# ---------------------------------------------------------------------------
+# Chat tool loading
+# ---------------------------------------------------------------------------
+
+
+def load_chat_tools(ext: Extension) -> list[Any]:
+    """Import chat tool modules from an extension.
+
+    Returns list of ToolDef objects from each module's TOOLS list.
+    """
+    if not ext.chat_tools_module:
+        return []
+
+    tools_dir = ext.root / ext.chat_tools_module.replace(".", "/")
+    if not tools_dir.is_dir():
+        return []
+
+    tool_defs = []
+    for py_file in sorted(tools_dir.glob("*.py")):
+        if py_file.name.startswith("_"):
+            continue
+        mod_name = f"neut_ext.{ext.name}.{ext.chat_tools_module}.{py_file.stem}"
+        try:
+            mod = _load_module_from_file(mod_name, py_file)
+            for tool_def in getattr(mod, "TOOLS", []):
+                tool_defs.append(tool_def)
+        except Exception as e:
+            logger.warning(
+                "Failed to load chat tool %s from %s: %s",
+                py_file.name,
+                ext.name,
+                e,
+            )
+
+    return tool_defs
+
+
+def discover_and_load_chat_tools(*search_dirs: Path) -> list[Any]:
+    """Discover all extensions and load their chat tools."""
+    tools = []
+    for ext in discover_extensions(*search_dirs):
+        if ext.enabled:
+            tools.extend(load_chat_tools(ext))
+    return tools
+
+
+# ---------------------------------------------------------------------------
+# Chat tool execution
+# ---------------------------------------------------------------------------
+
+
+def execute_extension_tool(
+    name: str, params: dict[str, Any], *search_dirs: Path
+) -> dict[str, Any] | None:
+    """Execute an extension chat tool by name.
+
+    Returns the result dict, or None if no extension provides this tool.
+    """
+    for ext in discover_extensions(*search_dirs):
+        if not ext.enabled or not ext.chat_tools_module:
+            continue
+        tools_dir = ext.root / ext.chat_tools_module.replace(".", "/")
+        if not tools_dir.is_dir():
+            continue
+
+        for py_file in sorted(tools_dir.glob("*.py")):
+            if py_file.name.startswith("_"):
+                continue
+            mod_name = f"neut_ext.{ext.name}.{ext.chat_tools_module}.{py_file.stem}"
+            try:
+                mod = _load_module_from_file(mod_name, py_file)
+                tool_names = [t.name for t in getattr(mod, "TOOLS", [])]
+                if name in tool_names:
+                    handler = getattr(mod, "execute", None)
+                    if handler:
+                        return handler(name, params)
+            except Exception as e:
+                logger.warning("Error executing %s: %s", name, e)
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# CLI command discovery
+# ---------------------------------------------------------------------------
+
+
+def _extension_tree_fingerprint_parts(dirs: list[Path]) -> list[str]:
+    """Stat tokens for every extension dir, child dir and manifest in *dirs*."""
+    from axiom.extensions import index_cache
+
+    parts = [index_cache.stat_token(__file__), index_cache.stat_token(contracts_file())]
+    for d in dirs:
+        parts.append(index_cache.stat_token(d))
+        try:
+            children = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for name in children:
+            child = os.path.join(d, name)
+            parts.append(index_cache.stat_token(os.path.join(child, MANIFEST_FILENAME)))
+            parts.append(index_cache.stat_token(os.path.join(child, "neut-extension.toml")))
+    return parts
+
+
+def _scan_is_patched() -> bool:
+    """True when something replaced the scan (a test double): never cache then,
+    or the double's answer would be written over, or masked by, the real one."""
+    return discover_extensions is not _REAL_DISCOVER_EXTENSIONS or parse_manifest is not _REAL_PARSE_MANIFEST
+
+
+def contracts_file() -> str:
+    from axiom.extensions import contracts
+
+    return contracts.__file__ or ""
+
+
+def discover_cli_commands(*search_dirs: Path) -> dict[str, dict[str, Any]]:
+    """Discover CLI commands from all extensions (cached for the default dirs).
+
+    With no *search_dirs*, the result is read from the startup cache while the
+    extension tree is unchanged (``index_cache``); explicit dirs, used by
+    tests and tooling, always scan. Parsing ~80 manifests cost 0.1-0.45 s per
+    call on every command that lists or resolves verbs.
+    """
+    from axiom.extensions import index_cache
+
+    if (
+        search_dirs
+        or not index_cache.enabled()
+        or os.environ.get("AXI_FULL_PARSER")
+        or _scan_is_patched()
+    ):
+        return _discover_cli_commands_uncached(*search_dirs)
+    try:
+        key = index_cache.fingerprint(
+            "cli-commands", _extension_tree_fingerprint_parts(get_extension_dirs())
+        )
+        hit = index_cache.load("cli-commands", key)
+        if isinstance(hit, dict):
+            return hit
+    except Exception:  # noqa: BLE001 - a broken cache is a miss
+        key = None
+    commands = _discover_cli_commands_uncached()
+    if key is not None:
+        index_cache.store("cli-commands", key, commands)
+    return commands
+
+
+def _discover_cli_commands_uncached(*search_dirs: Path) -> dict[str, dict[str, Any]]:
+    """Discover CLI commands from all extensions.
+
+    Returns dict mapping noun -> {module, function, description, extension,
+    root, builtin, tier, intent_groups, verb_overrides}.
+
+    `tier` / `intent_groups` / `verb_overrides` come from the AEOS 0.1
+    manifest schema and drive `axi help` revelation (see `help_engine.py`
+    and `prd-axi-cli.md §Progressive Disclosure`). Undeclared commands
+    default to `tier="core"`, `intent_groups=[]`, `verb_overrides={}`.
+    """
+    commands: dict[str, dict[str, Any]] = {}
+    for ext in discover_extensions(*search_dirs):
+        if not ext.enabled:
+            continue
+        for cmd in ext.cli_commands:
+            if cmd.noun not in commands:
+                commands[cmd.noun] = {
+                    "module": cmd.module,
+                    "function": cmd.function or "main",
+                    "description": cmd.description,
+                    "extension": ext.name,
+                    "root": str(ext.root),
+                    "builtin": ext.builtin,
+                    "tier": cmd.tier,
+                    "intent_groups": list(cmd.intent_groups),
+                    "verb_overrides": dict(cmd.verb_overrides),
+                    "requires": list(cmd.requires),
+                    "functions": list(getattr(cmd, "functions", []) or []),
+                }
+    return commands
+
+
+def discover_connections(*search_dirs: Path) -> list:
+    """Discover connection declarations from all extensions (3-tier).
+
+    Returns list of ConnectionDef objects from all enabled extensions.
+    Project-local overrides user-global overrides builtins.
+    """
+    seen_names: set[str] = set()
+    connections = []
+    for ext in discover_extensions(*search_dirs):
+        if not ext.enabled:
+            continue
+        for conn in ext.connections:
+            if conn.name not in seen_names:
+                seen_names.add(conn.name)
+                connections.append(conn)
+    return connections
+
+
+# ---------------------------------------------------------------------------
+# Skill loading
+# ---------------------------------------------------------------------------
+
+
+def load_skills(ext: Extension) -> list[Skill]:
+    """Load skills from an extension's skills directory."""
+    return ext.skills  # Already scanned during parse_manifest
+
+
+def discover_all_skills(*search_dirs: Path) -> list[Skill]:
+    """Discover all skills from all extensions."""
+    skills = []
+    for ext in discover_extensions(*search_dirs):
+        if ext.enabled:
+            skills.extend(ext.skills)
+    return skills
+
+
+# ---------------------------------------------------------------------------
+# Contract documentation generation
+# ---------------------------------------------------------------------------
+
+
+def generate_contract_docs() -> str:
+    """Generate EXTENSION_CONTRACTS.md content.
+
+    This is the file you paste into Claude/Gemini/Cursor context so they
+    know exactly how to build extensions.
+    """
+    return _CONTRACT_DOCS_TEMPLATE
+
+
+_CONTRACT_DOCS_TEMPLATE = '''# Extension Contracts
+
+> Auto-generated by `axi ext docs`. Paste this into your AI assistant's
+> context so it can generate extensions automatically.
+
+## Quick Start
+
+```bash
+axi ext init my-extension    # Scaffold in the user extensions directory
+axi ext                      # List installed extensions
+axi ext check my-extension   # Validate
+```
+
+## Manifest: `axiom-extension.toml`
+
+Every extension has a `axiom-extension.toml` at its root:
+
+```toml
+[extension]
+name = "my-extension"
+version = "0.1.0"
+description = "What this extension does"
+author = "Your Name"
+
+# Chat tools — Python modules with TOOLS list + execute() function
+[chat_tools]
+module = "tools_ext"
+
+# Skills — SKILL.md standard (compatible with Claude Code, Codex, Copilot)
+[skills]
+dir = "skills"
+
+# CLI commands — new nouns for the axi CLI
+[[cli.commands]]
+noun = "myverb"
+module = "cli.myverb"
+description = "Do something custom"
+
+# Docflow providers
+[[providers]]
+type = "generation"
+name = "pptx"
+module = "providers.pptx_generation"
+
+# Sense extractors
+[[extractors]]
+name = "data_log"
+module = "extractors.data_log"
+file_patterns = ["*.log", "*.csv"]
+
+# MCP servers (same schema as .mcp.json)
+[mcp_servers.my_server]
+type = "stdio"
+command = "python"
+args = ["-m", "my_mcp_server"]
+env = { API_KEY = "${MY_API_KEY}" }
+
+# External connections (APIs, CLI tools, browser sessions)
+[[connections]]
+name = "my_service"
+display_name = "My Service"
+kind = "api"                              # "api" | "browser" | "mcp" | "a2a" | "cli"
+category = "data"                         # Logical grouping for UI
+credential_env_var = "MY_SERVICE_TOKEN"   # Primary credential source
+docs_url = "https://example.com/api-keys" # Where to get credentials
+
+# Optional: health checking
+health_check = "http_get"                 # "http_get" | "tcp_connect" | "cli_version" | "custom"
+health_endpoint = "https://api.example.com/health"
+
+# Optional: declarative installation
+[connections.install_commands]
+macos = "brew install my-service"
+linux = "sudo apt-get install -y my-service"
+
+# Optional: lifecycle hooks (for services that need to be running)
+# ensure_module = "my_extension.connections"
+# ensure_function = "ensure_my_service_running"  # () -> bool, silent, no prompts
+# post_setup_module = "my_extension.connections"
+# post_setup_function = "setup_my_service"        # () -> int, interactive, runs once
+```
+
+---
+
+## 1. Chat Tool Contract
+
+Each `.py` file in the `tools_ext/` directory exports:
+- `TOOLS`: list of `ToolDef` objects
+- `execute(name: str, params: dict) -> dict`: handler function
+
+```python
+from axiom.extensions.builtins.chat.tools import ToolDef
+from axiom.infra.orchestrator.actions import ActionCategory
+
+TOOLS = [
+    ToolDef(
+        name="my_tool",
+        description="What this tool does (shown to the LLM).",
+        category=ActionCategory.READ,  # READ = auto-approved, WRITE = needs confirmation
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query.",
+                },
+            },
+            "required": ["query"],
+        },
+    ),
+]
+
+def execute(name: str, params: dict) -> dict:
+    """Execute tool. Always return a dict."""
+    if name == "my_tool":
+        query = params.get("query", "")
+        return {"results": [f"Result for: {query}"], "count": 1}
+    return {"error": f"Unknown tool: {name}"}
+```
+
+**Parameter schema** follows OpenAI function-calling format (JSON Schema subset):
+- `type`: "string", "number", "boolean", "integer", "array", "object"
+- `description`: Shown to the LLM
+- `enum`: Optional restricted values
+- `required`: List of required parameter names
+
+**ActionCategory:**
+- `READ` — Auto-approved, no user confirmation needed
+- `WRITE` — Requires human confirmation before execution
+
+---
+
+## 2. Skill Contract (SKILL.md)
+
+Skills use the Agent Skills standard (compatible with Claude Code, Codex, Copilot).
+Each skill lives in its own directory under `skills/`:
+
+```
+skills/
+    weekly-slides/
+        SKILL.md
+    data-export/
+        SKILL.md
+```
+
+SKILL.md format:
+
+```markdown
+---
+name: weekly-slides
+description: Generate weekly progress slides from sense data
+---
+
+# Weekly Slides
+
+## Instructions
+
+1. Query sense status for the current week's signals
+2. Group signals by initiative
+3. Generate a slide deck with one slide per initiative
+4. Include blockers slide at the end
+
+## Parameters
+
+- **format**: Output format (pptx, pdf). Default: pptx
+- **week**: ISO date for the week. Default: current week
+```
+
+---
+
+## 3. CLI Command Contract
+
+CLI command modules export a `main()` function and optionally `get_parser()`:
+
+```python
+import argparse
+
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="axi myverb",
+        description="Do something custom",
+    )
+    parser.add_argument("target", help="What to operate on")
+    parser.add_argument("--format", choices=["json", "table"], default="table")
+    return parser
+
+def main():
+    parser = get_parser()
+    args = parser.parse_args()
+    print(f"Operating on {args.target} with format {args.format}")
+```
+
+---
+
+## 4. Docflow Provider Contracts
+
+Providers implement abstract base classes from `tools.extensions.builtins.publishing.providers.base`:
+
+### GenerationProvider
+
+```python
+from pathlib import Path
+from axiom.extensions.builtins.publishing.providers.base import (
+    GenerationProvider,
+    GenerationOptions,
+    GenerationResult,
+)
+
+class PptxGenerationProvider(GenerationProvider):
+    def __init__(self, config: dict):
+        self.config = config
+
+    def generate(self, source_path: Path, output_path: Path,
+                 options: GenerationOptions) -> GenerationResult:
+        # Convert markdown to .pptx
+        # Return GenerationResult with output_path, format, size_bytes
+        ...
+
+    def rewrite_links(self, artifact_path: Path, link_map: dict[str, str]) -> None:
+        pass  # Optional for pptx
+
+    def get_output_extension(self) -> str:
+        return ".pptx"
+
+    def supports_watermark(self) -> bool:
+        return False
+```
+
+### StorageProvider, NotificationProvider
+
+See `tools/publisher/providers/base.py` for all five provider ABCs.
+
+---
+
+## 5. Extractor Contract
+
+Extractors inherit from `tools.extensions.builtins.signals.extractors.base.BaseExtractor`:
+
+```python
+from pathlib import Path
+from axiom.extensions.builtins.signals.extractors.base import BaseExtractor
+from axiom.extensions.builtins.signals.models import Extraction, Signal
+
+class DataLogExtractor(BaseExtractor):
+    @property
+    def name(self) -> str:
+        return "data_log"
+
+    def can_handle(self, path: Path) -> bool:
+        return path.exists() and path.suffix in (".log", ".csv")
+
+    def extract(self, source: Path, **kwargs) -> Extraction:
+        # Parse log file, create Signal objects
+        signals = []
+        # ... extraction logic ...
+        return Extraction(
+            extractor=self.name,
+            source_file=str(source),
+            signals=signals,
+        )
+```
+
+---
+
+## 6. MCP Server Contract
+
+Same JSON schema as `.mcp.json` (Claude Code, Cursor):
+
+```toml
+[mcp_servers.my_server]
+type = "stdio"
+command = "python"
+args = ["-m", "my_mcp_module"]
+env = { API_KEY = "${MY_API_KEY}" }
+```
+
+Supports `${VAR}` and `${VAR:-default}` expansion for credentials.
+
+---
+
+## 7. Connection Contract
+
+Connections declare external dependencies. The platform handles credential
+resolution, health checks, installation, and service lifecycle.
+
+### Declaration (TOML)
+
+```toml
+[[connections]]
+name = "redis"                            # Unique identifier
+display_name = "Redis"                    # Shown in `axi connect` and `axi status`
+kind = "cli"                              # Type: "api" | "browser" | "mcp" | "a2a" | "cli"
+category = "data"                         # Grouping: "llm", "code", "data", "storage", "tools", etc.
+endpoint = "redis-server"                 # URL, host:port, or binary name (for CLI tools)
+credential_type = "none"                  # "api_key" | "none" | "browser_session" | "oauth_token"
+credential_env_var = ""                   # Env var for credential (e.g., "REDIS_TOKEN")
+required = false                          # If true, axi warns on missing
+health_check = "tcp_connect"              # How to verify: "http_get", "tcp_connect", "cli_version", "custom"
+health_endpoint = "localhost:6379"        # Target for health check (if different from endpoint)
+docs_url = "https://redis.io/docs"        # Where users get credentials or install info
+
+# Capabilities (read/write/admin)
+capabilities = ["read", "write"]          # What this connection supports
+
+[connections.install_commands]             # Platform-specific install commands
+macos = "brew install redis"
+linux = "sudo apt-get install -y redis-server"
+
+# Lifecycle hooks — keep tool-specific logic in YOUR extension, not the platform
+# ensure_module/ensure_function: called silently before first use (auto-start)
+# post_setup_module/post_setup_function: called interactively by `axi connect`
+```
+
+### Usage (Python)
+
+```python
+from axiom.infra.connections import get_credential, get_cli_tool, ensure_available
+
+# API connections — get the credential (returns None if missing, never throws)
+token = get_credential("my_service")
+if token is None:
+    return []  # Graceful degradation
+
+# CLI tools — resolve binary path and version
+tool = get_cli_tool("redis")
+if tool:
+    subprocess.run([tool.path, "ping"])
+
+# Services — ensure running before use (calls declared ensure hook)
+if ensure_available("redis"):
+    # Redis is guaranteed to be serving
+    ...
+```
+
+### Rules for Extension Builders
+
+1. **Never hardcode credentials** — use `get_credential()`
+2. **Never store credentials in runtime/** — the platform owns the user credentials directory
+3. **Always degrade gracefully** — `get_credential()` returns `None`, handle it
+4. **Declare connections in the manifest** — platform discovers and health-checks them
+5. **Provide `docs_url`** — tells users where to get credentials
+6. **Keep lifecycle logic in your extension** — use `ensure_module`, not platform code
+7. **Use `install_commands`** — let the platform handle installation prompts
+
+---
+
+## 8. Persistence Guidelines
+
+**Default: file-based** (JSON/TOML in extension directory)
+- Human-readable, easy backup, git-friendly
+- Good for: config, session state, audit trails
+
+**PostgreSQL** (when needed):
+- Growing data, vector search, relational queries, shared state
+- Declare in manifest: `[database]` section with migrations dir
+
+---
+
+## Directory Structure
+
+```
+<user state dir>/extensions/my-extension/
+    axiom-extension.toml     # Manifest (required)
+    tools_ext/              # Chat tools (Python modules)
+        my_tool.py
+    skills/                 # Agent skills (SKILL.md standard)
+        weekly-slides/
+            SKILL.md
+    cli/                    # CLI commands
+        myverb.py
+    providers/              # Docflow providers
+        pptx_generation.py
+    extractors/             # Sense extractors
+        data_log.py
+```
+
+Extensions are hot-reloaded — no pip install, no restart needed.
+'''
