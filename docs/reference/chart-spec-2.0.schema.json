@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://axiom.b-treelabs.com/schemas/chart-spec/2.0.json",
+  "title": "Axiom ChartSpec 2.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "title",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,95}$"
+    },
+    "kind": {
+      "enum": [
+        "line",
+        "area",
+        "step",
+        "sparkline",
+        "bar",
+        "bullet",
+        "pie",
+        "donut",
+        "progress",
+        "gauge",
+        "kpi",
+        "histogram",
+        "box",
+        "scatter",
+        "heatmap",
+        "state",
+        "flame",
+        "mesh3d",
+        "surface",
+        "scatter3d",
+        "volume"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "native",
+            "imported"
+          ]
+        },
+        "format": {
+          "enum": [
+            "plotly",
+            "trame"
+          ]
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "object",
+          "required": [
+            "site",
+            "channels"
+          ]
+        },
+        "verb": {
+          "type": "object",
+          "required": [
+            "name"
+          ]
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "y"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "against": {},
+              "axis": {},
+              "channel": {},
+              "colour": {},
+              "group": {},
+              "high": {},
+              "low": {},
+              "modelled": {},
+              "name": {},
+              "panel": {},
+              "role": {},
+              "unit": {},
+              "x": {},
+              "y": {}
+            }
+          },
+          "minItems": 1
+        },
+        "field": {
+          "type": "object",
+          "required": [
+            "z"
+          ]
+        },
+        "value": {
+          "type": "object"
+        },
+        "tree": {
+          "type": "object",
+          "description": "one of root (nested), folded (stack lines) or rows"
+        },
+        "scene": {
+          "type": "object",
+          "description": "one of mesh, points, grid or ref, plus scalars, elements"
+        },
+        "frames": {
+          "type": "object",
+          "required": [
+            "key",
+            "items"
+          ]
+        }
+      }
+    },
+    "axes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "time",
+                "linear",
+                "log",
+                "category"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "side": {
+              "enum": [
+                "left",
+                "right"
+              ]
+            }
+          }
+        },
+        "y": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "time",
+                "linear",
+                "log",
+                "category"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "side": {
+              "enum": [
+                "left",
+                "right"
+              ]
+            }
+          }
+        },
+        "y2": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "time",
+                "linear",
+                "log",
+                "category"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "side": {
+              "enum": [
+                "left",
+                "right"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "encoding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aspect": {},
+        "bins": {},
+        "camera": {},
+        "clip": {},
+        "colormap": {},
+        "colour_by": {},
+        "compare": {},
+        "curve": {},
+        "cutaway": {},
+        "direction": {},
+        "edges": {},
+        "explode": {},
+        "fit": {},
+        "hole": {},
+        "invert": {},
+        "iso": {},
+        "labels": {},
+        "opacity": {},
+        "orientation": {},
+        "pick": {},
+        "scalar": {},
+        "show_points": {},
+        "slice_at": {},
+        "slice_axis": {},
+        "stack": {}
+      }
+    },
+    "marks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "band",
+              "rule",
+              "annotation"
+            ]
+          },
+          "tone": {
+            "enum": [
+              "neutral",
+              "info",
+              "warn",
+              "alarm",
+              "ok"
+            ]
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object"
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "label",
+          "bind"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "slider",
+              "range",
+              "dropdown",
+              "toggle",
+              "segmented",
+              "playback",
+              "text",
+              "path"
+            ]
+          },
+          "bind": {
+            "type": "object",
+            "required": [
+              "to"
+            ],
+            "properties": {
+              "to": {
+                "enum": [
+                  "frame",
+                  "group",
+                  "layer",
+                  "window",
+                  "param",
+                  "encoding",
+                  "search",
+                  "zoom"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channels": {},
+        "default": {},
+        "group": {},
+        "notes": {},
+        "order": {},
+        "origin": {},
+        "provenance": {},
+        "roles": {},
+        "surfaces": {},
+        "unit_authority": {},
+        "verb": {}
+      }
+    },
+    "display_units": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "series_colours": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "palette": {
+      "type": "string"
+    }
+  }
+}
