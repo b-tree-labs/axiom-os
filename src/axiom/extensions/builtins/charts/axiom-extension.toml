@@ -1,0 +1,55 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "charts"
+version = "0.1.0"
+description = "Charts from answers: the chart kinds a result can honestly be drawn as, ranked for the question, bound and bounded for inline drawing; and the drawing itself (ADR-216, ADR-214)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "charts"
+entry = "axiom.extensions.builtins.charts.cli:main"
+description = "Which charts a result can be drawn as, ranked for a question; draw a chart spec"
+
+# POST /api/v1/charts/suggest, POST /api/v1/charts/render, GET /api/v1/charts/data/{ref}
+[[extension.provides]]
+kind = "api"
+subpath = "/charts"
+entry = "axiom.extensions.builtins.charts.api:register_routes"
+description = "Chart suggestions for a result and the platform renderer for a ChartSpec 2.0"
+
+[extension.mcp]
+enabled = true
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "charts.render"
+entry = "axiom.extensions.builtins.charts.skills:render"
+path = "skills/render"
+description = "Draw a ChartSpec 2.0 with the platform renderer: SVG, the controls' resolved state, and notes. The one renderer every surface draws with."
+risk = "read"
+side_effects = false
+idempotent = true
+
+[[extension.provides]]
+kind = "skill"
+name = "charts.suggest"
+entry = "axiom.extensions.builtins.charts.skills:suggest"
+path = "skills/suggest"
+description = "Which charts a result can honestly be drawn as, ranked for the question: the data's profile, the top 2-3 chart kinds with a one-line reason each and a ChartSpec 2.0 bound to the data, every other kind that also fits, and why each other kind does not. Deterministic; a kind the data cannot support is never offered."
+risk = "read"
+side_effects = false
+idempotent = true
+# END axi-skills-emit-md

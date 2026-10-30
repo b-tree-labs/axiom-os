@@ -1,0 +1,1614 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""``axi data`` — the data-platform CLI surface.
+
+**Provider-driven by construction.** The platform CLI names no:
+
+- specific ingest source kind (Box, GDrive, …) — `SourceKindProvider`s
+  attach their own flags to ``register <name> <kind>``.
+- specific OLTP database (Postgres, MySQL, …) — `DatabaseKindProvider`s
+  attach their own flags to ``install`` via ``--db-kind``.
+- specific vector store (pgvector, Qdrant, …) — `VectorStoreProvider`s
+  attach their own flags to ``install`` via ``--vector-kind``.
+
+Adding a new provider of any of the three kinds ships a package +
+import-time registration. NO platform-code change.
+
+Per ADR-056: CLI verbs are thin wrappers that translate flags → params
+dict and dispatch to ``SkillRegistry.invoke``. All business logic
+lives in the skill functions.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+from pathlib import Path
+from typing import Any
+
+from axiom.infra.paths import get_user_state_dir
+from axiom.infra.skill_dispatch import CLI_SURFACE, invoke_capability
+from axiom.infra.skills import SkillContext, SkillResult
+
+from .. import friendly as friendly_lang
+from .. import friendly_text
+from .. import skills as data_skills
+from ..database import default_database_kind_registry
+from ..gold_query import AGGREGATE_FNS, ANSWERABLE_TIERS
+from ..medallion import TIERS
+from ..sources import default_source_kind_registry
+from ..vectorstore import default_vector_store_registry
+
+_PROG = "axi data"
+
+
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog=_PROG,
+        description="data-platform: install, diagnose, ingest, manage connectors.",
+    )
+    p.add_argument("--json", action="store_true", help="emit the SkillResult as JSON")
+    p.add_argument(
+        "--actor",
+        help="operator principal for the audit envelope "
+        "(falls back to AXIOM_ACTOR env, then dev-mode "
+        "hostname). e.g. '@operator:example-org'",
+    )
+    sub = p.add_subparsers(dest="verb", required=True)
+
+    # ---- install (provider-driven) --------------------------------------
+    db_registry = default_database_kind_registry()
+    vec_registry = default_vector_store_registry()
+
+    inst = sub.add_parser("install", help="Provision the data-platform on K8s.")
+    inst.add_argument("--namespace", default="axiom-data")
+    inst.add_argument("--release", default="axiom-data-platform")
+    inst.add_argument("--kube-context", help="kubectl context (default: current)")
+    inst.add_argument(
+        "--db-kind",
+        default="postgres",
+        choices=db_registry.kinds(),
+        help="OLTP database kind (provider). Default: postgres.",
+    )
+    inst.add_argument(
+        "--db-mode",
+        default="internal",
+        choices=["internal", "external"],
+        help="`internal` deploys the bundled DB; `external` uses --db-dsn.",
+    )
+    inst.add_argument("--db-dsn", default="", help="connect string when --db-mode=external")
+    inst.add_argument(
+        "--vector-kind",
+        default="pgvector",
+        choices=vec_registry.kinds(),
+        help="vector-store kind (provider). Default: pgvector "
+        "(co-locates with --db-kind=postgres).",
+    )
+    inst.add_argument(
+        "--vector-dsn", default="", help="vector-store connect string when not co-located"
+    )
+    # Each DB + VectorStore provider attaches its own kind-specific flags.
+    # We attach ALL providers' flags so help discovers everything; the
+    # active provider is selected at runtime from --db-kind / --vector-kind.
+    for k in db_registry.kinds():
+        db_registry.get(k).add_install_args(inst)
+    for k in vec_registry.kinds():
+        vec_registry.get(k).add_install_args(inst)
+
+    inst.add_argument("--bronze-size", default="100Gi")
+    inst.add_argument(
+        "--rules", help="path to provenance rules TOML (optional; default = quarantine all)"
+    )
+    inst.add_argument("--dry-run", action="store_true")
+    inst.add_argument(
+        "--skip-diagnose", action="store_true", help="don't auto-invoke data.diagnose post-install"
+    )
+
+    # ---- diagnose --------------------------------------------------------
+    diag = sub.add_parser("diagnose", help="Post-install health checks.")
+    diag.add_argument("--namespace", default="axiom-data")
+    diag.add_argument("--release", default="axiom-data-platform")
+    diag.add_argument("--kube-context")
+
+    # ---- troubleshoot ----------------------------------------------------
+    # Peer of `diagnose`: diagnose says whether it is healthy, troubleshoot
+    # says why it is not. It has declared a `cli` surface since it was
+    # registered; this is the parser that makes that true.
+    ts = sub.add_parser(
+        "troubleshoot",
+        help="Explain why a connector is failing, with the fix.",
+    )
+    ts.add_argument("--connector", help="one connector (default: every registered one)")
+
+    # ---- ingest ----------------------------------------------------------
+    ing = sub.add_parser("ingest", help="Gated source → bronze → RAG pass.")
+    ing.add_argument("--connector", required=True)
+    ing.add_argument("--since")
+    ing.add_argument("--volume-mode", default="confirm", choices=["off", "refuse", "confirm"])
+    ing.add_argument(
+        "--workers",
+        type=int,
+        help="concurrent fetch/extract workers (default 1; "
+        "also DP1_INGEST_WORKERS env). The bottleneck is "
+        "per-item source fetch + OCR, not the embedder.",
+    )
+
+    # ---- refresh ---------------------------------------------------------
+    ref = sub.add_parser(
+        "refresh",
+        help="Incremental (CDC) delta ingest — derive a watermark off the "
+        "last indexed time and pull only what changed since.",
+    )
+    ref.add_argument("--connector", required=True)
+    ref.add_argument(
+        "--overlap-minutes",
+        type=int,
+        default=60,
+        help="back the watermark off by this many minutes so "
+        "items written around the last run aren't missed "
+        "(default 60).",
+    )
+
+    # ---- register <name> <kind> [kind-specific flags] -------------------
+    reg = sub.add_parser(
+        "register",
+        help="Register a connector — `register <name> <kind> [flags]`.",
+    )
+    reg.add_argument("name", help="connector name")
+    reg.add_argument("--bronze-root", required=True)
+    reg.add_argument(
+        "--site",
+        help="site this connector's rows belong to (e.g. site-a). Conformance "
+        "needs it to attribute rows to silver.signals; a connector registered "
+        "without a site is unattributable and its rows never leave bronze.",
+    )
+    reg.add_argument("--rag-dsn-env", default="DP1_RAG_DSN")
+    reg.add_argument("--provenance-rules-file")
+    reg.add_argument(
+        "--default-disposition", default="quarantine", choices=["allow", "quarantine", "exclude"]
+    )
+    reg.add_argument("--default-tier", default="rag-community")
+    reg.add_argument(
+        "--credential-ref",
+        help="SecretRef URL resolving to this connector's credential "
+        "(e.g. a DSN for sql-tabular: env://SHADOW_DB_DSN or "
+        "openbao://host/db/dsn). Resolved via the secrets extension.",
+    )
+    reg.add_argument(
+        "--promotion-map-file",
+        help="path to a declared bronze->gold promotion map (TOML: "
+        "column map + optional EAV pivot + source precedence + "
+        "SCD-2). Validated at register time.",
+    )
+    reg.add_argument("--force", action="store_true")
+    reg.add_argument(
+        "--allow-unmapped",
+        action="store_true",
+        help="register a push connector WITHOUT a site anyway. Without a site "
+        "a push connector accepts rows that conformance silently skips "
+        "forever, so registration refuses by default; this flag is the "
+        "explicit escape hatch for a deliberately unattributed sink.",
+    )
+    kind_sub = reg.add_subparsers(
+        dest="kind",
+        required=True,
+        metavar="kind",
+        help="source kind — each registers its own flags",
+    )
+    source_registry = default_source_kind_registry()
+    for kind_name in source_registry.kinds():
+        provider = source_registry.get(kind_name)
+        kp = kind_sub.add_parser(kind_name, help=provider.description)
+        provider.add_register_args(kp)
+
+    # ---- ingest-freshness ------------------------------------------------
+    fresh = sub.add_parser(
+        "ingest-freshness",
+        help="Did rows LAND? Per-feed freshness against expectations — the "
+        "effect-side counterpart of `refresh` (which asks whether the "
+        "pull RAN). A connector can refresh on time and deliver nothing; "
+        "this verb is how that case surfaces.",
+    )
+    fresh.add_argument("--site", help="one site (all sites when omitted)")
+    fresh.add_argument(
+        "--expect-hours",
+        type=float,
+        help="expected maximum age in hours, applied to every feed",
+    )
+
+    # ---- edge-pull -------------------------------------------------------
+    edge = sub.add_parser(
+        "edge-pull",
+        help="Pull what an ingest edge holds into this node's bronze (ADR-177). "
+        "This node opens the connection; rerun to resume.",
+    )
+    edge.add_argument("connector", help="the `edge` connector to drain")
+
+    # ---- box-login -------------------------------------------------------
+    bl = sub.add_parser(
+        "box-login",
+        help="Make one node's Box login through the owner's OAuth app (sign in as the node's Box account).",
+    )
+    bl.add_argument("--app", required=True, help="the vault entry holding the Box app as JSON {client_id, client_secret}")
+    bl.add_argument("--out", required=True, help="a NEW file to write the login to (mode 600); it is never printed")
+    bl.add_argument("--port", type=int, default=8717, help="the loopback port the app registered as its redirect (default 8717)")
+    bl.add_argument("--no-browser", dest="no_browser", action="store_true", help="print the address instead of opening a browser")
+
+    # ---- edge-bundle -----------------------------------------------------
+    eb = sub.add_parser(
+        "edge-bundle",
+        help="Write the ingest edge's deploy folder from this install, pinned to this release "
+        "(Dockerfile, compose, nginx blocks, operator script, README).",
+    )
+    eb.add_argument("--out", help="the folder to write (default: ./ingest-edge)")
+    eb.add_argument("--tar", action="store_true",
+                    help="also write ingest-edge-<version>.tar.gz beside it, and print its sha256")
+    eb.add_argument("--version", help="the release the container installs (default: this install's)")
+    eb.add_argument("--force", action="store_true", help="write into a folder this command did not make")
+
+    # ---- cutover-gate ----------------------------------------------------
+    gate = sub.add_parser(
+        "cutover-gate",
+        help="During a platform move: compare one UTC day of the old and new copies "
+        "of silver (default yesterday), record it, and say whether it is safe to cut "
+        "over. Changes neither copy. Also records events and the history check.",
+    )
+    gate.add_argument("--old-ref", dest="old_ref", help="vault reference to the old copy's database address")
+    gate.add_argument("--new-ref", dest="new_ref", help="vault reference to the new copy's database address")
+    gate.add_argument("--sites", help="comma-separated sites to compare")
+    gate.add_argument("--day", help="UTC day to compare, YYYY-MM-DD (default: yesterday)")
+    gate.add_argument("--ledger", help="the gate's ledger file (default: <state dir>/cutover-gate.jsonl)")
+    gate.add_argument("--event", help="record an event instead of comparing (e.g. outage, upgrade)")
+    gate.add_argument("--event-day", dest="event_day", help="the event's UTC day, YYYY-MM-DD")
+    gate.add_argument("--history", choices=("clean", "differs"),
+                      help="record the one-off comparison of the copied history")
+    gate.add_argument("--note", help="a note kept with an event or history result")
+    gate.add_argument("--verdict-only", dest="verdict_only", action="store_true", default=None,
+                      help="read the ledger and print the verdict; compare nothing")
+    gate.add_argument("--min-clean-days", dest="min_clean_days", type=int)
+    gate.add_argument("--min-active-days", dest="min_active_days", type=int)
+    gate.add_argument("--active-feeds", dest="active_feeds", help="feeds a day must carry to count as active")
+    gate.add_argument("--required-events", dest="required_events",
+                      help="event kinds that must fall inside the clean run (default: outage,upgrade)")
+
+    # ---- forward ---------------------------------------------------------
+    fwd = sub.add_parser(
+        "forward",
+        help="Deliver this node's landed batches upstream: the intake when healthy, "
+        "else a Box drop folder, else wait. Advances only on a confirmed delivery.",
+    )
+    fwd.add_argument("--intake-url", dest="intake_url", help="the upstream node's address")
+    fwd.add_argument("--key-ref", dest="key_ref", help="vault reference to this site's key")
+    fwd.add_argument("--probe-source", dest="probe_source", default="",
+                     help="the source name the upstream knows this site by")
+    fwd.add_argument("--box-remote", dest="box_remote", help="the Box drop folder path")
+    fwd.add_argument("--box-login", dest="box_login",
+                     help="the vault name holding the Box login (from `rclone authorize box`)")
+    fwd.add_argument("--box-app", dest="box_app",
+                     help="the vault name holding the Box app's credentials as JSON {client_id, client_secret}; "
+                          "the login named by --box-login must have been made through that app "
+                          "(default: rclone's built-in app)")
+    fwd.add_argument("--outbox-dir", dest="outbox_dir", help="this node's outbox (default: $AXIOM_INGEST_OUTBOX_DIR)")
+    fwd.add_argument("--share-config", dest="share_config",
+                     help="a TOML file whose [share] table limits what is sent (feeds, channels, since, delay_minutes)")
+    fwd.add_argument("--source-map", dest="source_map", default="", help="local=upstream source names")
+    fwd.add_argument("--watch", dest="watch_s", type=float, default=0,
+                     help="keep forwarding, pausing this many seconds between passes")
+
+    # ---- archive-reclaim -------------------------------------------------
+    arc = sub.add_parser(
+        "archive-reclaim",
+        help="Free the local archive's space by retention under pressure, oldest first, "
+        "never a batch not yet delivered upstream.",
+    )
+    arc.add_argument("--outbox-dir", dest="outbox_dir",
+                     help="this node's outbox (default: $AXIOM_INGEST_OUTBOX_DIR)")
+    arc.add_argument("--keep-days", dest="keep_days", type=float,
+                     help="declared minimum: nothing younger is deleted (default: $AXIOM_ARCHIVE_KEEP_DAYS)")
+    arc.add_argument("--budget-bytes", dest="budget_bytes", type=int,
+                     help="the archive's own budget, bronze plus silver (default: $AXIOM_ARCHIVE_BUDGET_BYTES)")
+    arc.add_argument("--contributor", action="store_true", default=None,
+                     help="this node forwards upstream: keep every batch the forwarder has not delivered")
+    arc.add_argument("--dsn", help="the archive database (default: DP1_RAG_DSN / DATABASE_URL / AXIOM_DB_URL)")
+    arc.add_argument("--watch", dest="watch_s", type=float, default=0,
+                     help="keep checking, pausing this many seconds between passes")
+
+    # ---- adopt-timeseries ------------------------------------------------
+    ad = sub.add_parser(
+        "adopt-timeseries",
+        help="Adopt a populated plain table into the time-series contract (ADR-189) in place: "
+        "estimate by default; --apply copies by verified window (resumable); --swap, --verify, "
+        "--drop-old, --rollback, --status.",
+    )
+    ad.add_argument("table", help="schema.table")
+    ad.add_argument("--apply", action="store_true", default=None,
+                    help="copy the windows not yet done, verifying each (resumable)")
+    ad.add_argument("--swap", action="store_true", default=None,
+                    help="finish the copy, then swap the names in one short transaction")
+    ad.add_argument("--verify", action="store_true", default=None,
+                    help="every window of the old table against the new")
+    ad.add_argument("--repair", action="store_true", default=None,
+                    help="with --verify or --drop-old: re-insert rows the new table lacks")
+    ad.add_argument("--drop-old", dest="drop_old", action="store_true", default=None,
+                    help="verify, then drop the old table")
+    ad.add_argument("--rollback", action="store_true", default=None,
+                    help="undo, before or after the swap")
+    ad.add_argument("--status", action="store_true", default=None, help="where the adoption stands")
+    ad.add_argument("--identity", help="comma-separated columns that identify a series (compression segments by them)")
+    ad.add_argument("--time-column", dest="time_column", help="the time column (default ts)")
+    ad.add_argument("--rows-per-day", dest="rows_per_day", type=int, help="the declared rate; the chunk interval derives from it")
+    ad.add_argument("--chunk-interval", dest="chunk_interval", help="an explicit chunk width, e.g. 6h")
+    ad.add_argument("--compress-after", dest="compress_after", help="compress chunks older than this (default 7d)")
+    ad.add_argument("--retain", help="drop chunks older than this (default: never)")
+    ad.add_argument("--window", help="the copy window width (default: the chunk interval)")
+    ad.add_argument("--max-windows", dest="max_windows", type=int, help="stop after this many windows")
+    ad.add_argument("--tablespace", help="put the new hypertable and its chunks on this existing tablespace")
+    ad.add_argument("--sample-rows", dest="sample_rows", type=int, help="rows in the estimate's sample (default 200000)")
+    ad.add_argument("--disk-path", dest="disk_path", help="the database volume, when not visible from here")
+    ad.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL / the platform's)")
+    ad.add_argument("--lock-timeout", dest="lock_timeout", help="how long any lock may wait (default 5s)")
+    ad.add_argument("--quiet", action="store_true", default=None, help="no progress lines while copying")
+    ad.add_argument("--schedule", action="store_true", default=None,
+                    help="run the copy unattended: a job the data orchestrator fires on an interval, "
+                    "one bounded batch each, resuming after any interruption; the swap/verify/drop-old "
+                    "stay explicit. The database address is $AXIOM_ADOPT_DSN: use the database's own "
+                    "address, not a load balancer with an idle timeout")
+    ad.add_argument("--unschedule", action="store_true", default=None,
+                    help="remove that job (the copy and its ledger are untouched)")
+    ad.add_argument("--ack-mismatch", dest="ack_mismatch", action="store_true", default=None,
+                    help="acknowledge the raised mismatch (a window that did not verify) after investigating it; "
+                    "it is never cleared otherwise")
+    ad.add_argument("--every", help="with --schedule: the interval between fires (default 5m)")
+    ad.add_argument("--batch-seconds", dest="batch_seconds", type=int,
+                    help="with --schedule: seconds of windows per fire (default 30)")
+    ad.add_argument("--ready-timeout", dest="ready_timeout", type=int,
+                    help="with --schedule: seconds a fire waits for the database (default 60)")
+
+    # ---- the orchestrator (PULSE's tick loop) as a service ---------------
+    oin = sub.add_parser(
+        "orchestrator-install",
+        help="Run the data orchestrator (the scheduler's tick loop) as a per-user systemd service.",
+    )
+    oin.add_argument("--env-file", dest="env_file",
+                     help="the env file your node's services already read (AXIOM_DB_URL, DP1_RAG_DSN)")
+    oin.add_argument("--write-only", dest="write_only", action="store_true",
+                     help="write the unit and print the systemctl steps; start nothing")
+    oin.add_argument("--force", action="store_true",
+                     help="install even though an orchestrator process is already running")
+
+    # ---- storage ---------------------------------------------------------
+    sto = sub.add_parser(
+        "storage",
+        help="Storage health, measured (ADR-189): per table bytes, compressed vs uncompressed and "
+        "the ratio, oldest chunk, bytes/day; per volume free space, bytes/day and days of runway.",
+    )
+    sto.add_argument("--top", type=int, help="largest other relations to include (default 10)")
+    sto.add_argument("--growth-days", dest="growth_days", type=int,
+                     help="days of chunks the daily rate is measured over (default 7)")
+    sto.add_argument("--disk-path", dest="disk_path", help="the database volume, when not visible from here")
+    sto.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL / the platform's)")
+
+    # ---- partner-health --------------------------------------------------
+    ph = sub.add_parser(
+        "partner-health",
+        help="Every reporting site's health from its nodes' heartbeats; with --alert-to, "
+        "tell a person when data stops, a node is out of date, or a disk is above 80%%.",
+    )
+    ph.add_argument("--alert-to", dest="alert_to", default="",
+                    help="principal whose inbox gets the alerts, or a vault reference to one "
+                         "(default: $AXIOM_PARTNER_HEALTH_ALERT_TO, else the site operator in this node's identity)")
+    ph.add_argument("--no-alert", dest="no_alert", action="store_true", help="report only; alert nobody")
+    ph.add_argument("--sites", default="", help="comma-separated sites (default: every site in scope)")
+    ph.add_argument("--min-version", dest="min_version", default="", help="the oldest version the intake accepts")
+    ph.add_argument("--stopped-after-h", dest="stopped_after_h", type=float, default=None,
+                    help="hours without a new reading before data counts as stopped (default 24)")
+
+    # ---- probe-nodes -----------------------------------------------------
+    pn = sub.add_parser(
+        "probe-nodes",
+        help="Check every node the platform can reach from outside (its /readyz); "
+        "the uptime report uses the result.",
+    )
+    pn.add_argument("--sites", default="", help="comma-separated sites (default: every site in scope)")
+    pn.add_argument("--timeout-s", dest="timeout_s", type=float, default=None,
+                    help="seconds to wait for each node (default 5)")
+
+    # ---- enroll ----------------------------------------------------------
+    enr = sub.add_parser(
+        "enroll",
+        help="Enroll a source from its manifest — `enroll source.toml --bronze-root …`.",
+    )
+    enr.add_argument("manifest", help="path to the source manifest (source.toml)")
+    enr.add_argument("--bronze-root", required=True)
+    enr.add_argument(
+        "--default-disposition",
+        default="allow",
+        choices=["allow", "quarantine", "exclude"],
+    )
+
+    # ---- unregister ------------------------------------------------------
+    unreg = sub.add_parser("unregister", help="Remove a connector.")
+    unreg.add_argument("name", help="connector name")
+
+    # ---- list ------------------------------------------------------------
+    # ---------------------------------------------------------------- gold
+    #
+    # The read verbs a researcher actually wants, on the CLI for the first
+    # time. They dispatch to the same skills MCP calls — per ADR-056 a CLI verb
+    # is a thin wrapper, and the tier guard lives in the skill, so a shell is
+    # not a way around it.
+    def _gold(name: str, help_: str) -> argparse.ArgumentParser:
+        g = sub.add_parser(name, help=help_)
+        g.add_argument(
+            "--format",
+            default="text",
+            choices=["text", "json", "csv", "ndjson"],
+            help="how to write the answer (default: text)",
+        )
+        g.add_argument("--dsn", help="database to read; defaults to the node's")
+        g.add_argument(
+            "--tiers",
+            nargs="+",
+            help="access tiers to read. Honoured only for an assured principal — "
+            "a caller cannot widen its own tiers, which is what makes the guard "
+            "more than decoration.",
+        )
+        return g
+
+    _gold("tables", "List the tables and views in the gold tier.")
+
+    # `describe`, `series` and `aggregate` are registered with the medallion
+    # verbs below, through `_gold`, so they take these same output flags. One
+    # parser per verb: argparse refuses a second, and two would drift anyway.
+
+    _gold("roles", "Which quantities the fleet can answer, and which sites answer each.")
+
+    # One window vocabulary for every verb that takes a window: --start/--end and
+    # --from/--to are the same flags, and --day, --last and --yesterday name a window
+    # the way a person does. All of it resolves to one start/end in _args_to_params.
+    def _window_flags(parser: argparse.ArgumentParser, *, required: bool = False) -> None:
+        parser.add_argument("--start", "--from", dest="start", required=required,
+                            help="window start, inclusive (ISO date or time); same as --from")
+        parser.add_argument("--end", "--to", dest="end", required=required,
+                            help="window end, exclusive (ISO date or time); same as --to")
+        parser.add_argument("--day", help="one UTC day, YYYY-MM-DD")
+        parser.add_argument("--last", help="the window ending now, e.g. 90m, 36h, 7d, 2w")
+        parser.add_argument("--yesterday", action="store_true", default=None,
+                            help="yesterday, as a UTC day")
+
+    # The everyday questions. Short, question-shaped, and they work out the table,
+    # columns, feed, site, window and bucket so the asker does not have to.
+    _site_help = "which site (default: this install's binding, or the only site)"
+    chn = _gold("channels", "What channels does a site have? Feed, unit, role, first and last reading.")
+    chn.add_argument("--site", help=_site_help)
+    chn.add_argument("--role", help="only the channels that answer this role")
+
+    lat = _gold("latest", "What are the newest values? One per channel.")
+    lat.add_argument("--site", help=_site_help)
+    lat.add_argument("--role", help="only the channels that answer this role")
+    lat.add_argument("--channel", help="only this channel")
+
+    shw = _gold("show", "Show me a role or a channel. The latest day with readings, unless you say.")
+    shw.add_argument("target", help="a role (see `roles`) or a channel (see `channels`)")
+    shw.add_argument("--site", help=_site_help)
+    shw.add_argument("--feed", help="only needed when a channel name exists in more than one feed")
+    _window_flags(shw)
+    shw.add_argument("--every", help="bucket size, e.g. 15m, 1h, 1d (default: chosen from the window)")
+    shw.add_argument("--fn", choices=sorted(AGGREGATE_FNS), help="default mean")
+    shw.add_argument("--allow-mixed-units", action="store_true", default=None,
+                     help="the unit labels differ but the rows share a scale")
+
+    _gold(
+        "serving-report",
+        "Who is using the serving tier and who met a limit (ADR-157).",
+    )
+
+    gc = _gold("compare", "The same quantity across sites.")
+    gc.add_argument("--role", required=True, help="the quantity to compare")
+    _window_flags(gc)
+    gc.add_argument("--bucket", required=True, help='the shared time step, in words: "1 hour", "15 minutes"')
+    gc.add_argument("--sites", help="comma-separated sites to compare (default: every site with the role)")
+    gc.add_argument("--fn", choices=["count", "max", "mean", "min", "std", "sum"], help="default mean")
+
+    # `axi data retrieval …` — a named question, asked from any surface. The
+    # parent noun groups them so `axi data --help` stays readable; each verb is
+    # still one skill, declared in the manifest, per ADR-056.
+    # ---- connector <add|list|show|test|remove> ----------------------------
+    # Guided setup for a person doing it the first time; `register` stays the
+    # every-value-as-a-flag form for scripts that already know the values.
+    con = sub.add_parser(
+        "connector",
+        help="Set up a connector step by step and verify it live: add, list, show, test, remove.",
+    )
+    csub = con.add_subparsers(dest="connector_verb", required=True)
+    cadd = csub.add_parser(
+        "add",
+        help="Set up a connector step by step (asks only what it cannot detect; every "
+        "question also has a flag).",
+    )
+    cadd.add_argument("setup_kind", metavar="kind", choices=data_skills.connector.GUIDED_KINDS,
+                      help="the source kind: " + ", ".join(data_skills.connector.GUIDED_KINDS))
+    cadd.add_argument("--name", help="connector name (default <site>-box)")
+    cadd.add_argument("--site", help="the site these files belong to (detected when this node serves one)")
+    cadd.add_argument("--bronze-root", help="where pulled files land (default <state dir>/bronze)")
+    cadd.add_argument("--client-id", help="the Box app's Client ID (public)")
+    cadd.add_argument("--client-secret-stdin", action="store_true",
+                      help="read the Box app's Client Secret from stdin (it is never accepted as an argument)")
+    cadd.add_argument("--enterprise-id", help="the Box Enterprise ID the app is authorized in")
+    cadd.add_argument("--app-ref", help="use a Box app already in the vault (an `secrets set` entry name) "
+                      "instead of being asked for its values")
+    cadd.add_argument("--folder-id", help="the Box folder id (default: pick from the folders the app can see)")
+    cadd.add_argument("--schema-ref", help="the file format your site's reader declares, for the declaration")
+    cadd.add_argument("--default-disposition", choices=["allow", "quarantine", "exclude"],
+                      help="what happens to a file no provenance rule matches (default quarantine)")
+    cadd.add_argument("--exclude-prefix", action="append", default=[], metavar="PATH",
+                      help="a subtree the pull never walks; repeatable")
+    cadd.add_argument("--exclude-ext", action="append", default=[], metavar="EXT",
+                      help="a file extension the pull never catalogs; repeatable")
+    cadd.add_argument("--max-item-mb", type=int, help="skip files larger than this many MB")
+    cadd.add_argument("--no-input", action="store_true",
+                      help="never ask; fail naming the missing flag instead (implied when stdin is not a terminal)")
+    cadd.add_argument("--check", action="store_true", help="re-verify the connector already registered under this name")
+    cadd.add_argument("--force", action="store_true", help="replace a connector already registered under this name")
+    csub.add_parser("list", help="Every registered connector, with its target and credential reference.")
+    cshow = csub.add_parser("show", help="One connector's registration (credentials shown only as references).")
+    cshow.add_argument("name")
+    ctest = csub.add_parser("test", help="Re-verify a connector live: sign in, open the target, read one item, "
+                            "dry-run the pull. Writes nothing.")
+    ctest.add_argument("name")
+    crm = csub.add_parser("remove", help="Remove a connector (its vault entry is kept unless --forget-secret).")
+    crm.add_argument("name")
+    crm.add_argument("--forget-secret", action="store_true", help="also remove the vault entry setup stored")
+
+    retr = sub.add_parser(
+        "retrieval",
+        help="Name a retrieval once and ask it from any surface.",
+    )
+    rsub = retr.add_subparsers(dest="retrieval_verb", required=True)
+
+    rsave = rsub.add_parser("save", help="Name a retrieval (or replace one).")
+    rsave.add_argument("name")
+    rsave.add_argument("--site", default="")
+    rsave.add_argument("--feed", default="")
+    rsave.add_argument(
+        "--channel", action="append", dest="channels", default=[],
+        help="repeatable; a retrieval naming no channel names no data",
+    )
+    rsave.add_argument(
+        "--window", default="",
+        help="a SPAN (24h, 7d, all, operating), or from/to for one fixed period, "
+             "or omit it and say when at call time",
+    )
+    rsave.add_argument("--bucket", default="")
+    rsave.add_argument("--note", default="")
+    rsave.add_argument("--replace", action="store_true")
+
+    rsub.add_parser("list", help="Every saved retrieval.")
+
+    rshow = rsub.add_parser("show", help="One saved retrieval.")
+    rshow.add_argument("name")
+
+    rrm = rsub.add_parser("rm", help="Forget a saved retrieval.")
+    rrm.add_argument("name")
+
+    rdia = rsub.add_parser(
+        "dialect",
+        help="The query parameters a named surface actually reads.",
+    )
+    rdia.add_argument("name")
+    rdia.add_argument(
+        "dialect",
+        help="chart or telemetry — the same window is spelled differently by "
+             "each, and neither rejects the other's spelling",
+    )
+
+    lst = sub.add_parser("list", help="List registered resources.")
+    lst.add_argument(
+        "resource",
+        nargs="?",
+        default="connectors",
+        choices=["connectors", "kinds", "db-kinds", "vector-kinds"],
+        help="resource to list (default: connectors)",
+    )
+
+    # ---- preflight -------------------------------------------------------
+    pre = sub.add_parser(
+        "preflight",
+        help="Live-verify a connector's auth + access; print fixes for anything wrong.",
+    )
+    pre.add_argument("name", help="connector name")
+
+    # ---- conform-try -----------------------------------------------------
+    # Maps to the data.conform_try skill (main() converts the hyphen). Writes
+    # nothing: it calls a registered normalizer on a record you supply and
+    # reports what silver would have absorbed silently.
+    ctry = sub.add_parser(
+        "conform-try",
+        help="Dry-run a normalizer over one bronze record; report the rows and the traps.",
+    )
+    ctry.add_argument(
+        "--schema-ref",
+        dest="schema_ref",
+        help="Which normalizer to exercise. Omit to list what is registered.",
+    )
+    ctry.add_argument(
+        "--record",
+        help="The bronze record as JSON, payload under 'row'. Use @path to read a file.",
+    )
+
+    # ---- the tenant data kit -------------------------------------------
+    # Five verbs, one skill each (data.kit_*). See prd-tenant-data-kit.md.
+    kinit = sub.add_parser("kit-init", help="Write a data kit with one working example of each contribution.")
+    kinit.add_argument("--tenant", required=True, help="your site id on the shared platform, e.g. rig-site")
+    kinit.add_argument("--dir", help="the site repository (default: here)")
+    kinit.add_argument("--force", action="store_true", help="write beside files already in data/")
+    for verb, about in (("kit-up", "Start the local medallion for this kit."),
+                        ("kit-try", "Run every tier on local data and show each one."),
+                        ("kit-down", "Drop the sandbox. Snapshots under data/snapshots/ stay.")):
+        kp = sub.add_parser(verb, help=about)
+        kp.add_argument("--dir", help="the site repository (default: here)")
+    ksnap = sub.add_parser("kit-snapshot", help="Keep a point-in-time subset. Not a cache.")
+    ksnap.add_argument("--dir", help="the site repository (default: here)")
+    ksnap.add_argument("--site", help="the site the rows belong to (default: the kit tenant)")
+    ksnap.add_argument("--channels", help="comma-separated channels; omit for every channel")
+    _window_flags(ksnap)
+    ksnap.add_argument("--rows", help="JSON list of rows, or @path to a file")
+    ksnap.add_argument("--id", help="snapshot id (letters, digits, hyphens)")
+    kmat = sub.add_parser("kit-materialize", help="Load a snapshot into the sandbox kit-up stamped.")
+    kmat.add_argument("id", help="the snapshot id")
+    kmat.add_argument("--dir", help="the site repository (default: here)")
+    kscaf = sub.add_parser("kit-scaffold", help="Scaffold one more contribution in this kit.")
+    kscaf.add_argument("kind", choices=("conform", "derived", "gold", "verb", "chart", "starter", "automation"))
+    kscaf.add_argument("name", help="lowercase letters, digits and _")
+    kscaf.add_argument("--deposit", action="store_true", help="conform: a normalizer for whole files")
+    kscaf.add_argument("--from-csv", dest="from_csv",
+                       help="conform: learn the time column and numeric channels from this CSV and write "
+                            "a working reader for files like it (adds the source to kit.toml)")
+    kscaf.add_argument("--from-snapshot", dest="from_snapshot",
+                       help="starter: write a gold object, a verb and a chart over the channels this "
+                            "kit-pull snapshot holds")
+    kscaf.add_argument("--verb", dest="verb_name", help="automation: the kit verb it runs")
+    kscaf.add_argument("--every", help='automation: how often, e.g. "15m", "1h", "1d" (at least 5m)')
+    kscaf.add_argument("--cron", help='automation: a five-field cron instead, e.g. "0 7 * * 1-5"')
+    kscaf.add_argument("--above", type=float, help="automation: act on rows whose --column is above this")
+    kscaf.add_argument("--below", type=float, help="automation: act on rows whose --column is below this")
+    kscaf.add_argument("--any-rows", dest="any_rows", action="store_true",
+                       help="automation: act whenever the verb returns any rows")
+    kscaf.add_argument("--column", help="automation: the column of the verb's rows to compare")
+    kscaf.add_argument("--notify", action="store_true",
+                       help="automation: message whoever submitted the kit (inbox, and Teams if the node has it)")
+    kscaf.add_argument("--annotate", metavar="LABEL",
+                       help="automation: write the matched rows to gold_<site>.annotations with this label")
+    kscaf.add_argument("--dir", help="the site repository (default: here)")
+    ksam = sub.add_parser("kit-sample", help="Bring your own raw files into this kit's samples.")
+    ksam.add_argument("source", help="a source declared in kit.toml")
+    ksam.add_argument("origin", help="a file or folder of your raw data")
+    ksam.add_argument("--dir", help="the site repository (default: here)")
+    kpul = sub.add_parser("kit-pull", help="Pull one site's gold series for a window into a kit snapshot.")
+    kpul.add_argument("--site", help="the site (default: the kit's own)")
+    kpul.add_argument("--channels", help="comma-separated channel names (default: every catalogued "
+                                         "channel at the site, up to 24)")
+    kpul.add_argument("--feed", help="comma-separated feed(s) the channels are in (default: looked up "
+                                     "in the catalogue)")
+    _window_flags(kpul)  # a pull is always a window; the skill says so when none is given
+    kpul.add_argument("--bucket", help="resolution, e.g. '1 minute' (default), '1 hour'")
+    kpul.add_argument("--id", help="snapshot id (default: generated)")
+    kpul.add_argument("--dir", help="the site repository (default: here)")
+    kpro = sub.add_parser("kit-promote", help="Send this kit to the bound node as data (ADR-203).")
+    kpro.add_argument("--dir", help="the site repository (default: here)")
+    krev = sub.add_parser("kit-review", help="List the pending kit bundles on this node (operator); --all for every one.")
+    krev.add_argument("--site", help="one site's bundles")
+    krev.add_argument("--state", choices=("checked", "rejected", "applied", "superseded", "retired"))
+    krev.add_argument("--all", action="store_true", default=None,
+                      help="every bundle back to the first (default: only the pending ones, waiting for kit-approve)")
+    khs = sub.add_parser("kit-host-setup",
+                         help="Set this node up to take kit bundles, once, as the database's writer (operator).")
+    khs.add_argument("--serve-role", dest="serve_role",
+                     help="the serving app's database login (it may be read-only); it is granted exactly "
+                          "what submit and the served kit verbs need")
+    kapp = sub.add_parser("kit-approve", help="Apply a checked kit bundle on this node (operator).")
+    kapp.add_argument("id", type=int, help="the bundle number from kit-review")
+    kapp.add_argument("--override", action="store_true",
+                      help="apply it even though it replaces another contributor's objects at the site")
+    krol = sub.add_parser("kit-rollback",
+                          help="Re-apply an earlier applied or superseded kit bundle (operator).")
+    krol.add_argument("id", type=int, help="the earlier bundle number from kit-review")
+    krol.add_argument("--site", required=True, help="the site the bundle is for")
+    krol.add_argument("--override", action="store_true",
+                      help="re-apply it even though it replaces another contributor's objects")
+    kret = sub.add_parser("kit-retire",
+                          help="Remove a site's promoted kit from this node (operator). Without --apply "
+                               "or --force it lists what it would drop and changes nothing.")
+    kret.add_argument("site", help="the site whose kit to retire")
+    kret.add_argument("--principal", help="only this contributor's objects at the site")
+    kret.add_argument("--apply", action="store_true",
+                      help="retire: drop what it listed; refused when anything outside the kit depends on it")
+    kret.add_argument("--force", action="store_true",
+                      help="retire and also drop what depends on them outside the kit (CASCADE)")
+    kwd = sub.add_parser("kit-withdraw",
+                         help="Ask the node to remove your promoted objects at a site (an operator applies it).")
+    kwd.add_argument("--site", help="the site (default: your binding's)")
+    kwd.add_argument("--reason", help="a line for the operator")
+    kvs = sub.add_parser("kit-verbs", help="The promoted kit verbs you may run.")
+    kvs.add_argument("--site", help="(operator only) one site's verbs; a site's key sees its own")
+    kch = sub.add_parser("kit-charts", help="The promoted chart specs you may see.")
+    kch.add_argument("--site", help="(operator only) one site's charts; a site's key sees its own")
+    kau = sub.add_parser("kit-automations",
+                         help="The promoted kit automations you may see, with schedule, last run and outcome.")
+    kau.add_argument("--site", help="(operator only) one site's automations; a site's key sees its own")
+    kv = sub.add_parser("kit-verb", help="Run one promoted kit verb.")
+    kv.add_argument("name", help="the verb's name (see kit-verbs)")
+    kv.add_argument("--site", help="which site's verb (default: your credential's site)")
+    kv.add_argument("--params", type=json.loads, help='the verb\'s parameters as JSON, e.g. \'{"since": "2026-09-01"}\'')
+    kchk = sub.add_parser("kit-check", help="The gate before promotion: declarations, lint, isolation proof.")
+    kchk.add_argument("--dir", help="the site repository (default: here)")
+    kchk.add_argument("--static-only", dest="static_only", action="store_true",
+                      help="skip the isolation proof (for CI without Docker); it is reported, not passed")
+
+    # ---- conform ---------------------------------------------------------
+    # The flag spelling of the same thing. See _SKILL_ALIASES: both reach one
+    # skill, and a test asserts they produce identical output.
+    conf = sub.add_parser(
+        "conform",
+        help="Bronze to canonical silver. --dry-run exercises one record and writes nothing.",
+    )
+    conf.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Dry-run a normalizer over one record; identical to 'conform-try'.",
+    )
+    conf.add_argument("--schema-ref", dest="schema_ref", help="Which normalizer to exercise.")
+    conf.add_argument(
+        "--record",
+        help="The bronze record as JSON, payload under 'row'. Use @path to read a file.",
+    )
+
+    # ---- expectations ----------------------------------------------------
+    # The catalogue of conforming expectations (data.expectations). Reads only.
+    exp = sub.add_parser(
+        "expectations",
+        help="Named, versioned checks a site declares on rows into silver: list, show, declared.",
+    )
+    exp.add_argument(
+        "action",
+        nargs="?",
+        default="list",
+        choices=("list", "show", "declared"),
+        help="list the catalogue (default), show one, or list what this node declares.",
+    )
+    exp.add_argument("name", nargs="?", help="with show: the expectation's name, e.g. sentinel")
+
+    # ---- conform-run -----------------------------------------------------
+    # The REAL bronze→silver pass at a terminal (the peer of the scheduled conform
+    # asset). Site comes from the connector registry; the funnel is reported
+    # loudly and a skip/unknown makes it exit non-zero — a systemd timer's entry.
+    crun = sub.add_parser(
+        "conform-run",
+        help="Run the real bronze→silver conform pass over all connectors; upsert to silver.",
+    )
+    crun.add_argument(
+        "--bronze-root",
+        dest="bronze_root",
+        help="bronze root to conform (default: ~/.axi/bronze).",
+    )
+    crun.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL).")
+    crun.add_argument(
+        "--batch-size",
+        dest="batch_size",
+        type=int,
+        help="rows per round trip (default 2000). One statement per row makes "
+        "the wire time the run time.",
+    )
+    crun.add_argument(
+        "--checkpoint-rows",
+        dest="checkpoint_rows",
+        type=int,
+        help="rows between commits (default 50000). One transaction for the "
+        "whole pass pins the xmin horizon, so autovacuum reclaims nothing "
+        "while it runs.",
+    )
+    crun.add_argument(
+        "--no-strict",
+        dest="strict",
+        action="store_false",
+        default=True,
+        help="do not exit non-zero on a skipped connector or unknown schema (still reported).",
+    )
+    crun.add_argument(
+        "--full",
+        action="store_true",
+        default=None,
+        help="read every byte of every bronze file (the default is incremental: only bytes "
+        "not yet conformed, from a durable watermark per file in the database).",
+    )
+    crun.add_argument(
+        "--rebuild",
+        action="store_true",
+        default=None,
+        help="re-read bronze for the scope through the current normalizers and REPLACE the "
+        "readings in place on their identity (site, feed, channel, ts, source_class): "
+        "prints inserted / replaced / unchanged, never duplicates, then refreshes gold. "
+        "Scope with --connector, --site, --start, --end; preview with --dry-run.",
+    )
+    crun.add_argument(
+        "--connector",
+        action="append",
+        default=None,
+        help="with --rebuild: only this connector (repeatable, or comma-separated).",
+    )
+    crun.add_argument(
+        "--site",
+        action="append",
+        default=None,
+        help="with --rebuild: only connectors registered to this site (repeatable).",
+    )
+    crun.add_argument(
+        "--start",
+        default=None,
+        help="with --rebuild: readings at or after this ISO date/time (UTC when no offset).",
+    )
+    crun.add_argument(
+        "--end",
+        default=None,
+        help="with --rebuild: readings before this ISO date/time (half-open).",
+    )
+    crun.add_argument(
+        "--dry-run",
+        dest="preview",
+        action="store_true",
+        default=None,
+        help="run everything in a transaction that is rolled back: exact counts, nothing written.",
+    )
+    crun.add_argument(
+        "--watch",
+        dest="watch_s",
+        type=float,
+        default=None,
+        help="keep passing, pausing this many seconds between passes, so a file landing "
+        "after a pass starts is conformed by the next one rather than tomorrow.",
+    )
+    crun.add_argument(
+        "--max-passes",
+        dest="max_passes",
+        type=int,
+        default=None,
+        help="with --watch: stop after this many passes.",
+    )
+
+    # ---- reading-identity --------------------------------------------------
+    # The operator path that moves a populated silver onto its reading key
+    # (ADR-206): preflight (read-only), collapse (dry run unless --apply),
+    # build-index. docs/runbooks/silver-reading-identity-migration.md.
+    rid = sub.add_parser(
+        "reading-identity",
+        help="Move silver.signals onto its reading-identity key: preflight | collapse | build-index.",
+    )
+    rid.add_argument("action", choices=["preflight", "collapse", "build-index"])
+    rid.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL).")
+    rid.add_argument("--site", default=None, help="only this site.")
+    rid.add_argument("--start", default=None, help="only readings at or after this ISO date/time.")
+    rid.add_argument("--end", default=None, help="only readings before this ISO date/time.")
+    rid.add_argument("--apply", action="store_true", default=None,
+                     help="collapse: actually delete (each row copied to the audit table first).")
+    rid.add_argument("--accept-divergent", dest="accept_divergent", action="store_true", default=None,
+                     help="collapse: also collapse identities whose rows DISAGREE, keeping the newest.")
+    rid.add_argument("--window-days", dest="window_days", type=int, default=None,
+                     help="days per window: collapse commits one per transaction (default 1, one chunk "
+                          "on a day-chunked table); preflight runs one bounded query per window (default 31).")
+    rid.add_argument("--statement-timeout-s", dest="statement_timeout_s", type=float, default=None,
+                     help="preflight/collapse: statement_timeout for each window, set LOCAL in its "
+                          "own transaction (default 900); the role's setting is never changed.")
+    rid.add_argument("--lock-timeout-s", dest="lock_timeout_s", type=float, default=None,
+                     help="build-index: give up waiting for the lock after this many seconds (default 10).")
+
+    # ---- activity --------------------------------------------------------
+    act = sub.add_parser(
+        "activity",
+        help="What the RAG ingested per connector since a time ago (e.g. --since 24h | 7d | 90m).",
+    )
+    act.add_argument(
+        "--since", default="24h", help="lookback window: 24h, 7d, 90m, 2w (default 24h)"
+    )
+    act.add_argument("--connector", help="filter to one connector")
+
+    # ---- backfill-urls ---------------------------------------------------
+    bf = sub.add_parser(
+        "backfill-urls",
+        help="Hydrate documents.source_url/source_ref_id for a connector by "
+        "re-cataloging its source (ADR-091). Use --dry-run first.",
+    )
+    bf.add_argument("--connector", required=True)
+    bf.add_argument(
+        "--dry-run", action="store_true", help="report the match rate without writing anything"
+    )
+    bf.add_argument("--corpus", help="corpus to backfill (default: the connector's default tier)")
+
+    # ---- gold-* ----------------------------------------------------------
+    # ADR-115 generic medallion answering. These four were registered as
+    # skills with `cli` in their declared surfaces and no parser behind it,
+    # so the surface existed on paper and nowhere else.
+    # One introspection vocabulary for every tier. The tier is an ARGUMENT,
+    # not part of the verb name: a caller should not have to know which
+    # medallion they are on before they can phrase the question.
+    cat = sub.add_parser("catalog", help="What a medallion tier holds.")
+    cat.add_argument("--tier", choices=sorted(TIERS), help="bronze | silver | gold (default gold)")
+    cat.add_argument("--object", help="one connector, on bronze")
+
+    desc = _gold("describe", "The shape of one object in a tier.")
+    desc.add_argument("--tier", choices=sorted(TIERS), help="default: gold")
+    desc.add_argument(
+        "--object", "--table", dest="object", required=True, help="the table to describe"
+    )
+
+    fresh = sub.add_parser(
+        "freshness",
+        help="What has stopped advancing. Bronze says whether a PRODUCER is "
+        "still pushing; silver whether the CONFORM PASS is advancing.",
+    )
+    fresh.add_argument("--tier", choices=sorted(TIERS), help="default: gold")
+    fresh.add_argument("--site", help="one site (silver/gold)")
+
+    samp = sub.add_parser(
+        "sample", help="Some records, to see the shape of what is arriving. Bronze only."
+    )
+    samp.add_argument("--tier", choices=sorted(TIERS), help="default: gold")
+    samp.add_argument("--object", required=True, help="the connector")
+    samp.add_argument("--day", help="one day directory, e.g. 2026-09-28")
+    samp.add_argument("--limit", type=int)
+
+    def _answering_args(parser):
+        """The arguments that make an answer say what population it summarised."""
+        parser.add_argument("--table", required=True)
+        parser.add_argument("--column", required=True)
+        parser.add_argument("--filter", help="e.g. \"site = 'site-a' and channel = 'temp'\"")
+        _window_flags(parser)
+        parser.add_argument("--time-column", help="the column the window applies to")
+        parser.add_argument(
+            "--group-by",
+            help="split the answer, comma-separated — 'source_class' gives you "
+            "measured against predicted instead of one number over both",
+        )
+        parser.add_argument(
+            "--allow-mixed",
+            action="store_true",
+            help="summarise across units or source classes anyway; say so on purpose",
+        )
+        parser.add_argument(
+            "--allow-mixed-units",
+            action="store_true",
+            default=None,
+            help="the unit labels differ but the rows share a scale; source "
+            "classes are still kept apart",
+        )
+        parser.add_argument(
+            "--include-synthetic",
+            action="store_true",
+            default=None,
+            help="include the install's own self-test rows",
+        )
+        parser.add_argument(
+            "--tier",
+            choices=sorted(ANSWERABLE_TIERS),
+            help="which served tier to answer from (default gold). A silver "
+            "answer says so: its rows are conformed but not projected.",
+        )
+
+    ga = _gold(
+        "aggregate",
+        "One deterministic aggregate of a gold column. Refuses to blend "
+        "units or source classes into a single number — use --group-by.",
+    )
+    _answering_args(ga)
+    ga.add_argument("--fn", required=True, choices=sorted(AGGREGATE_FNS))
+
+    gs = _gold(
+        "series",
+        "A bucketed series from a gold table. With --group-by "
+        "source_class, one line per population — the measured-vs-predicted overlay.",
+    )
+    _answering_args(gs)
+    gs.add_argument("--bucket", required=True, help="interval, e.g. '1 hour' or '15 minutes'")
+    gs.add_argument("--fn", default="mean", choices=sorted(AGGREGATE_FNS))
+
+    uc = sub.add_parser(
+        "uncertainty-coverage",
+        help="How much of the served surface can say how well it is known: "
+        "per site and stream, points with declared sources, magnitude only, or neither.",
+    )
+    uc.add_argument("--site", help="narrow to one site")
+    uc.add_argument(
+        "--include-sources",
+        action="store_true",
+        default=None,
+        help="also list the declared uncertainty sources",
+    )
+
+    # ---- backup ----------------------------------------------------------
+    bak = sub.add_parser(
+        "backup",
+        help="Policy-driven database backup (custom-format pg_dump + "
+        "retention prune + optional off-box replica).",
+    )
+    bak.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+    bak.add_argument("--label", default="", help="label appended to the filename")
+    bak.add_argument("--target-root", help="artifact directory (default: BackupPolicy.target_root)")
+    bak.add_argument(
+        "--box-secret-ref",
+        help="SecretRef for Box auth when the policy's offbox leg "
+        "is enabled (default env://BOX_JWT_CONFIG)",
+    )
+
+    # ---- ensure-schema ---------------------------------------------------
+    ens = sub.add_parser(
+        "ensure-schema",
+        help="Bring the conformance tier's schema up to the installed code "
+        "(silver.signals columns + gold views). Reports what it added.",
+    )
+    ens.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+    ens.add_argument(
+        "--lock-timeout",
+        help="how long a DDL statement may wait for its lock (default 5s) — short so a "
+        "deploy never queues in front of readers",
+    )
+    ens.add_argument(
+        "--time-partitioned",
+        dest="time_partitioned",
+        action="store_true",
+        default=None,
+        help="a site's local medallion (ADR-180): silver as a compressed TimescaleDB hypertable",
+    )
+    ens.add_argument(
+        "--compress-after-days",
+        dest="compress_after_days",
+        type=int,
+        help="compress chunks older than this (default 2, or AXIOM_SILVER_COMPRESS_AFTER_DAYS)",
+    )
+    ens.add_argument(
+        "--retain-days",
+        dest="retain_days",
+        type=int,
+        help="drop readings older than this (default: never, or AXIOM_SILVER_RETAIN_DAYS)",
+    )
+    ens.add_argument(
+        "--reader",
+        help="create or update a read-only LOGIN role for silver and gold; its password "
+        "is read from AXIOM_READER_PASSWORD only",
+    )
+
+    # ---- rederive --------------------------------------------------------
+    red = sub.add_parser(
+        "rederive",
+        help="Apply a site's declarations to rows already written — a unit "
+        "filled in later reaches its own history. Counts only unless --apply.",
+    )
+    red.add_argument("--site", help="one site, or comma-separated (default: every site)")
+    red.add_argument(
+        "--apply", action="store_true",
+        help="write the change. Without it everything runs and is rolled back, "
+        "so the reported count is exact rather than predicted",
+    )
+    red.add_argument("--bronze-root", help="bronze location (default ~/.axi/bronze)")
+    red.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+
+    # ---- gaps ------------------------------------------------------------
+    gap = sub.add_parser(
+        "gaps",
+        help="What this site would need to declare, worst first. Names the act "
+        "that closes each gap and what closing it would do, in rows.",
+    )
+    gap.add_argument("--site", required=True, help="the site to assess")
+    gap.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+    gap.add_argument(
+        "--collisions", action="store_true",
+        help="also look for timestamp collisions. Off by default because it "
+        "groups every row the site has",
+    )
+
+    # ---- pipeline-proof --------------------------------------------------
+    pp = sub.add_parser(
+        "pipeline-proof",
+        help="Prove data is flowing bronze to silver to gold, per connector, and say "
+        "whose problem it is when it is not. Exits non-zero on a pipeline fault.",
+    )
+    pp.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+    pp.add_argument("--connector", help="restrict to one configured connector")
+    pp.add_argument("--observe-s", dest="observe_s", type=float,
+                    help="sample the conform watermarks twice, this many seconds apart")
+    pp.add_argument("--stuck-after-s", dest="stuck_after_s", type=float,
+                    help="bytes waiting with no conform progress this long is STUCK (default 1800)")
+
+    # ---- tier-audit ------------------------------------------------------
+    # The static guard holds the code to ADR-128. This is the half that can
+    # see the database, which is where the drift actually showed up.
+    aud = sub.add_parser(
+        "tier-audit",
+        help="Report the medallion's actual shape and anything ADR-128 did not "
+        "expect: an undeclared base table in gold, a gold view serving bronze.",
+    )
+    aud.add_argument("--dsn", help="database DSN (default: DP1_RAG_DSN / DATABASE_URL)")
+    aud.add_argument(
+        "--schemas",
+        help="comma-separated tiers to read (default bronze,silver,gold)",
+    )
+
+    # ---- backup-policy ---------------------------------------------------
+    # Arming the nightly schedule is done by editing the policy file, so the
+    # arming gesture and the configuration are the same gesture. This is the
+    # step in between: what the node LOADED, not what the file says.
+    bpol = sub.add_parser(
+        "backup-policy",
+        help="Show the backup policy as the node actually loads it, and flag "
+        "any key in the file the loader silently dropped.",
+    )
+    bpol.add_argument(
+        "--state-dir", help="policy location (default: the node's ~/.axi/plinth)"
+    )
+    bpol.add_argument(
+        "--apply",
+        action="store_true",
+        help="project the policy onto PULSE now. Without this, editing the policy "
+        "file changes nothing until the orchestrator restarts — the cadences are "
+        "only synced at startup, so `enabled = true` alone arms nothing.",
+    )
+
+    # ---- backup-validate -------------------------------------------------
+    bval = sub.add_parser(
+        "backup-validate",
+        help="Prove the newest backup exists, is fresh, and is restorable "
+        "(pg_restore TOC; optional live scratch restore).",
+    )
+    bval.add_argument(
+        "--target-root", help="artifact directory (default: BackupPolicy.target_root)"
+    )
+    bval.add_argument(
+        "--max-age-hours", type=float, help="staleness threshold in hours (default 26)"
+    )
+    bval.add_argument(
+        "--validate-restore",
+        action="store_true",
+        help="restore into a scratch database + row-count sanity",
+    )
+    bval.add_argument("--scratch-dsn", help="disposable database DSN for --validate-restore")
+    bval.add_argument(
+        "--dsn",
+        help="live DSN for the row-count comparison (default: "
+        "DP1_RAG_DSN / DATABASE_URL is NOT assumed — "
+        "comparison is skipped without it)",
+    )
+
+    return p
+
+
+def _build_ctx() -> SkillContext:
+    return SkillContext(
+        registry=data_skills.bind_default(),
+        state_dir=get_user_state_dir(),
+        logger=logging.getLogger("axi.data"),
+        user_prompt=_terminal_prompt if sys.stdin.isatty() else None,
+    )
+
+
+def _terminal_prompt(prompt: str) -> str:
+    return input(prompt)
+
+
+#: Verb spellings that resolve to one skill.
+#:
+#: The convention, so adding the next synonym is a line rather than a decision:
+#: a hyphenated compound verb (``conform-try``) and a flagged base verb
+#: (``conform --dry-run``) may both reach one skill, and neither is "the real
+#: one". They are **aliases, not implementations** — resolution happens here,
+#: once, in this table, and every spelling is asserted to produce byte-identical
+#: output by ``test_every_spelling_reaches_one_skill``.
+#:
+#: Key is ``(verb, flag)``; a ``None`` flag matches the bare verb. Everything
+#: not listed maps to its own name with hyphens converted, which is the default
+#: and covers most verbs.
+_SKILL_ALIASES: dict[tuple[str, str | None], str] = {
+    ("conform", "dry_run"): "conform_try",
+    # `ingest-freshness` shipped before the medallion vocabulary was uniform.
+    # It answers exactly `freshness --tier silver`, so it resolves there
+    # rather than being a second implementation. Kept because it is released:
+    # renaming an unreleased verb is free, breaking a released one is not.
+    ("ingest-freshness", None): "freshness",
+}
+
+#: Friendly spellings for the gold read verbs.
+#:
+#: The skills are named `gold_series`, `gold_tables` and so on because they say
+#: which tier they read. At a terminal that prefix is noise: somebody pulling a
+#: series types `axi data series`, and `axi data gold-series` resolves to the
+#: same skill for anybody who wants to be explicit.
+#:
+#: These are the verbs a researcher reaches for, and until now NONE of them was
+#: reachable from a shell — they existed as skills, so MCP had them and a
+#: terminal did not.
+_GOLD_VERBS: dict[str, str] = {
+    "tables": "catalog",
+    "describe": "describe",
+    "series": "series",
+    "aggregate": "aggregate",
+    "roles": "roles",
+    "compare": "compare",
+    "serving-report": "serving_report",
+}
+
+#: The everyday verbs. They read like the gold verbs (same output flags) but are not in
+#: the map above: each resolves to the skill of its own name, and takes its window flags
+#: as they are, because the skill resolves ``--day``, ``--last`` and ``--yesterday``
+#: against what the catalogue holds.
+_EVERYDAY_VERBS = frozenset({"channels", "latest", "show"})
+
+#: Every verb that writes its answer with ``--format``.
+_READ_VERBS = frozenset(_GOLD_VERBS) | _EVERYDAY_VERBS
+
+#: Verbs whose window is resolved here, once, into a plain start/end.
+_WINDOWED_VERBS = frozenset({"aggregate", "series", "compare", "kit-snapshot", "kit-pull"})
+
+#: Verbs that only exist in a flagged form today, with the reason.
+#:
+#: ``conform`` without ``--dry-run`` would be the real bronze-to-silver pass,
+#: which runs in the pipeline rather than at a terminal. Saying so beats a
+#: confusing argparse error, and beats silently doing the dry run.
+_FLAG_ONLY: dict[str, str] = {
+    "conform": (
+        "axi data conform is the dry-run door. Use --dry-run to exercise one "
+        "record against a registered normalizer (identical to 'axi data "
+        "conform-try'), or 'axi data conform-run' for the real bronze→silver pass."
+    ),
+}
+
+
+def resolve_skill(args: argparse.Namespace) -> tuple[str | None, str | None]:
+    """Map a parsed verb, plus any mode flag, onto one skill name.
+
+    Returns ``(skill_name, error)``. Exactly one is populated.
+    """
+    verb = args.verb
+    for (alias_verb, flag), skill in _SKILL_ALIASES.items():
+        if verb == alias_verb and flag is not None and getattr(args, flag, False):
+            return skill, None
+    if verb in _FLAG_ONLY:
+        return None, _FLAG_ONLY[verb]
+    if verb in _GOLD_VERBS:
+        return _GOLD_VERBS[verb], None
+    # `gold-series` is the explicit spelling of `series`, for anybody who wants
+    # to say which tier they mean.
+    if verb.startswith("gold-") and verb[len("gold-"):] in _GOLD_VERBS:
+        return _GOLD_VERBS[verb[len("gold-"):]], None
+    # A compound noun with its own sub-verbs. `axi data retrieval save` is the
+    # skill `retrieval_save`, so the parent noun keeps `axi data --help`
+    # readable while each verb stays one skill per ADR-056.
+    sub = getattr(args, f"{verb}_verb", None)
+    if sub:
+        return f"{verb}_{str(sub).replace('-', '_')}", None
+    return verb.replace("-", "_"), None
+
+
+def _connector_io(args: argparse.Namespace, params: dict[str, Any]) -> dict[str, Any]:
+    """The terminal half of `connector add`: who to ask, and the secret from stdin.
+
+    The client secret reaches the skill from stdin (``--client-secret-stdin``) or
+    from a prompt that does not echo, never from argv, where it would sit in shell
+    history and in every process listing.
+    """
+    # Progress streams as each step finishes, so a person sees "signed in" before
+    # being asked to pick a folder. Under --json the result is the only output.
+    out: dict[str, Any] = {} if args.json else {"_say": print}
+    if getattr(args, "connector_verb", None) != "add":
+        return out
+    out["kind"] = params.pop("setup_kind")
+    params.pop("no_input", None)
+    from_stdin = params.pop("client_secret_stdin", False)
+    if from_stdin:
+        out["client_secret"] = sys.stdin.readline().rstrip("\r\n")
+    interactive = sys.stdin.isatty() and not args.no_input and not from_stdin
+    if interactive:
+        import getpass
+
+        out["_ask"] = input
+        out["_ask_secret"] = getpass.getpass
+    return out
+
+
+def _args_to_params(args: argparse.Namespace) -> dict[str, Any]:
+    """Translate parsed args → skill params dict."""
+    params: dict[str, Any] = {}
+    for k, v in vars(args).items():
+        # `<noun>_verb` is how argparse hands back a sub-verb; it selects the
+        # skill and is not an argument to it.
+        if k in ("verb", "json", "kind", "dry_run") or k.endswith("_verb"):
+            continue
+        if v is None:
+            continue
+        params[k.replace("-", "_")] = v
+
+    if args.verb in _READ_VERBS:
+        # `--from/--to` are two flags at a terminal and one window to the skill,
+        # which already knows how to bound a query by a column. `--format` is
+        # the CLI's own business and never reaches the skill.
+        params.pop("format", None)
+    if args.verb in _WINDOWED_VERBS:
+        # One vocabulary: --start/--end = --from/--to, and --day, --last and --yesterday
+        # name a window the way a person does. All of them end up as one start/end.
+        try:
+            resolved = friendly_lang.resolve_window(
+                start=params.get("start"), end=params.get("end"), day=params.pop("day", None),
+                last=params.pop("last", None), yesterday=bool(params.pop("yesterday", None)),
+                normalize=False,  # an explicit start/end reaches the door as typed
+            )
+        except friendly_lang.WindowError as exc:
+            params["_window_error"] = str(exc)
+        else:
+            if resolved is not None:
+                params["start"], params["end"] = resolved.start, resolved.end
+    if args.verb in _GOLD_VERBS and args.verb not in ("aggregate", "series"):
+        start, end = params.pop("start", None), params.pop("end", None)
+        if start or end:
+            params["window"] = {
+                "column": params.get("time_column", "ts"),
+                "start": start,
+                "end": end,
+            }
+
+    if args.verb == "connector":
+        params.update(_connector_io(args, params))
+    if args.verb == "kit-scaffold":
+        # `kind` is dropped above for every verb (register re-adds its own below);
+        # kit-scaffold's positional kind IS its first argument.
+        params["kind"] = args.kind
+    if args.verb == "register" and args.kind:
+        params["kind"] = args.kind
+        provider = default_source_kind_registry().get(args.kind)
+        try:
+            params["kind_params"] = provider.params_from_args(args)
+        except ValueError as exc:
+            params["_kind_params_error"] = str(exc)
+
+    if args.verb in ("aggregate", "series"):
+        # --start/--end/--time-column are one window to the skill. Assembling
+        # it here keeps the skill's contract a dict and the terminal's three
+        # flags, instead of asking a human to type JSON.
+        start, end = params.pop("start", None), params.pop("end", None)
+        time_column = params.pop("time_column", None)
+        if start or end:
+            # `ts` unless told otherwise, as for every other answering verb.
+            params["window"] = {"column": time_column or "ts", "start": start, "end": end}
+        elif time_column:
+            params["time_column"] = time_column
+        if args.verb == "series" and time_column:
+            params["time_column"] = time_column
+
+    if args.verb == "install":
+        # Provider-driven helm values: the active DB + VectorStore
+        # providers each contribute their --set pairs. The install
+        # skill merges these into the helm invocation.
+        params["_args_namespace"] = args  # the skill calls provider hooks
+    return params
+
+
+def _unit_of(value: Any) -> str:
+    """The unit an envelope declares, or "" when it declares none.
+
+    Never a guess. A column with no declared unit exports without one and the
+    header says so by omission — inventing `degC` because the numbers look like
+    temperatures is the mistake this platform spent a day undoing.
+    """
+    if not isinstance(value, dict):
+        return ""
+    unit = value.get("unit")
+    if unit is None and isinstance(value.get("provenance"), dict):
+        unit = value["provenance"].get("unit")
+    if isinstance(unit, dict):
+        return str(unit.get("value") or "")
+    return str(unit or "")
+
+
+def _writes_records(args: argparse.Namespace) -> bool:
+    """Whether this invocation's `--format` means "how to write the answer".
+
+    Only for the gold read verbs. See the note at the call site: the flag is
+    already spoken for elsewhere in this same CLI.
+    """
+    if args.verb not in _READ_VERBS:
+        return False
+    return getattr(args, "format", "text") in ("csv", "ndjson")
+
+
+def _note_of(value: Any) -> str:
+    """Why a verb returned nothing, in its own words.
+
+    Under `provenance`, which is where the envelope keeps what it did and why —
+    not at the top level, where an earlier version of this looked and found
+    nothing.
+    """
+    if not isinstance(value, dict):
+        return ""
+    prov = value.get("provenance")
+    if isinstance(prov, dict) and prov.get("note"):
+        return str(prov["note"])
+    return str(value.get("note") or "")
+
+
+def _rows_of(value: Any) -> tuple[list[dict[str, Any]], str]:
+    """The record list inside an envelope, and what it is called.
+
+    One shape per verb, so the writer below does not have to know which verb it
+    is serving: a series has `series`, the rest return a list of rows.
+    """
+    data = (value or {}).get("data") if isinstance(value, dict) else None
+    if isinstance(data, dict):
+        for key in ("series", "rows", "tables", "roles", "columns", "channels", "readings"):
+            if isinstance(data.get(key), list):
+                return data[key], key
+        return [data], "row"
+    if isinstance(data, list):
+        return data, "rows"
+    return [], "rows"
+
+
+def _write_records(result: SkillResult, fmt: str) -> int:
+    """CSV or NDJSON of whatever the verb returned.
+
+    The unit travels in the value column's NAME for CSV — `value_degC`, the
+    same convention the figure export uses — and in every record for NDJSON,
+    because a stream has no header to carry it.
+    """
+    import csv as _csv
+
+    if not result.ok:
+        for err in result.errors:
+            print(err, file=sys.stderr)
+        return result.exit_code
+
+    rows, _kind = _rows_of(result.value)
+    unit = _unit_of(result.value)
+    if not rows:
+        # A refusal is not an empty file, and it is not a success.
+        #
+        # The reason lives in the envelope's PROVENANCE, which is where the
+        # good sentences are: "this answer spans 5 units (W, console_units,
+        # degC, mol, pct) and rows declaring none … Narrow the filter, or pass
+        # allow_mixed_units". Reading `note` off the top level printed "no
+        # rows" instead and threw that away.
+        #
+        # Non-zero, because the contract a script needs is "zero means there
+        # is data in that file". A cron job that redirects stdout and chains on
+        # `&&` would otherwise carry on with an empty file and report nothing.
+        print(_note_of(result.value) or "no rows matched", file=sys.stderr)
+        return 1
+
+    named = [
+        {(f"{k}_{unit}" if k == "value" and unit else k): v for k, v in row.items()}
+        for row in rows
+    ]
+    if fmt == "ndjson":
+        for row, original in zip(named, rows, strict=True):
+            out = dict(original)
+            if unit:
+                out["unit"] = unit
+            print(json.dumps(out, default=str))
+        return 0
+    writer = _csv.DictWriter(sys.stdout, fieldnames=list(named[0].keys()))
+    writer.writeheader()
+    writer.writerows(named)
+    return 0
+
+
+def _emit(result: SkillResult, as_json: bool) -> int:
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "ok": result.ok,
+                    "value": result.value,
+                    "errors": result.errors,
+                    "actions_taken": result.actions_taken,
+                },
+                indent=2,
+                default=str,
+            )
+        )
+        return result.exit_code
+    for action in result.actions_taken:
+        print(f"• {action}")
+    if isinstance(result.value, dict) and isinstance(result.value.get("text"), str):
+        # A verb that renders its own report (the kit verbs) says so by carrying
+        # `text`; the structured fields are still there under --json.
+        print(result.value["text"])
+    elif result.value is not None:
+        # The connector-preflight pretty rendering fires only on ITS shape
+        # (connector + kind + ok-style checks). Other verbs also return a
+        # "checks" list (backup_validate: name/status/detail) and must fall
+        # through to the generic renderers — a printer that crashes after
+        # the work succeeded hides the effect it was asked to report.
+        if (
+            isinstance(result.value, dict)
+            and "checks" in result.value
+            and "connector" in result.value
+            and "kind" in result.value
+        ):
+            v = result.value
+            print(f"Connector: {v['connector']} ({v['kind']})")
+            for c in v["checks"]:
+                mark = "✓" if c["ok"] else "✗"
+                print(f"  {mark} {c['name']}: {c['message']}")
+                if not c["ok"] and c["remediation"]:
+                    who = "(admin) " if c.get("actor") == "admin" else ""
+                    print(f"      → {who}{c['remediation']}")
+                    if c.get("copy_value"):
+                        print(f"        copy: {c['copy_value']}")
+            print(
+                "\n  All good — ingestion will run on the next sensor tick."
+                if v["ok"]
+                else "\n  Fix the items above, then re-run preflight."
+            )
+            return result.exit_code
+        if isinstance(result.value, dict) and "items" in result.value:
+            for item in result.value["items"]:
+                print("  " + "  ".join(f"{k}={v}" for k, v in item.items()))
+        elif isinstance(result.value, (str, int, float, bool)):
+            print(result.value)
+        else:
+            print(json.dumps(result.value, indent=2, default=str))
+    if not result.ok:
+        for err in result.errors:
+            print(f"ERROR: {err}", file=sys.stderr)
+    return result.exit_code
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    ctx = _build_ctx()
+    params = _args_to_params(args)
+    record = params.get("record")
+    if isinstance(record, str) and record.startswith("@"):
+        # @path reads the record from a file, so a fixture can be piped straight
+        # from CI without shell-quoting a JSON blob.
+        try:
+            params["record"] = Path(record[1:]).expanduser().read_text()
+        except OSError as exc:
+            return _emit(
+                SkillResult(ok=False, errors=[f"cannot read {record[1:]}: {exc}"]), args.json
+            )
+    if params.get("_window_error"):
+        return _emit(SkillResult(ok=False, errors=[params["_window_error"]]), args.json)
+    if params.pop("_kind_params_error", None):
+        return _emit(
+            SkillResult(ok=False, errors=[params["_kind_params_error"]]),
+            args.json,
+        )
+    # One resolver for every spelling: hyphenated compounds map to snake_case,
+    # and _SKILL_ALIASES redirects a flagged base verb onto the same skill.
+    skill_name, alias_error = resolve_skill(args)
+    if alias_error is not None:
+        return _emit(SkillResult(ok=False, errors=[alias_error]), args.json)
+    result = invoke_capability(
+        ctx.registry,
+        f"data.{skill_name}",
+        params,
+        ctx,
+        surface=CLI_SURFACE,
+    )
+    # `--format` means different things to different verbs, and only the gold
+    # read verbs mean "how to write the answer" by it. `register … --format csv`
+    # is the TABULAR SOURCE's file format and has been since before this; reading
+    # the flag globally sent a register result through the records writer, which
+    # printed nothing and returned 1.
+    fmt = getattr(args, "format", "text") if args.verb in _READ_VERBS else "text"
+    if _writes_records(args):
+        return _write_records(result, fmt)
+    if args.verb in friendly_text.TEXT_VERBS and fmt == "text" and not args.json and result.ok:
+        # Text only: the answer as a table, ending in a `next:` block. JSON, CSV and
+        # NDJSON are written from the result itself and never carry one.
+        print(friendly_text.render(args.verb, result.value))
+        return 0
+    return _emit(result, args.json or fmt == "json")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

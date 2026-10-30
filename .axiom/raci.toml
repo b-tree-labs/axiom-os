@@ -1,0 +1,45 @@
+# ADR-045 D2 sensitive paths, D2.5 content signals, and blast-radius floor.
+# The risk-tier reviewer reads this file in shadow mode. The tier is
+# logged and reported. It does not change what Rivet merges or holds.
+
+[raci.sensitive_paths]
+patterns = [
+  "auth/**",
+  "crypto/**",
+  "policy/**",
+  "infra/raci.py",
+  "infra/identity/**",
+  "**/*secret*",
+  "**/*credential*",
+  ".github/workflows/**",
+  "pyproject.toml",
+  "uv.lock",
+]
+
+[raci.sensitive_content]
+destructive_sql = true
+live_stripe_price_ids = true
+secrets = true
+
+[raci.blast_radius]
+lines_medium = 800
+lines_high = 2000
+files_medium = 25
+files_high = 50
+learn = true
+
+[raci.approvers]
+roster = ["@benjaminbooth", "@luker-robinson2"]
+count = 1
+
+[raci.approvers.security]
+roster = ["@benjaminbooth", "@luker-robinson2"]
+count = 1
+
+[raci.approvers.billing]
+roster = ["@benjaminbooth", "@luker-robinson2"]
+count = 1
+
+[raci.approvers.prod]
+roster = ["@benjaminbooth", "@luker-robinson2"]
+count = 1

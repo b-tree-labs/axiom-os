@@ -1,0 +1,19 @@
+{{- $r := .Values.roles -}}
+{{- if and $r.edge.enabled (not $r.edge.blueGreen.enabled) }}
+{{ include "axiom-node.workload" (dict "root" . "role" "edge" "cfg" (merge (dict "env" (dict "AXIOM_EDGE_DOWNSTREAM" $r.edge.downstream)) $r.edge) "command" (list "edge-run" (toString $r.edge.port)) "port" $r.edge.port "probePath" "/healthz" "priority" "background") }}
+---
+{{- end }}
+{{- if $r.producer.enabled }}
+{{ include "axiom-node.workload" (dict "root" . "role" "producer" "cfg" (merge (dict "env" (dict "AXIOM_REALTIME_PORT" (toString $r.producer.realtimePort))) $r.producer) "command" $r.producer.command "port" 0 "probePath" "" "priority" "realtime" "extraPorts" (list (dict "name" "realtime" "port" $r.producer.realtimePort))) }}
+---
+{{- end }}
+{{- if $r.twin.enabled }}
+{{- /* Reads the collector's realtime point: by Service name, or on the host when the collector uses host networking. */}}
+{{- $rt := ternary (printf "http://127.0.0.1:%v" $r.producer.realtimePort) (printf "http://%s-producer:%v" .Release.Name $r.producer.realtimePort) (default false $r.producer.hostNetwork) -}}
+{{ include "axiom-node.workload" (dict "root" . "role" "twin" "cfg" (merge (dict "hostNetwork" (default false $r.producer.hostNetwork) "env" (dict "AXIOM_REALTIME_URL" $rt)) $r.twin) "command" $r.twin.command "port" 0 "probePath" "" "priority" "realtime") }}
+---
+{{- end }}
+{{- if $r.forwarder.enabled }}
+{{ include "axiom-node.workload" (dict "root" . "role" "forwarder" "cfg" $r.forwarder "command" $r.forwarder.command "port" 0 "probePath" "" "priority" "background") }}
+---
+{{- end }}

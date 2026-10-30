@@ -1,0 +1,173 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "library"
+version = "0.3.0"
+description = "Document library: upload, intake, classification and placement, bronze landing and retrieval indexing, with the document vocabulary supplied by the product as a registered taxonomy."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Uploaded documents land in the retrieval corpus, so the library writes the
+# same store harvested documents live in rather than keeping a second copy.
+[[extension.consumes]]
+kind = "extension"
+package = "rag"
+
+# Uploads land through the data platform's bronze writer and embed adapter.
+[[extension.consumes]]
+kind = "extension"
+package = "data_platform"
+
+[[extension.consumes]]
+kind = "extension"
+package = "http"
+
+# /api/v1/library is its own mount nested in the web app's /api/v1, so the
+# serving stack's authz hook runs on every request (a session and a gate key
+# reach the same decision). See mount.py.
+[[extension.provides]]
+kind = "service"
+name = "library"
+entry = "axiom.extensions.builtins.library.mount:mount_spec"
+description = "The library under /api/v1/library: upload, browse, preview, change, delete, restore, search"
+prefix = "/api/v1/library"
+requires_authz = true
+
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "library"
+entry = "axiom.extensions.builtins.library.cli:main"
+description = "The document library: upload, ls, show, status, search, update, move, reextract, rm, restore"
+tier = "starter"
+intent_groups = ["operate", "investigate"]
+
+# ADR-182: how this service stays up through a deploy, update or migration.
+[extension.availability]
+switch = "blue-green"  # mounted on the http app; switches with it
+readiness = "http:/healthz"
+drain_s = 15
+migrations = "expand-contract"
+single_flight = false
+verified_by = "../http/tests/test_every_mounted_service_answers_through_a_switch.py"
+
+[[extension.provides]]
+kind = "skill"
+name = "library.delete"
+entry = "axiom.extensions.builtins.library.skills.verbs:delete"
+path = "skills/delete"
+description = "Remove a document you filed from retrieval and every listing. Its bytes stay in bronze behind a tombstone, so library.restore can bring it back."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.list"
+entry = "axiom.extensions.builtins.library.skills.verbs:list_items"
+path = "skills/list"
+description = "List the library documents you may see at your site, newest first, with filters."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.restore"
+entry = "axiom.extensions.builtins.library.skills.verbs:restore"
+path = "skills/restore"
+description = "Bring back a document you deleted, re-indexed from the bytes bronze kept."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.search"
+entry = "axiom.extensions.builtins.library.skills.verbs:search"
+path = "skills/search"
+description = "Find library documents by what they say (retrieval over your site's and your own corpus)."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.show"
+entry = "axiom.extensions.builtins.library.skills.verbs:show"
+path = "skills/show"
+description = "One library document: where it filed, who filed it, and whether retrieval can find it."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.move"
+entry = "axiom.extensions.builtins.library.skills.verbs:move"
+path = "skills/move"
+description = "File a document in another Data Book folder. The move is remembered, so later similar documents file there too."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.reextract"
+entry = "axiom.extensions.builtins.library.skills.verbs:reextract"
+path = "skills/reextract"
+description = "Run a document's extractors again from the bytes bronze kept (all, named ones, or only those whose version changed); the new results replace the current ones and every route is offered them."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.status"
+entry = "axiom.extensions.builtins.library.skills.verbs:status"
+path = "skills/status"
+description = "What happened to one file you uploaded: every pipeline stage, what each extractor found, where each output went, the export-control verdict and where the Data Book filed it."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.update"
+entry = "axiom.extensions.builtins.library.skills.verbs:update"
+path = "skills/update"
+description = "Change a document you filed: title, tags, collection, or visibility (which moves its chunks to the corpus the new audience reads)."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "library.upload"
+entry = "axiom.extensions.builtins.library.skills.verbs:upload"
+path = "skills/upload"
+description = "File a document in the library: guarded, landed in bronze, catalogued, classified and indexed for retrieval. On a bound install it is filed on the bound node."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []

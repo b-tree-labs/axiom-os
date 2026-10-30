@@ -1,0 +1,44 @@
+# Security-sensitive paths and repository automation.
+# @benjaminbooth reviews changes that match. Last match wins.
+
+/.github/                                            @benjaminbooth
+/SECURITY.md                                         @benjaminbooth
+/docs/MIRROR_SECURITY.md                             @benjaminbooth
+/docs/security/                                      @benjaminbooth
+/mirror/                                             @benjaminbooth
+/scripts/build_public_mirror.py                      @benjaminbooth
+
+/src/axiom/extensions/builtins/auth/                 @benjaminbooth
+/src/axiom/extensions/builtins/authz/                @benjaminbooth
+/src/axiom/extensions/builtins/oauth/                @benjaminbooth
+/src/axiom/extensions/builtins/secrets/              @benjaminbooth
+/src/axiom/extensions/builtins/vault/                @benjaminbooth
+/src/axiom/extensions/builtins/webgate/              @benjaminbooth
+/src/axiom/infra/auth/                               @benjaminbooth
+/src/axiom/infra/authority.py                        @benjaminbooth
+/src/axiom/infra/authority_rules.py                  @benjaminbooth
+/src/axiom/infra/secret_scan.py                      @benjaminbooth
+/src/axiom/infra/capability_telemetry.py             @benjaminbooth
+/src/axiom/infra/vault_backup/                       @benjaminbooth
+/src/axiom/setup/secrets.py                          @benjaminbooth
+/src/axiom/policy/                                   @benjaminbooth
+/src/axiom/webauth/                                  @benjaminbooth
+/src/axiom/agents/sandbox_spawn.py                   @benjaminbooth
+/src/axiom/agents/pipeline/sandbox.py                @benjaminbooth
+/src/axiom/vega/identity/                            @benjaminbooth
+/src/axiom/vega/federation/security.py               @benjaminbooth
+/src/axiom/vega/federation/trust.py                  @benjaminbooth
+/src/axiom/vega/federation/policy.py                 @benjaminbooth
+/src/axiom/vega/federation/identity.py               @benjaminbooth
+/src/axiom/vega/federation/wasm_sandbox.py           @benjaminbooth
+/src/axiom/vega/federation/content_sanitizer.py      @benjaminbooth
+/src/axiom/extensions/builtins/http/access_log.py    @benjaminbooth
+/src/axiom/extensions/builtins/chat/errors.py        @benjaminbooth
+/src/axiom/extensions/builtins/chat/commands_ext/_transcript.py @benjaminbooth
+/src/axiom/memory/post_filter.py                     @benjaminbooth
+/src/axiom/memory/write_policy.py                    @benjaminbooth
+
+# Manifests. A dependency change needs the same review.
+pyproject.toml                                       @benjaminbooth
+package.json                                         @benjaminbooth
+package-lock.json                                    @benjaminbooth

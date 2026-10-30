@@ -1,0 +1,10 @@
+{
+  "capture": "reduced from real ~/.cursor/projects/*/agent-transcripts files on this machine: same record shapes, all text replaced (the Cursor agent CLI needs a login, so no fresh session could be generated)",
+  "files": {
+    "5f0c7a3e-1d2b-4c6e-9a10-0b7e4c2d9a11.jsonl": ".cursor/projects/sandbox/agent-transcripts/5f0c7a3e-1d2b-4c6e-9a10-0b7e4c2d9a11/5f0c7a3e-1d2b-4c6e-9a10-0b7e4c2d9a11.jsonl"
+  },
+  "harness": "cursor",
+  "kind": "file",
+  "session_id": "5f0c7a3e-1d2b-4c6e-9a10-0b7e4c2d9a11",
+  "version": "2026.10.01"
+}

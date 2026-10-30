@@ -1,0 +1,17 @@
+{
+ "usageItems": [
+  {
+   "date": "2026-09-05T00:00:00Z",
+   "product": "actions",
+   "sku": "Actions Linux",
+   "quantity": 9000,
+   "unitType": "Minutes",
+   "pricePerUnit": 0.006,
+   "grossAmount": 54.0,
+   "discountAmount": 4.0,
+   "netAmount": 50.0,
+   "organizationName": "example-org",
+   "repositoryName": "app"
+  }
+ ]
+}

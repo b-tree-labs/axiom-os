@@ -1,0 +1,11 @@
+{
+  "capture": "cline -P ollama --data-dir throwaway against local ollama qwen2.5:7b; system_prompt emptied",
+  "files": {
+    "1791488016211_2m8qb.json": ".cline/data/sessions/1791488016211_2m8qb/1791488016211_2m8qb.json",
+    "1791488016211_2m8qb.messages.json": ".cline/data/sessions/1791488016211_2m8qb/1791488016211_2m8qb.messages.json"
+  },
+  "harness": "cline",
+  "kind": "file",
+  "session_id": "1791488016211_2m8qb",
+  "version": "3.0.70"
+}
