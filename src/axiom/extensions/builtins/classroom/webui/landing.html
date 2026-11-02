@@ -1,0 +1,75 @@
+<!--
+  Classroom coordinator landing page — Tier D1.
+
+  Served by the coordinator at GET /. The coordinator rewrites the
+  `{{ CLASSROOM_ID }}` placeholder with the actual classroom id
+  at request time; everything else is static.
+
+  Design goals: mobile-first, no JS framework, zero build step.
+  Anyone with a browser can hit the class's URL, see what's running
+  here, and get the instructions they need to join. CLI is still
+  the canonical path; the web is an accessibility ramp.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{{ CLASSROOM_ID }} · Classroom</title>
+<link rel="stylesheet" href="/webui/style.css" />
+</head>
+<body>
+<main>
+  <header class="hero">
+    <p class="eyebrow">You've reached the class server for</p>
+    <h1>{{ CLASSROOM_ID }}</h1>
+    <p class="sub">Hosted with Axiom.</p>
+  </header>
+
+  <section class="card">
+    <h2>If you're a student</h2>
+    <p>Your instructor will send you an invite that looks like a long string. On your laptop, paste this in your terminal:</p>
+    <pre><code>axi classroom join &lt;your-invite-string&gt;</code></pre>
+    <p>That one command signs you in, pulls course materials to your machine, and builds a local index you can ask questions against.</p>
+    <h3>Then, day to day</h3>
+    <ul>
+      <li><code>axi classroom ask {{ CLASSROOM_ID }} "what is a control rod?"</code> — grounded answer with citations</li>
+      <li><code>axi classroom ask {{ CLASSROOM_ID }} "…" --mode tutor</code> — Socratic mode; the system asks <em>you</em> guiding questions instead of answering</li>
+      <li><code>axi classroom quiz pending {{ CLASSROOM_ID }}</code> — see quizzes your instructor has posted</li>
+      <li><code>axi classroom me {{ CLASSROOM_ID }}</code> — your personalized learning brief (instructor-reviewed)</li>
+      <li><code>axi classroom ask-instructor {{ CLASSROOM_ID }} "I'm stuck on…"</code> — open a thread with your instructor</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>If you're the instructor</h2>
+    <p>You're running this server — this page is what your students see when they hit the URL. Everything below runs from your terminal:</p>
+    <ul>
+      <li><code>axi classroom invite {{ CLASSROOM_ID }}</code> — mint a fresh invite for a new student</li>
+      <li><code>axi classroom status {{ CLASSROOM_ID }}</code> — live roster + activity</li>
+      <li><code>axi classroom brief {{ CLASSROOM_ID }} --instructor &lt;you&gt;</code> — this period's cohort brief (hot topics, quiet students, mode usage)</li>
+      <li><code>axi classroom briefs generate {{ CLASSROOM_ID }}</code> — per-student briefs for you to review + approve before release</li>
+      <li><code>axi classroom quiz broadcast {{ CLASSROOM_ID }} --questions 3 --topic "fission"</code> — push a quiz to everyone instantly</li>
+      <li><code>axi classroom modes {{ CLASSROOM_ID }} --force quiz</code> — constrain students to a specific learning mode</li>
+    </ul>
+  </section>
+
+  <section class="card dim">
+    <h2>What's actually here</h2>
+    <p>This URL is the coordinator endpoint for your class. It serves:</p>
+    <ul>
+      <li>The join ceremony (where students sign in)</li>
+      <li>Your class's course materials (signed manifest + files)</li>
+      <li>Question threads between you and individual students</li>
+      <li>Briefs for each student to view when released</li>
+      <li>Broadcast quizzes for the class to take</li>
+    </ul>
+    <p>No student data leaves this server unless you configure it to.</p>
+  </section>
+
+  <footer>
+    <p>Powered by <a href="https://github.com/benjaminbooth/axiom">Axiom</a>. Your class, your server.</p>
+  </footer>
+</main>
+</body>
+</html>

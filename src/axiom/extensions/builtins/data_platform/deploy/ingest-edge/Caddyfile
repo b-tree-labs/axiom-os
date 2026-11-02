@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# TLS for an ingest edge. Caddy obtains and renews the certificate for the
+# host's public name. Replace EDGE_HOSTNAME with the name the host was given.
+EDGE_HOSTNAME {
+	# Only the edge's three surfaces are proxied; anything else is 404 here.
+	@edge path /ingest /ingest/* /edge/* /healthz
+	handle @edge {
+		request_body {
+			# A row batch is bounded in the app (AXIOM_INGEST_MAX_*); this is
+			# the outer bound so an oversized body never reaches Python.
+			max_size 64MB
+		}
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle {
+		respond 404
+	}
+	log {
+		output file /var/log/caddy/axiom-edge-access.log
+	}
+}

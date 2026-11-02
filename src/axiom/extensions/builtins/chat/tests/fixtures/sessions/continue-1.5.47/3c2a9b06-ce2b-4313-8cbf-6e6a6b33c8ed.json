@@ -1,0 +1,86 @@
+{
+  "sessionId": "3c2a9b06-ce2b-4313-8cbf-6e6a6b33c8ed",
+  "title": "Untitled Session",
+  "workspaceDirectory": "/sandbox/work",
+  "history": [
+    {
+      "message": {
+        "role": "user",
+        "content": "Use your Bash tool to run: echo @@SECRET@@. Then say pong."
+      },
+      "contextItems": [],
+      "editorState": "Use your Bash tool to run: echo @@SECRET@@. Then say pong."
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "toolCalls": [
+          {
+            "id": "call_fjky7io1",
+            "type": "function",
+            "function": {
+              "name": "Bash",
+              "arguments": "{\"command\":\"echo @@SECRET@@; echo pong\"}"
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 2227,
+          "completion_tokens": 44,
+          "total_tokens": 2271,
+          "model": "qwen2.5:3b",
+          "cost_cents": 0
+        }
+      },
+      "contextItems": [],
+      "toolCallStates": [
+        {
+          "toolCallId": "call_fjky7io1",
+          "toolCall": {
+            "id": "call_fjky7io1",
+            "type": "function",
+            "function": {
+              "name": "Bash",
+              "arguments": "{\"command\":\"echo @@SECRET@@; echo pong\"}"
+            }
+          },
+          "status": "done",
+          "parsedArgs": {
+            "command": "echo @@SECRET@@; echo pong"
+          },
+          "output": [
+            {
+              "content": "@@SECRET@@\npong\n",
+              "name": "Tool Result",
+              "description": "Tool execution result"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "@@SECRET@@\npong",
+        "usage": {
+          "prompt_tokens": 2311,
+          "completion_tokens": 24,
+          "total_tokens": 2335,
+          "model": "qwen2.5:3b",
+          "cost_cents": 0
+        }
+      },
+      "contextItems": []
+    }
+  ],
+  "usage": {
+    "totalCost": 0.004673999999999999,
+    "promptTokens": 4538,
+    "completionTokens": 68,
+    "promptTokensDetails": {
+      "cachedTokens": 0,
+      "cacheWriteTokens": 0
+    }
+  }
+}
