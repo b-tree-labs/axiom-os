@@ -1,0 +1,162 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- operator recovery verbs; the read-only ones project through the skill registry, the writing ones are CLI-only
+[extension]
+name = "state"
+version = "0.1.0"
+description = "Snapshots of the harness state: take, verify, restore, age out"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "state"
+entry = "axiom.extensions.builtins.state.cli:main"
+description = "Snapshot, verify, restore and prune the harness state"
+subcommands = ["snapshot", "ls", "show", "diff", "restore", "prune", "verify", "pin", "unpin"]
+tier = "core"
+intent_groups = ["start"]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.snapshot"
+entry = "axiom.extensions.builtins.state.skills.snapshot:run"
+path = "skills/snapshot.py"
+description = "Take a snapshot of the harness's file-based state"
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+produces = [{ kind = "snapshot_id", how_to_use = "pass as id to state.show, state.verify, state.diff, state.pin or state.restore" }]
+next_steps = [{ target = "state.verify", when = "produced:snapshot_id", why = "prove the snapshot is intact before relying on it", feeds = { id = "snapshot_id" } }, { target = "state.show", when = "produced:snapshot_id", why = "see what it holds and what it leaves out", feeds = { id = "snapshot_id" } }, { target = "state.restore", when = "produced:snapshot_id", why = "restore it if the state needs to go back (opens a plan; a person approves)", feeds = { id = "snapshot_id" } }, { target = "state.prune", when = "error", why = "free space when the snapshot failed for lack of it" }]
+recipes = ["incident-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.ls"
+entry = "axiom.extensions.builtins.state.skills.ls:run"
+path = "skills/ls.py"
+description = "List state snapshots"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "state.show", when = "ok", why = "open one of the snapshots listed" }, { target = "state.snapshot", when = "ok", why = "take one now if the newest is old" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.show"
+entry = "axiom.extensions.builtins.state.skills.show:run"
+path = "skills/show.py"
+description = "Show one snapshot's contents and exclusions"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "snapshot-exists", description = "the snapshot must be in the store", fix = "list the snapshots with 'axi state ls' and pass one of its ids as id; take one with 'axi state snapshot'" }]
+produces = [{ kind = "snapshot_id", how_to_use = "pass as id to state.verify, state.diff or state.restore", field = "id" }]
+next_steps = [{ target = "state.verify", when = "produced:snapshot_id", why = "prove it is intact", feeds = { id = "snapshot_id" } }, { target = "state.diff", when = "produced:snapshot_id", why = "see what restoring it would change now", feeds = { id = "snapshot_id" } }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.diff"
+entry = "axiom.extensions.builtins.state.skills.diff:run"
+path = "skills/diff.py"
+description = "What restoring a snapshot would change now"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "snapshot-exists", description = "the snapshot must be in the store", fix = "list the snapshots with 'axi state ls' and pass one of its ids as id; take one with 'axi state snapshot'" }]
+produces = [{ kind = "snapshot_id", how_to_use = "pass as id to state.restore", field = "id" }]
+next_steps = [{ target = "state.restore", when = "produced:snapshot_id", why = "restore it if the changes listed are the ones you want (opens a plan)", feeds = { id = "snapshot_id" } }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.verify"
+entry = "axiom.extensions.builtins.state.skills.verify:run"
+path = "skills/verify.py"
+description = "Verify snapshot integrity"
+risk = "read"
+side_effects = false
+idempotent = true
+next_steps = [{ target = "state.restore", when = "ok", why = "restore from an intact snapshot when you need to go back" }, { target = "state.snapshot", when = "error", why = "take a fresh snapshot when the store failed verification" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.restore"
+entry = "axiom.extensions.builtins.state.skills.restore:run"
+path = "skills/restore.py"
+description = "Restore harness state from a snapshot (dry run unless apply)"
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = [{ id = "verified-snapshot", description = "a snapshot that passes its integrity check must exist to restore from", fix = "take one with 'axi state snapshot' (it returns snapshot_id); or restore from a second copy with 'axi state restore --from DIR'; see what exists and why each failed with 'axi state ls' and 'axi state verify'", consumes = "snapshot_id", param = "id" }]
+produces = [{ kind = "snapshot_id", how_to_use = "the snapshot restored; pass as id to state.diff to confirm nothing differs" }, { kind = "pre_restore_snapshot", how_to_use = "the safety snapshot taken first; pass as id to state.restore to undo" }]
+next_steps = [{ target = "state.diff", when = "produced:snapshot_id", why = "confirm the state now matches the snapshot", feeds = { id = "snapshot_id" } }, { target = "state.restore", when = "produced:pre_restore_snapshot", why = "undo this restore by restoring the safety snapshot taken before it", feeds = { id = "pre_restore_snapshot" } }, { target = "state.verify", when = "error", why = "check the store before trying again" }]
+recipes = ["incident-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.prune"
+entry = "axiom.extensions.builtins.state.skills.prune:run"
+path = "skills/prune.py"
+description = "Apply snapshot retention (dry run unless apply)"
+risk = "destructive"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "state.ls", when = "ok", why = "see what is left" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.pin"
+entry = "axiom.extensions.builtins.state.skills.pin:run"
+path = "skills/pin.py"
+description = "Exempt a snapshot from pruning"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "snapshot-exists", description = "the snapshot must be in the store", fix = "list the snapshots with 'axi state ls' and pass one of its ids as id; take one with 'axi state snapshot'" }]
+next_steps = [{ target = "state.unpin", when = "always", why = "make it prunable again when it is no longer needed" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.unpin"
+entry = "axiom.extensions.builtins.state.skills.pin:unpin"
+path = "skills/pin.py"
+description = "Make a pinned snapshot prunable again"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "snapshot-exists", description = "the snapshot must be in the store", fix = "list the snapshots with 'axi state ls' and pass one of its ids as id; take one with 'axi state snapshot'" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "state.snapshot_tick"
+entry = "axiom.extensions.builtins.state.skills.tick:run"
+path = "skills/tick.py"
+description = "Scheduled snapshot of the harness state (interval from state.snapshots.interval_hours)"
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+# Every 30 minutes the cadence fires and the skill decides whether the 6-hour
+# (configurable) interval has elapsed and whether anything changed; the cheap
+# frequent check is what lets `state.snapshots.interval_hours` change without
+# re-registering a schedule.
+[[extension.schedule]]
+name = "state_snapshot_tick"
+description = "Snapshot the harness state when the interval has elapsed and something changed"
+cadence = { kind = "interval", interval_seconds = 1800 }
+action = "state.snapshot_tick"
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 2, backoff = "exponential", dedup_window_seconds = 600 }

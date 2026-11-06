@@ -1,0 +1,64 @@
+[
+  {
+    "name": "flat",
+    "record": {
+      "seq": 1,
+      "logbook": "operations_log",
+      "meaning": "performed"
+    },
+    "canonical": "{\"logbook\":\"operations_log\",\"meaning\":\"performed\",\"seq\":1}",
+    "digest": "7aa75939a74e9be032e1dd7b933648ab2f19abcb239e6053799b34a7cca5feec"
+  },
+  {
+    "name": "nested-and-typed",
+    "record": {
+      "content": {
+        "fields": {
+          "pressure": {
+            "unit": "bar",
+            "value": {
+              "$decimal": "4.20"
+            }
+          }
+        },
+        "title": "Round check"
+      },
+      "occurred_at": {
+        "$datetime": "2026-09-30T09:30:00-05:00"
+      },
+      "prev_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "seq": 1,
+      "source": null,
+      "tags": [
+        "round",
+        "night"
+      ]
+    },
+    "canonical": "{\"content\":{\"fields\":{\"pressure\":{\"unit\":\"bar\",\"value\":\"4.20\"}},\"title\":\"Round check\"},\"occurred_at\":\"2026-09-30T14:30:00.000000Z\",\"prev_digest\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":1,\"source\":null,\"tags\":[\"round\",\"night\"]}",
+    "digest": "da2bac7d708c329f8f98b46111df6d570a7bae428d6b08666acc9a99f651b952"
+  },
+  {
+    "name": "unicode-nfc",
+    "record": {
+      "note": "café — 31 °C",
+      "ok": true
+    },
+    "canonical": "{\"note\":\"café — 31 °C\",\"ok\":true}",
+    "digest": "770ea36db5e6a37cfc2099bbb1cb2674f2547164c28d557d71baaf057f935cc0"
+  },
+  {
+    "name": "signature-fields-excluded",
+    "record": {
+      "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "node_sig": {
+        "alg": "ed25519",
+        "key_id": "k1",
+        "sig": "AAAA"
+      },
+      "personal_sig": null,
+      "seq": 7
+    },
+    "canonical": "{\"seq\":7}",
+    "digest": "256471776c47545b389142384a1640e500a2cb8cf7d4e03f860fe1c219398a1e"
+  }
+]

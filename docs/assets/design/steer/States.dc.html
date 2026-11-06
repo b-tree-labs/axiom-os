@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>States that decide whether this surface lies</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 1240px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; padding: 28px 30px; display: flex; flex-direction: column; gap: 20px; overflow: hidden">
+
+  <div>
+    <h1 style="margin: 0 0 5px 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px">The states that decide whether this surface lies</h1>
+    <div style="font-size: 13px; color: #98a1ad">An activity view is most dangerous when it has nothing to show, because an empty page reads as good news.</div>
+  </div>
+
+  <!-- ROW 1: the two empties -->
+  <div style="display: flex; gap: 22px">
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #7fc8a0; margin-bottom: 8px">EMPTY, DONE RIGHT</div>
+      <div style="box-sizing: border-box; height: 176px; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center">
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px">Nothing is waiting on you.</div>
+        <div style="font-size: 13px; line-height: 1.6; color: #98a1ad; max-width: 430px">5 agents reporting on schedule.
+          <span style="color: #e8a0a0; font-weight: 600">1 has gone dark.</span>
+          <span style="color: #f0a15e; font-weight: 600">59 capabilities cannot report at all.</span>
+        </div>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">Three different kinds of absence, and all three are true at once.</div>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #e8a0a0; margin-bottom: 8px">EMPTY, DONE WRONG — WHAT NOT TO SHIP</div>
+      <div style="box-sizing: border-box; height: 176px; background: #161a21; border: 1px dashed #5a3232; border-radius: 9px; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center">
+        <div style="font-size: 30px; color: #7fc8a0; margin-bottom: 9px">✓</div>
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px">All clear</div>
+        <div style="font-size: 13px; color: #98a1ad">No action needed right now</div>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">The same state, rendered as reassurance. A dead agent and a quiet one look identical here.</div>
+    </div>
+  </div>
+
+  <!-- ROW 2: dark agent + one row -->
+  <div style="display: flex; gap: 22px">
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">AN AGENT THAT STOPPED REPORTING</div>
+      <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 13px 15px">
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px">
+          <div style="display: flex; align-items: center; gap: 6px"><span style="font-size: 11px; color: #6b7480">✓</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c4c8ce">@axi</span><span style="font-size: 11.5px; color: #6b7480">12s</span></div>
+          <div style="display: flex; align-items: center; gap: 6px"><span style="font-size: 11px; color: #7fb3d5">●</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c4c8ce">@mo:node-a</span><span style="font-size: 11.5px; color: #6b7480">running</span></div>
+          <div style="display: flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px dashed #5a3232; border-radius: 6px; background: rgba(232, 160, 160, 0.07)"><span style="font-size: 11px; color: #e8a0a0">◌</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e8a0a0; font-weight: 600">@scan</span><span style="font-size: 11.5px; color: #e8a0a0">3h 11m</span></div>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 12px; border-left: 2px solid #e8a0a0; background: rgba(232, 160, 160, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">
+          <strong style="color: #e8a0a0; font-weight: 600">@scan has missed 12 reports.</strong> Its last run finished cleanly at 06:30, so its own row under Done still looks healthy.
+        </div>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">A last run that succeeded is not evidence the agent is alive.</div>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">A RUN THAT FAILED, AND A RUN THAT REPORTED SUCCESS WHILE DOING NOTHING</div>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-left: 3px solid #e8a0a0; border-radius: 8px; padding: 11px 14px; display: flex; align-items: center; gap: 13px">
+          <span style="font-size: 12px; color: #e8a0a0; width: 13px; flex-shrink: 0">✕</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; width: 92px; flex-shrink: 0">@curio</span>
+          <span style="font-size: 13px; color: #c4c8ce; flex-grow: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Failed: corpus unreachable after 3 attempts</span>
+          <span style="font-size: 12px; color: #6b7480; flex-shrink: 0">05:12</span>
+        </div>
+        <div style="box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-left: 3px solid #f0a15e; border-radius: 8px; padding: 11px 14px; display: flex; align-items: center; gap: 13px">
+          <span style="font-size: 12px; color: #f0a15e; width: 13px; flex-shrink: 0">◈</span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; width: 92px; flex-shrink: 0">@mo:node-a</span>
+          <span style="font-size: 13px; color: #c4c8ce; flex-grow: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Exited 0 and reported sending nothing</span>
+          <span style="font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: rgba(240, 161, 94, 0.16); color: #f0a15e; flex-shrink: 0">LOSS</span>
+          <span style="font-size: 12px; color: #6b7480; flex-shrink: 0">04:55</span>
+        </div>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">A clean exit is not an outcome. The second one reads what the capability said, not what the platform concluded.</div>
+    </div>
+  </div>
+
+  <!-- ROW 3: long content + one item -->
+  <div style="display: flex; gap: 22px">
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">THE WIDEST REALISTIC CONTENT</div>
+      <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-left: 3px solid #98a1ad; border-radius: 8px; padding: 11px 14px; display: flex; align-items: center; gap: 13px">
+        <span style="font-size: 12px; color: #98a1ad; width: 13px; flex-shrink: 0">✓</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; width: 92px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">@triage:node-a</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #98a1ad; width: 124px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">data.conform_try</span>
+        <span style="font-size: 13px; color: #c4c8ce; flex-grow: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Conformed 283,316 bronze records to 748,064 silver signals across three sites with no errors and no unknown schemas</span>
+        <span style="font-size: 12px; color: #6b7480; flex-shrink: 0">03:02</span>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">Every column has a fixed width and truncates in the middle, so a long name never pushes the time out of line.</div>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">COVERAGE, AT THREE MAGNITUDES</div>
+      <div style="display: flex; flex-direction: column; gap: 7px">
+        <div style="box-sizing: border-box; padding: 8px 12px; border-left: 2px solid #e8a0a0; background: rgba(232, 160, 160, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; color: #c4c8ce"><strong style="color: #e8a0a0; font-weight: 600">59 of 117 capabilities</strong> cannot report. This list is not the whole fleet.</div>
+        <div style="box-sizing: border-box; padding: 8px 12px; border-left: 2px solid #f0a15e; background: rgba(240, 161, 94, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; color: #c4c8ce"><strong style="color: #f0a15e; font-weight: 600">6 of 117 capabilities</strong> cannot report. Named in the detail.</div>
+        <div style="box-sizing: border-box; padding: 8px 12px; border-left: 2px solid #2a303a; background: transparent; border-radius: 0 6px 6px 0; font-size: 12.5px; color: #98a1ad">Every capability reports. This list is the whole fleet.</div>
+      </div>
+      <div style="margin-top: 9px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">The banner never disappears. At zero it becomes the positive claim.</div>
+    </div>
+  </div>
+
+  <!-- ROW 4: the chat seam -->
+  <div>
+    <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">THE SEAM WITH CHAT — BOTH DIRECTIONS, OR NEITHER IS TRUE</div>
+    <div style="display: flex; gap: 22px; align-items: stretch">
+      <div style="flex-grow: 1; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px">
+        <div style="font-size: 13.5px; font-weight: 600; margin-bottom: 7px">Steer → chat</div>
+        <div style="font-size: 12.5px; line-height: 1.6; color: #c4c8ce">A row opens a conversation already holding that run.</div>
+      </div>
+      <div style="flex-grow: 1; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px">
+        <div style="font-size: 13.5px; font-weight: 600; margin-bottom: 7px">chat → Steer</div>
+        <div style="font-size: 12.5px; line-height: 1.6; color: #c4c8ce">Anything you ask for appears here as a run. A conversation is not a private channel around the record.</div>
+      </div>
+      <div style="flex-grow: 1; box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-radius: 9px; padding: 14px 16px">
+        <div style="font-size: 13.5px; font-weight: 600; margin-bottom: 7px; color: #f0a15e">Why not chat alone</div>
+        <div style="font-size: 12.5px; line-height: 1.6; color: #c4c8ce">Asking an agent what the agents did puts the audit behind the thing being audited. The view is the derivation; a chat answer only narrates it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

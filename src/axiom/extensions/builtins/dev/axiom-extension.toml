@@ -1,0 +1,26 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- it starts and stops a process on the person's own machine; a model has no business doing that from a chat
+[extension]
+name = "dev"
+version = "0.1.0"
+description = "Run a checkout's node locally with one command: its own port, a first account, the sign-in the vault already holds, and one URL to open."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi dev` — purpose-named per ADR-056. It runs a node in a lane; the lane
+# extension decides the port and deliberately does not know what runs in it.
+[[extension.provides]]
+kind = "cmd"
+noun = "dev"
+entry = "axiom.extensions.builtins.dev.cli:main"
+description = "Run this checkout's node locally and print the one URL to open"
+subcommands = ["up", "down", "status"]

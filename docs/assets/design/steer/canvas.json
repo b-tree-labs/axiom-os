@@ -1,0 +1,154 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Case.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "A case, with its derivation",
+      "w": 1440,
+      "x": 1520,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "Steer \u2014 one stream, faceted",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Drawer.dc.html": {
+      "h": 900,
+      "is_interactive": true,
+      "title": "The agent drawer \u2014 log, timeline, search, talk to it",
+      "w": 1440,
+      "x": 3040,
+      "y": 0
+    },
+    "Rail.dc.html": {
+      "h": 940,
+      "title": "The rail decision",
+      "w": 1100,
+      "x": 1520,
+      "y": 1020
+    },
+    "States.dc.html": {
+      "h": 1240,
+      "title": "The states that decide whether this surface lies",
+      "w": 1440,
+      "x": 0,
+      "y": 1020
+    },
+    "Dials.dc.html": {
+      "h": 1060,
+      "title": "Tune an agent \u2014 four dials, and teaching by conversation",
+      "w": 1320,
+      "x": 3040,
+      "y": 1020,
+      "is_interactive": true
+    },
+    "Sources.dc.html": {
+      "h": 1000,
+      "is_interactive": true,
+      "title": "Agents from other harnesses \u2014 origin filter and what each one allows",
+      "w": 1440,
+      "x": 4600,
+      "y": 0
+    },
+    "Agent.dc.html": {
+      "h": 1000,
+      "is_interactive": true,
+      "w": 1440,
+      "x": 4600,
+      "y": 1120,
+      "title": "Agent profile \u2014 every skill, how it arrived, and when"
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-28T00:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 2960,
+      "text": "Steer",
+      "w": 240,
+      "x": 0,
+      "y": -240
+    },
+    "t2": {
+      "size": 40,
+      "text": "Chat is home, not a verb. Decide is already the oversight docket, so Steer is that docket grown to hold the whole run record. Every gauge here is something that moves between visits.",
+      "w": 1440,
+      "x": 0,
+      "y": 780
+    },
+    "t3": {
+      "size": 40,
+      "text": "A run that needed a person. The derivation is data, not a rendering: inputs, rule, an independent check, and what it cannot establish.",
+      "w": 1440,
+      "x": 1520,
+      "y": 780
+    },
+    "t4": {
+      "size": 40,
+      "text": "Empty must not read as healthy. A dark agent, a failed run and an unreportable capability each look different from idle.",
+      "w": 1440,
+      "x": 0,
+      "y": 2300
+    },
+    "t5": {
+      "size": 40,
+      "text": "Two coherent options, and the open decision: does the route id move with the label?",
+      "w": 1100,
+      "x": 1520,
+      "y": 2000
+    },
+    "t6": {
+      "size": 40,
+      "text": "The drawer. Its whole history with a timeline and a search, and a composer addressed to the agent itself. @neut observes and only speaks when it has something the agent cannot say.",
+      "w": 1440,
+      "x": 3040,
+      "y": 780
+    },
+    "t7": {
+      "size": 40,
+      "text": "Four dials for the coarse axes. Everything else you say in words, and the agent reads back what it would change to its own skill spec and tools before anything is wired.",
+      "w": 1320,
+      "x": 3040,
+      "y": 2120
+    },
+    "t8": {
+      "size": 40,
+      "w": 1440,
+      "x": 4600,
+      "y": 880,
+      "text": "A session in another harness is already a run here, arriving through the memory absorb path with the origin that makes it filterable. Guidance reaches thirteen harnesses; runs come back from seven."
+    },
+    "t9": {
+      "size": 40,
+      "w": 1440,
+      "x": 4600,
+      "y": 2240,
+      "text": "An agent is what it shipped with plus what it was granted plus what it was taught, all three dated. A taught skill is readable, revertible and expiring like any other."
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Case.dc.html",
+    "Drawer.dc.html",
+    "States.dc.html",
+    "Rail.dc.html",
+    "Dials.dc.html",
+    "Sources.dc.html",
+    "Agent.dc.html"
+  ],
+  "pages": [],
+  "title": "Steer \u2014 agent activity nav"
+}

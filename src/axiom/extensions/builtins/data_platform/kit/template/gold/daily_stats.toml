@@ -1,0 +1,4 @@
+# What chat reads to answer "what data do we have". Write it for a colleague.
+title = "Daily statistics per channel"
+description = "Mean, low and high of every channel per UTC day, with the number of readings behind each."
+grain = "one row per channel per day"
