@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agents from other harnesses</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; padding: 26px 30px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+
+  <div>
+    <h1 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px">Agents that are not ours</h1>
+    <div style="font-size: 12.5px; color: #98a1ad">A session in another harness is already a run here. It arrives through the memory absorb path, carrying the origin that makes it filterable.</div>
+  </div>
+
+  <!-- the filter, as it appears in the stream -->
+  <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 12px 14px">
+    <div style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap">
+      <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-right: 4px">SOURCE</span>
+      <sc-for list="{{sources}}" as="s" hint-placeholder-count="7">
+        <button type="button" onClick="{{s.pick}}" style="display: flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 16px; border: 1px solid {{s.bd}}; background: {{s.bg}}; color: {{s.fg}}; font-size: 12.5px; font-weight: 600">
+          <span style="font-size: 10px; color: {{s.dot}}">{{s.glyph}}</span>{{s.label}}
+          <span style="font-size: 11px; color: {{s.cfg}}; font-weight: 700">{{s.n}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="margin-top: 10px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce; border-top: 1px solid #2a303a; padding-top: 10px">{{note}}</div>
+  </div>
+
+  <!-- the matrix -->
+  <div style="flex-grow: 1; min-height: 0; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 11px">
+      <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-grow: 1">WHAT IS POSSIBLE PER SOURCE, SHOWN RATHER THAN DISCOVERED</span>
+      <span style="font-size: 11.5px; color: #98a1ad">a control that would do nothing is not drawn</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 208px repeat(5, 1fr) 2fr; gap: 0; font-size: 12px">
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">SOURCE</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a; text-align: center">SEE RUNS</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a; text-align: center">MEMORY</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a; text-align: center">DECIDE</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a; text-align: center">DIALS</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a; text-align: center">TEACH</div>
+      <div style="padding: 7px 8px; color: #6b7480; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">HOW TEACHING LANDS</div>
+
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}">
+          <div style="color: {{r.nameFg}}; font-weight: 600">{{r.name}}</div>
+          <div style="color: #6b7480; font-size: 11px; margin-top: 2px">{{r.sub}}</div>
+        </div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; text-align: center; color: {{r.seeFg}}">{{r.see}}</div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; text-align: center; color: {{r.memFg}}">{{r.mem}}</div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; text-align: center; color: {{r.decFg}}">{{r.dec}}</div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; text-align: center; color: {{r.dialFg}}">{{r.dial}}</div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; text-align: center; color: {{r.teachFg}}">{{r.teach}}</div>
+        <div style="padding: 9px 8px; border-bottom: 1px solid {{r.line}}; background: {{r.bg}}; color: #98a1ad; font-size: 11.5px; line-height: 1.45">{{r.how}}</div>
+      </sc-for>
+    </div>
+
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; gap: 16px; align-items: center; margin-top: 11px; font-size: 11.5px; color: #6b7480">
+      <span style="display: flex; align-items: center; gap: 6px"><span style="color: #7fc8a0">✓</span>full</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="color: #f0a15e">◐</span>partial, and the surface says how</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="color: #98a1ad">—</span>not possible, so not drawn</span>
+      <span style="display: flex; align-items: center; gap: 6px"><span style="color: #e8a0a0">◌</span>needs a credential nobody has supplied</span>
+    </div>
+  </div>
+
+  <!-- the asymmetry + memory -->
+  <div style="display: flex; gap: 16px">
+
+    <div style="flex-grow: 1; box-sizing: border-box; background: #1c212b; border-left: 3px solid #e8a0a0; border-radius: 0 9px 9px 0; padding: 13px 16px">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #e8a0a0; margin-bottom: 8px">THE ASYMMETRY NOBODY WOULD GUESS</div>
+      <div style="font-size: 12.5px; line-height: 1.6; color: #c4c8ce">Guidance reaches <strong style="color: #e7e9ec">thirteen</strong> harnesses through their own rules files. Runs come back from about <strong style="color: #e7e9ec">seven</strong>. For the rest we can change how an agent behaves and never see whether it did, which is the wrong way round and has to be visible on the row rather than discovered later.</div>
+    </div>
+
+    <div style="flex-grow: 1; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 13px 16px">
+      <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 8px">MEMORY IS THE SAME OBJECT, NOT A SECOND SURFACE</div>
+      <div style="font-size: 12.5px; line-height: 1.6; color: #c4c8ce">A session is a run and what it remembered is what the run produced, so reviewing memory is opening a row. The corpus, the origin, the dedup and the gate that decides what may be shown are the ones already built for portable memory. Asking memory a question is the Done facet with a different query.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { src: "all" };
+  }
+
+  renderVals() {
+    const defs = [
+      { id: "all", label: "All", n: 128, glyph: "", dot: "#6b7480",
+        note: "Every run this workspace can see, whichever harness produced it. Origin is a write-once coordinate on the record, so filtering by it needs no new index." },
+      { id: "native", label: "Axiom", n: 87, glyph: "◈", dot: "#f0a15e",
+        note: "Ours. A native run carries no origin coordinate at all, which is exactly how it is told apart: crossing a boundary is what writes one." },
+      { id: "claude-code", label: "Claude Code", n: 24, glyph: "●", dot: "#7fb3d5",
+        note: "Absorbed from the local session store. Runs, logs and memory come back; the conversation is read-only here, and guidance goes out through AGENTS.md." },
+      { id: "codex", label: "Codex", n: 11, glyph: "●", dot: "#7fb3d5",
+        note: "Absorbed read-only from its own session database. Same shape as Claude Code, same rules file on the way out." },
+      { id: "hermes", label: "Hermes", n: 4, glyph: "●", dot: "#7fb3d5",
+        note: "Absorbed. Fewer sessions, same treatment. Nothing about this surface is per-harness except the adapter that reads it." },
+      { id: "cursor", label: "Cursor", n: 0, glyph: "◌", dot: "#e8a0a0",
+        note: "Write-back only. Guidance reaches it through its rules directory, and nothing comes back, so this filter is empty by construction rather than because the agent was quiet. The count is 0 and says which of those two it is." },
+      { id: "cloud", label: "Cloud", n: 0, glyph: "◌", dot: "#e8a0a0",
+        note: "The hosted cluster is wired to the seam but has no credential, so nothing has been read. Not an absence of activity — an absence of access, and the two are never rendered the same." }
+    ];
+    const cur = defs.filter((d) => d.id === this.state.src)[0] || defs[0];
+
+    const rows = [
+      { name: "Axiom", sub: "native agents", see: "✓", mem: "✓", dec: "✓", dial: "✓", teach: "✓",
+        how: "Skill spec versioned, tools bound, ceiling enforced.", tone: "full" },
+      { name: "Claude Code · Codex", sub: "absorbed, read-only source", see: "✓", mem: "✓", dec: "✓", dial: "—", teach: "◐",
+        how: "A managed block in AGENTS.md, written at a session boundary.", tone: "most" },
+      { name: "Gemini · Goose · Hermes", sub: "absorbed", see: "✓", mem: "✓", dec: "✓", dial: "—", teach: "◐",
+        how: "The same block, in that harness's own rules file.", tone: "most" },
+      { name: "Cursor · Cline · Continue · Roo", sub: "no reader exists", see: "—", mem: "—", dec: "—", dial: "—", teach: "◐",
+        how: "Guidance lands, nothing comes back. Steering blind, and labelled as such.", tone: "inverted" },
+      { name: "Hosted cloud services", sub: "seamed, no credential", see: "◌", mem: "◌", dec: "—", dial: "—", teach: "—",
+        how: "Nothing until somebody supplies a credential.", tone: "blocked" }
+    ];
+
+    const toneBg = { full: "#1c212b", most: "transparent", inverted: "rgba(232, 160, 160, 0.06)", blocked: "transparent" };
+    const toneName = { full: "#f0a15e", most: "#e7e9ec", inverted: "#e8a0a0", blocked: "#98a1ad" };
+    const mark = (v) => (v === "✓" ? "#7fc8a0" : v === "◐" ? "#f0a15e" : v === "◌" ? "#e8a0a0" : "#4a5058");
+
+    return {
+      note: cur.note,
+      sources: defs.map((d) => {
+        const on = this.state.src === d.id;
+        return {
+          label: d.label, n: d.n, glyph: d.glyph, dot: d.dot,
+          bg: on ? "rgba(191, 87, 0, 0.24)" : "transparent",
+          bd: on ? "#bf5700" : "#2a303a",
+          fg: on ? "#e7e9ec" : "#c4c8ce",
+          cfg: on ? "#f0a15e" : "#6b7480",
+          pick: () => this.setState({ src: d.id })
+        };
+      }),
+      rows: rows.map((r) => ({
+        name: r.name, sub: r.sub, how: r.how,
+        see: r.see, mem: r.mem, dec: r.dec, dial: r.dial, teach: r.teach,
+        seeFg: mark(r.see), memFg: mark(r.mem), decFg: mark(r.dec),
+        dialFg: mark(r.dial), teachFg: mark(r.teach),
+        bg: toneBg[r.tone], nameFg: toneName[r.tone], line: "#2a303a"
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,428 @@
+{
+ "_about": "Shared by Axiom (scidisplay.table_spec.cell_text, count_text) and appkit (table/cellText). Each surface must give these exact strings; regenerate in Axiom and copy to appkit together.",
+ "cells": [
+  {
+   "name": "quantity with uncertainty and declared unit",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 335.2,
+    "sigma": 12
+   },
+   "text": "335 ± 12 kW"
+  },
+  {
+   "name": "quantity rounded to its uncertainty",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 335.24871,
+    "sigma": 0.05
+   },
+   "text": "335.25 ± 0.05 kW"
+  },
+  {
+   "name": "quantity with zero uncertainty: unstated, not exact",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 335.24871,
+    "sigma": 0
+   },
+   "text": "335.24871 kW"
+  },
+  {
+   "name": "quantity with no unit declared",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity"
+   },
+   "row": {
+    "value": 4.5
+   },
+   "text": "4.5 (unit not declared)"
+  },
+  {
+   "name": "quantity unit from the row",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "format": {
+     "unit_from": "unit"
+    }
+   },
+   "row": {
+    "value": 4.5,
+    "unit": "bar"
+   },
+   "text": "4.5 bar"
+  },
+  {
+   "name": "quantity unit from the row, blank",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "format": {
+     "unit_from": "unit"
+    }
+   },
+   "row": {
+    "value": 4.5,
+    "unit": "  "
+   },
+   "text": "4.5 (unit not declared)"
+  },
+  {
+   "name": "quantity absent",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": null
+   },
+   "text": "—"
+  },
+  {
+   "name": "quantity marked bad shows the flag, never the sentinel",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 0,
+    "quality": "bad",
+    "quality_reason": "sentinel:0"
+   },
+   "text": "bad (sentinel:0)"
+  },
+  {
+   "name": "quantity marked bad without a reason",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 0,
+    "quality": "bad"
+   },
+   "text": "bad"
+  },
+  {
+   "name": "quantity marked suspect keeps its value",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "kW"
+   },
+   "row": {
+    "value": 310.5,
+    "sigma": 1.5,
+    "quality": "suspect",
+    "quality_reason": "consistent:a vs b"
+   },
+   "text": "310.5 ± 1.5 kW (suspect)"
+  },
+  {
+   "name": "quantity with its own quality column",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "kW",
+    "format": {
+     "quality_from": "q",
+     "reason_from": "why"
+    }
+   },
+   "row": {
+    "value": 1,
+    "q": "bad",
+    "why": "range:hi"
+   },
+   "text": "bad (range:hi)"
+  },
+  {
+   "name": "quality good",
+   "column": {
+    "id": "quality",
+    "label": "Quality",
+    "sortable": false,
+    "align": "left",
+    "type": "quality"
+   },
+   "row": {
+    "quality": "good",
+    "quality_reason": null
+   },
+   "text": "good"
+  },
+  {
+   "name": "quality bad with reason",
+   "column": {
+    "id": "quality",
+    "label": "Quality",
+    "sortable": false,
+    "align": "left",
+    "type": "quality"
+   },
+   "row": {
+    "quality": "bad",
+    "quality_reason": "sentinel:0"
+   },
+   "text": "bad (sentinel:0)"
+  },
+  {
+   "name": "quality suspect with reason",
+   "column": {
+    "id": "quality",
+    "label": "Quality",
+    "sortable": false,
+    "align": "left",
+    "type": "quality"
+   },
+   "row": {
+    "quality": "suspect",
+    "quality_reason": "consistent:a vs b"
+   },
+   "text": "suspect (consistent:a vs b)"
+  },
+  {
+   "name": "quality absent",
+   "column": {
+    "id": "quality",
+    "label": "Quality",
+    "sortable": false,
+    "align": "left",
+    "type": "quality"
+   },
+   "row": {
+    "quality": null
+   },
+   "text": "—"
+  },
+  {
+   "name": "quantity: a tie rounds as the browser rounds",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "V"
+   },
+   "row": {
+    "value": 2.5,
+    "sigma": 1
+   },
+   "text": "3 ± 1 V"
+  },
+  {
+   "name": "quantity: negative value",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "uncertainty_from": "sigma",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": -12.345,
+    "sigma": 0.01
+   },
+   "text": "-12.35 ± 0.01 pcm"
+  },
+  {
+   "name": "quantity with no uncertainty: a computed float is shown to six significant figures",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": 311.72689844370075
+   },
+   "text": "311.727 pcm"
+  },
+  {
+   "name": "quantity with no uncertainty: negative computed float",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": -311.72689844370075
+   },
+   "text": "-311.727 pcm"
+  },
+  {
+   "name": "quantity with no uncertainty: a short value keeps every digit",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": 1234.5678
+   },
+   "text": "1234.5678 pcm"
+  },
+  {
+   "name": "quantity with no uncertainty: arithmetic residue rounds away",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": 0.30000000000000004
+   },
+   "text": "0.3 pcm"
+  },
+  {
+   "name": "quantity with no uncertainty: a small computed float",
+   "column": {
+    "id": "value",
+    "label": "Value",
+    "sortable": false,
+    "align": "left",
+    "type": "quantity",
+    "unit": "pcm"
+   },
+   "row": {
+    "value": 0.000123456789012345
+   },
+   "text": "0.000123457 pcm"
+  }
+ ],
+ "counts": [
+  {
+   "count": {
+    "kind": "exact",
+    "n": 1
+   },
+   "text": "1 row"
+  },
+  {
+   "count": {
+    "kind": "exact",
+    "n": 101606332
+   },
+   "text": "101,606,332 rows"
+  },
+  {
+   "count": {
+    "kind": "estimate",
+    "n": 101606332
+   },
+   "text": "~101.6 million rows (estimated)"
+  },
+  {
+   "count": {
+    "kind": "estimate",
+    "n": 1234567890
+   },
+   "text": "~1.2 billion rows (estimated)"
+  },
+  {
+   "count": {
+    "kind": "estimate",
+    "n": 46500
+   },
+   "text": "~46,500 rows (estimated)"
+  },
+  {
+   "count": {
+    "kind": "estimate",
+    "n": 812
+   },
+   "text": "~812 rows (estimated)"
+  },
+  {
+   "count": {
+    "kind": "unknown",
+    "n": null
+   },
+   "text": "row count unknown"
+  },
+  {
+   "count": {
+    "kind": "unknown",
+    "n": null,
+    "at_least": 400
+   },
+   "text": "at least 400 rows (total unknown)"
+  },
+  {
+   "count": {
+    "kind": "estimate",
+    "n": 46450
+   },
+   "text": "~46,500 rows (estimated)"
+  }
+ ]
+}

@@ -1,0 +1,81 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- MCP access is the platform primitive axiom_federation__node_status (mcp extension); this extension's cmds are operator lifecycle verbs
+[extension]
+name = "federation"
+version = "0.1.0"
+description = "Multi-node federation — discovery, identity, resource sharing"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# WARDEN — the federation trust-boundary agent this extension hosts.
+[[extension.provides]]
+kind = "agent"
+name = "warden"
+entry = "axiom.extensions.builtins.federation.agents.warden.warden:Warden"
+persona = "agents/warden/persona.md"
+description = "WARDEN — federation governance: decides who is in, who is out, and what crosses the membrane between nodes."
+role = "federation governor"
+domain = "federation peers, trust, what crosses between nodes"
+namespaces = ["federation"]
+asks = ["which peers do we trust", "is this node reachable"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "federation"
+entry = "axiom.extensions.builtins.federation.cli:main"
+description = "Manage federation membership and resources"
+tier = "core"
+intent_groups = ["govern"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "nodes"
+entry = "axiom.extensions.builtins.federation.nodes_cli:main"
+description = "Fleet view — monitor and manage Axiom nodes"
+tier = "advanced"
+intent_groups = ["operate"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "knowledge"
+entry = "axiom.extensions.builtins.federation.knowledge_cli:main"
+description = "Knowledge observatory — velocity, accumulation, and impact metrics"
+tier = "advanced"
+intent_groups = ["investigate"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "research"
+entry = "axiom.extensions.builtins.federation.research_cli:main"
+description = "Call to Research — distributed research coordination"
+tier = "advanced"
+intent_groups = ["research"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "security"
+entry = "axiom.extensions.builtins.federation.security_cli:security_main"
+description = "Federation security — trust graph, signatures, classification"
+tier = "advanced"
+intent_groups = ["govern"]
+
+[[extension.provides]]
+kind = "cmd"
+noun = "chaos"
+entry = "axiom.extensions.builtins.federation.security_cli:chaos_main"
+description = "Chaos test framework — federation resilience testing"
+tier = "advanced"
+intent_groups = ["maintain"]
+
+# [sender] — ADR-066 servant-naming render metadata for WARDEN.
+[sender]
+display_name = "WARDEN"

@@ -1,0 +1,65 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "install_health"
+version = "0.1.0"
+description = "The install's own health in plain English: doctor, site connection and update, as skills every surface can call"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "binding.status"
+entry = "axiom.extensions.builtins.install_health.skills.binding:run"
+path = "skills/status"
+description = "Is this install connected to a site node, which site, is the node reachable now, and where do data, documents and the model come from (or is this test mode on invented data). Answers 'am I connected to the site?'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.inventory", when = "ok", why = "what the machine runs, if this install is the node" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "doctor.run"
+entry = "axiom.extensions.builtins.install_health.skills.doctor:run"
+path = "skills/run"
+description = "Check this install's health: Python, environment, package, command on PATH, model gateway, background service, site connection. Says what is wrong and the exact fix for each. Makes no change and calls no model. Answers 'check my setup' or 'something is broken'. Not the harness's own /run."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.doctor", when = "ok", why = "the same checks with the node's context: inventory, drift and the fix for each (KEEL, ADR-230)" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "update.apply"
+entry = "axiom.extensions.builtins.install_health.skills.update_apply:run"
+path = "skills/apply"
+description = "Update this install: dependencies, database migrations and agent registration, after a state snapshot. CHANGES THE INSTALL, so a conversation asks the person first. Run update.check beforehand and tell the person what it found."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "update.check"
+entry = "axiom.extensions.builtins.install_health.skills.update_check:run"
+path = "skills/check"
+description = "Is a newer version available, and what would an update change? A dry run: nothing is installed. Answers 'is there a newer version?'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+# END axi-skills-emit-md

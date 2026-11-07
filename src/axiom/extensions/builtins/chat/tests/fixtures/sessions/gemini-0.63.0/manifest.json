@@ -1,0 +1,11 @@
+{
+  "capture": "gemini -p against a local stub of the Gemini HTTP API (GOOGLE_GEMINI_BASE_URL), throwaway HOME, no login",
+  "files": {
+    "projects.json": ".gemini/projects.json",
+    "session-2026-10-08T19-33-a038fd37.jsonl": ".gemini/tmp/work/chats/session-2026-10-08T19-33-a038fd37.jsonl"
+  },
+  "harness": "gemini",
+  "kind": "file",
+  "session_id": "a038fd37",
+  "version": "0.63.0"
+}

@@ -1,0 +1,62 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "lane"
+version = "0.1.0"
+description = "Isolated development lanes on a shared machine: a database, a port pair and a dependency record per checkout, so parallel worktrees cannot corrupt each other's migrations or race for a socket."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi lane` — the deterministic surface. Purpose-named per ADR-056: the
+# noun is what it does, not who reasons about it. Two agents consume its
+# output (ADR-046): RIVET signals lane/branch/migration truth, TIDY reclaims
+# what has gone stale. Neither is required for the CLI to work.
+[[extension.provides]]
+kind = "cmd"
+noun = "lane"
+entry = "axiom.extensions.builtins.lane.cli:main"
+description = "Claim, list, release and check development lanes"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.claim"
+entry = "axiom.extensions.builtins.lane.skills.claim:run"
+description = "Take a lane for this checkout: a port pair, a database, a record"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.list"
+entry = "axiom.extensions.builtins.lane.skills.list_lanes:run"
+description = "Every claimed lane, and whether it is up"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.release"
+entry = "axiom.extensions.builtins.lane.skills.release:run"
+description = "Give a lane back; never drops a database"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.hold"
+entry = "axiom.extensions.builtins.lane.skills.hold:run"
+description = "Say which shared files this lane is editing, and who else has them"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.drop"
+entry = "axiom.extensions.builtins.lane.skills.hold:drop"
+description = "Release files this lane was holding"
+
+[[extension.provides]]
+kind = "skill"
+name = "lane.doctor"
+entry = "axiom.extensions.builtins.lane.skills.doctor:run"
+description = "What the registry says against what the machine is doing"
