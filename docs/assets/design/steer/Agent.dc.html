@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent profile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+.crumb { border-radius: 4px; padding: 2px 4px; text-decoration: none; transition: background-color .12s; }
+.crumb:hover { background: rgba(255, 255, 255, 0.06); }
+.crumb-back { border-radius: 4px; padding: 4px; display: flex; align-items: center; text-decoration: none; transition: background-color .12s; }
+.crumb-back:hover { background: rgba(255, 255, 255, 0.06); }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; padding: 20px 28px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+
+  <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 4px; font-size: 14px">
+    <a href="Main.dc.html" class="crumb-back" aria-label="Go back" title="Go back" style="color: #c4c8ce">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19l-7-7 7-7"></path></svg>
+    </a>
+    <a href="Main.dc.html" class="crumb" style="color: #c4c8ce">Steer</a>
+    <span style="color: #98a1ad">/</span>
+    <a href="Sources.dc.html" class="crumb" style="color: #c4c8ce">Agents</a>
+    <span style="color: #98a1ad">/</span>
+    <span class="crumb" aria-current="page" style="color: #e7e9ec; font-weight: 500">@warden:local</span>
+  </nav>
+
+  <!-- identity -->
+  <div style="display: flex; align-items: flex-start; gap: 16px">
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 11px; margin-bottom: 5px">
+        <span style="font-size: 12px; color: #6b7480">✓</span>
+        <h1 style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 21px; font-weight: 700; letter-spacing: -0.3px">@warden:local</h1>
+        <span style="font-size: 12px; color: #98a1ad">reporting, last 2m ago</span>
+      </div>
+      <div style="font-size: 13px; color: #98a1ad">Verifier and gatekeeper. Watches credentials, signatures and policy.</div>
+    </div>
+    <div style="display: flex; gap: 7px; flex-shrink: 0">
+      <span style="padding: 6px 14px; border-radius: 7px; border: 1px solid #bf5700; background: rgba(191, 87, 0, 0.24); color: #e7e9ec; font-size: 12.5px; font-weight: 600">Profile</span>
+      <a href="Drawer.dc.html" style="text-decoration: none; padding: 6px 14px; border-radius: 7px; border: 1px solid #2a303a; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Activity</a>
+      <a href="Dials.dc.html" style="text-decoration: none; padding: 6px 14px; border-radius: 7px; border: 1px solid #2a303a; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Tune</a>
+    </div>
+  </div>
+
+  <!-- facts -->
+  <div style="display: flex; gap: 10px">
+    <sc-for list="{{facts}}" as="f" hint-placeholder-count="5">
+      <div style="flex-grow: 1; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 10px 13px">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.6px; color: #6b7480; margin-bottom: 5px">{{f.k}}</div>
+        <div style="font-size: 13.5px; color: {{f.fg}}; font-weight: 600">{{f.v}}</div>
+        <div style="font-size: 11.5px; color: #6b7480; margin-top: 2px">{{f.sub}}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; gap: 16px; flex-grow: 1; min-height: 0">
+
+    <!-- ============ SKILLS ============ -->
+    <div style="flex-grow: 1; min-width: 0; box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 11px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480">WHAT IT CAN DO</span>
+        <div style="flex-grow: 1"></div>
+        <sc-for list="{{filters}}" as="ft" hint-placeholder-count="4">
+          <button type="button" onClick="{{ft.pick}}" style="padding: 4px 11px; border-radius: 14px; border: 1px solid {{ft.bd}}; background: {{ft.bg}}; color: {{ft.fg}}; font-size: 11.5px; font-weight: 600">{{ft.label}} <span style="color: {{ft.cfg}}">{{ft.n}}</span></button>
+        </sc-for>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1.6fr 0.9fr 0.8fr 1.5fr; gap: 0; font-size: 12px">
+        <div style="padding: 6px 8px; color: #6b7480; font-weight: 700; font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">SKILL</div>
+        <div style="padding: 6px 8px; color: #6b7480; font-weight: 700; font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">HOW IT ARRIVED</div>
+        <div style="padding: 6px 8px; color: #6b7480; font-weight: 700; font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">SINCE</div>
+        <div style="padding: 6px 8px; color: #6b7480; font-weight: 700; font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid #2a303a">ALONE, UP TO</div>
+
+        <sc-for list="{{skills}}" as="s" hint-placeholder-count="8">
+          <div style="padding: 8px; border-bottom: 1px solid #2a303a; background: {{s.bg}}">
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: {{s.nameFg}}">{{s.name}}</span>
+            <sc-if value="{{s.nospec}}" hint-placeholder-val="{{false}}">
+              <span style="margin-left: 8px; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(232, 160, 160, 0.16); color: #e8a0a0">NO SPEC</span>
+            </sc-if>
+          </div>
+          <div style="padding: 8px; border-bottom: 1px solid #2a303a; background: {{s.bg}}; color: {{s.viaFg}}">{{s.via}}</div>
+          <div style="padding: 8px; border-bottom: 1px solid #2a303a; background: {{s.bg}}; color: #98a1ad">{{s.since}}</div>
+          <div style="padding: 8px; border-bottom: 1px solid #2a303a; background: {{s.bg}}; color: {{s.ceilFg}}">{{s.ceiling}}</div>
+        </sc-for>
+      </div>
+
+      <div style="flex-grow: 1"></div>
+      <div style="margin-top: 11px; box-sizing: border-box; padding: 8px 12px; border-left: 2px solid #e8a0a0; background: rgba(232, 160, 160, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">
+        <strong style="color: #e8a0a0; font-weight: 600">Two of these declare no skill spec.</strong> They run, and nothing they do reaches the stream. This is the fleet-wide gap made personal: it is this agent's share of it.
+      </div>
+    </div>
+
+    <!-- ============ HOW IT GOT HERE ============ -->
+    <div style="width: 452px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; min-height: 0">
+
+      <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px; flex-grow: 1; min-height: 0">
+        <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 12px">HOW IT BECAME WHAT IT IS</div>
+
+        <div style="display: flex; flex-direction: column">
+          <sc-for list="{{history}}" as="h" hint-placeholder-count="5">
+            <div style="display: flex; gap: 12px">
+              <div style="display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 12px">
+                <span style="width: 9px; height: 9px; border-radius: 5px; background: {{h.dot}}; margin-top: 4px; flex-shrink: 0"></span>
+                <span style="width: 1px; flex-grow: 1; background: #2a303a; min-height: {{h.rail}}"></span>
+              </div>
+              <div style="flex-grow: 1; min-width: 0; padding-bottom: 14px">
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px">
+                  <span style="font-size: 11.5px; color: #6b7480">{{h.when}}</span>
+                  <span style="font-size: 12.5px; font-weight: 600; color: {{h.fg}}">{{h.what}}</span>
+                </div>
+                <div style="font-size: 12.5px; line-height: 1.5; color: #c4c8ce">{{h.detail}}</div>
+                <sc-if value="{{h.said}}" hint-placeholder-val="{{false}}">
+                  <div style="margin-top: 4px; font-size: 12.5px; line-height: 1.5; color: #98a1ad; font-style: italic">{{h.quote}}</div>
+                </sc-if>
+                <sc-if value="{{h.expires}}" hint-placeholder-val="{{false}}">
+                  <div style="margin-top: 4px; font-size: 11.5px; color: #f0a15e">{{h.expiry}}</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="box-sizing: border-box; background: #1c212b; border-left: 3px solid #bf5700; border-radius: 0 9px 9px 0; padding: 12px 15px">
+        <div style="font-size: 12.5px; line-height: 1.55; color: #c4c8ce">An agent is what it shipped with plus what it was granted plus what it was taught. All three are here with their dates, so &ldquo;why can it do that&rdquo; has an answer, and a taught skill can be read, rolled back and expired like any other.</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { f: "all" };
+  }
+
+  renderVals() {
+    const all = [
+      { n: "secrets.audit", via: "shipped", since: "12 Mar", ceil: "waste", spec: true },
+      { n: "secrets.rotate", via: "shipped", since: "12 Mar", ceil: "nothing — harm", spec: true },
+      { n: "secrets.exposed", via: "shipped", since: "12 Mar", ceil: "loss", spec: true },
+      { n: "policy.check", via: "shipped", since: "12 Mar", ceil: "waste", spec: true },
+      { n: "vault.reconcile", via: "shipped", since: "12 Mar", ceil: "waste", spec: false },
+      { n: "vault.audit", via: "shipped", since: "12 Mar", ceil: "waste", spec: false },
+      { n: "attest.verify", via: "granted", since: "4 Jun", ceil: "waste", spec: true },
+      { n: "notifications.send", via: "granted", since: "4 Jun", ceil: "noise", spec: true },
+      { n: "hygiene.branch_status", via: "taught", since: "28 Sep", ceil: "read only", spec: true }
+    ];
+    const cur = this.state.f;
+    const shown = cur === "all" ? all
+      : cur === "nospec" ? all.filter((s) => !s.spec)
+      : all.filter((s) => s.via === cur);
+
+    const viaFg = { shipped: "#98a1ad", granted: "#7fb3d5", taught: "#f0a15e" };
+
+    const counts = {
+      all: all.length,
+      shipped: all.filter((s) => s.via === "shipped").length,
+      granted: all.filter((s) => s.via === "granted").length,
+      taught: all.filter((s) => s.via === "taught").length,
+      nospec: all.filter((s) => !s.spec).length
+    };
+    const filters = [
+      { id: "all", label: "All" },
+      { id: "shipped", label: "Shipped" },
+      { id: "granted", label: "Granted" },
+      { id: "taught", label: "Taught" },
+      { id: "nospec", label: "No spec" }
+    ].map((f) => {
+      const on = cur === f.id;
+      const warn = f.id === "nospec";
+      return {
+        label: f.label, n: counts[f.id],
+        bg: on ? (warn ? "rgba(232, 160, 160, 0.18)" : "rgba(191, 87, 0, 0.24)") : "transparent",
+        bd: on ? (warn ? "#e8a0a0" : "#bf5700") : "#2a303a",
+        fg: on ? "#e7e9ec" : "#98a1ad",
+        cfg: on ? "#f0a15e" : "#6b7480",
+        pick: () => this.setState({ f: f.id })
+      };
+    });
+
+    return {
+      filters,
+      facts: [
+        { k: "PRINCIPAL", v: "@warden:local", sub: "since 12 March", fg: "#e7e9ec" },
+        { k: "SKILLS", v: "9", sub: "6 shipped · 2 granted · 1 taught", fg: "#e7e9ec" },
+        { k: "CAN REPORT", v: "7 of 9", sub: "2 declare no spec", fg: "#e8a0a0" },
+        { k: "ACTS ALONE UP TO", v: "waste", sub: "loss and harm reach a person", fg: "#f0a15e" },
+        { k: "TAUGHT", v: "3 standing", sub: "1 expires in 3 months", fg: "#e7e9ec" }
+      ],
+      skills: shown.map((s) => ({
+        name: s.n, via: s.via, since: s.since, ceiling: s.ceil,
+        nospec: !s.spec,
+        nameFg: s.spec ? "#e7e9ec" : "#c4c8ce",
+        viaFg: viaFg[s.via],
+        ceilFg: s.ceil.indexOf("nothing") === 0 ? "#e8a0a0" : "#98a1ad",
+        bg: s.via === "taught" ? "rgba(240, 161, 94, 0.06)" : "transparent"
+      })),
+      history: [
+        { when: "12 Mar", what: "Installed", dot: "#6b7480", fg: "#e7e9ec", rail: "1px",
+          detail: "Six skills came with the extension. Ceiling set to the fleet default.", said: false, expires: false },
+        { when: "4 Jun", what: "Granted two skills", dot: "#7fb3d5", fg: "#7fb3d5", rail: "1px",
+          detail: "attest.verify and notifications.send bound by an operator, with a reason recorded.", said: false, expires: false },
+        { when: "2 Jul", what: "Taught", dot: "#f0a15e", fg: "#f0a15e", rail: "1px",
+          detail: "A precondition on secrets.rotate. No new tools.", said: true, expires: true,
+          quote: "“It signs releases, so it is idle by design between tags. Stop raising it under 180 days.”",
+          expiry: "In force · suppressed 4 · expires 2 Jan" },
+        { when: "14 Aug", what: "Taught", dot: "#f0a15e", fg: "#f0a15e", rail: "1px",
+          detail: "Ceiling raised to loss for one finding only.", said: true, expires: true,
+          quote: "“If a runner token has been idle three months, rotate it without asking.”",
+          expiry: "In force · acted 2 · expires 14 Feb" },
+        { when: "28 Sep", what: "Taught, and gained a skill", dot: "#f0a15e", fg: "#f0a15e", rail: "0",
+          detail: "A read-only binding to another agent's hygiene.branch_status, which is how this skill arrived.", said: true, expires: true,
+          quote: "“Ask @tidy whether the job that used it still exists before you raise it.”",
+          expiry: "Applied today · expires 28 Mar" }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# 2-node preflight scenario: current-version leaf + pinned-old hub.
+#
+# leaf:      current axi-platform (same image as the happy-path suite)
+# hub-old:   axi 0.10.3 stub — the version just before peer identity
+#            binding landed. Used to verify the leaf refuses to bind.
+
+services:
+  leaf:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node
+    image: axiom-fed-node:dev
+    hostname: leaf
+    environment:
+      AXIOM_NODE_NAME: leaf
+      AXIOM_NODE_ROLE: leaf
+    volumes:
+      - leaf_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+  hub-old:
+    build:
+      context: ../..
+      dockerfile: tests/federation_lifecycle/Dockerfile.node-old
+    image: axiom-fed-node-old:dev
+    hostname: hub-old
+    environment:
+      AXIOM_NODE_NAME: hub-old
+      AXIOM_NODE_ROLE: hub
+    volumes:
+      - hub_old_state:/home/axiom/.axi
+      - harness_keys:/harness/keys:ro
+    networks: [fednet]
+
+networks:
+  fednet:
+    driver: bridge
+
+volumes:
+  leaf_state:
+  hub_old_state:
+  harness_keys:

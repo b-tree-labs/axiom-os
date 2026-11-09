@@ -1,0 +1,102 @@
+# The generic Data Book: how the Library files items when no product scheme is
+# installed. A product contributes its own through [[book_schemes]] (ADR-213 D11).
+
+[scheme]
+name = "data"
+display_name = "Data Book"
+version = "1.0.0"
+
+[[categories]]
+path = "documents"
+label = "Documents"
+[[categories]]
+path = "presentations"
+label = "Presentations"
+[[categories]]
+path = "spreadsheets"
+label = "Spreadsheets and tables"
+[[categories]]
+path = "datasets"
+label = "Datasets"
+[[categories]]
+path = "datasets/series"
+label = "Time series"
+[[categories]]
+path = "structured"
+label = "Structured data"
+[[categories]]
+path = "code"
+label = "Code"
+[[categories]]
+path = "images"
+label = "Images"
+[[categories]]
+path = "media"
+label = "Audio and video"
+[[categories]]
+path = "archives"
+label = "Archives"
+
+[[rules]]
+category = "code"
+confidence = 0.8
+because = "it is {language} source code"
+when.extractor = ["core.extract.text"]
+when.feature = { code_like = "*" }
+priority = 10
+
+[[rules]]
+category = "documents"
+confidence = 0.7
+because = "it is a text document"
+when.extractor = ["core.extract.text", "core.extract.pdf", "core.extract.office"]
+
+[[rules]]
+category = "presentations"
+confidence = 0.8
+because = "it is a slide deck"
+when.ext = [".pptx"]
+priority = 5
+
+[[rules]]
+category = "datasets/series"
+confidence = 0.75
+because = "it is a table whose first column is time or a monotonic axis"
+when.feature = { series = "*" }
+priority = 5
+
+[[rules]]
+category = "spreadsheets"
+confidence = 0.7
+because = "it is a spreadsheet or delimited table"
+when.extractor = ["core.extract.workbook", "core.extract.delimited"]
+
+[[rules]]
+category = "datasets"
+confidence = 0.75
+because = "it is a columnar or hierarchical dataset"
+when.extractor = ["core.extract.parquet", "core.extract.hdf5", "core.extract.netcdf3"]
+
+[[rules]]
+category = "structured"
+confidence = 0.65
+because = "it is structured data (JSON, YAML or XML)"
+when.extractor = ["core.extract.structured", "core.extract.xml"]
+
+[[rules]]
+category = "images"
+confidence = 0.8
+because = "it is an image"
+when.extractor = ["core.extract.image"]
+
+[[rules]]
+category = "media"
+confidence = 0.8
+because = "it is audio or video"
+when.mime = ["audio/*", "video/*"]
+
+[[rules]]
+category = "archives"
+confidence = 0.7
+because = "it is an archive (its members were extracted too)"
+when.extractor = ["core.extract.archive"]
