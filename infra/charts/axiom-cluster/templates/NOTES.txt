@@ -1,0 +1,5 @@
+The cluster base is installed. Check it against the contract:
+
+  python -m axiom.infra.deploy.cluster_contract
+
+Then install the application chart (infra/charts/axiom-node) at the same size.

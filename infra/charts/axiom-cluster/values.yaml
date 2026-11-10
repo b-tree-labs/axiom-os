@@ -1,0 +1,77 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The cluster base (ADR-215, layer 2). The application chart (axiom-node)
+# names only what is here: storage classes axiom-fast and axiom-standard,
+# ingress class axiom, a certificate issuer, the CloudNativePG operator, and
+# the secret store axiom. Each component has `install`: true installs it here,
+# false means the platform already provides it (k3s and RKE2 bundle Traefik, a
+# cloud provides block storage), and only the name is bound to it.
+#
+# Layer a size, then (on a cloud) a provider:
+#   -f values-small.yaml            K3D
+#   -f values-medium.yaml           k3s
+#   -f values-large.yaml            RKE2 on VMs
+#   -f values-large.yaml -f values-provider-aws.yaml   (or -gcp, -azure)
+
+# Block storage. Both names always exist; what backs them is the platform's.
+storage:
+  fast:                         # databases: local or SSD-backed, never network file storage
+    provisioner: rancher.io/local-path
+    parameters: {}
+    reclaimPolicy: Retain
+    allowVolumeExpansion: false
+  standard:
+    provisioner: rancher.io/local-path
+    parameters: {}
+    reclaimPolicy: Delete
+    allowVolumeExpansion: false
+  # OpenEBS LocalPV, for a cluster with no local provisioner of its own (RKE2).
+  localpv:
+    install: false
+
+# Ingress class `axiom`, served by Traefik: bundled by k3s and RKE2 (v1.36+),
+# installed here on a cloud. ingress-nginx is not an option: upstream
+# maintenance ended in March 2026.
+ingress:
+  install: false
+  controller: traefik.io/ingress-controller
+  default: false                # also make `axiom` the cluster's default class
+
+# Certificates. The issuer is named axiom-letsencrypt when an ACME email is
+# set, and axiom-selfsigned otherwise (a laptop has no public name).
+certManager:
+  install: true
+  issuer:
+    acmeEmail: ""
+    acmeServer: https://acme-v02.api.letsencrypt.org/directory
+
+# Postgres with TimescaleDB and pgvector runs as a CloudNativePG cluster on
+# every provider (ADR-215): managed services lack TimescaleDB compression.
+cloudnativePg:
+  install: true
+
+# Secrets reach workloads through External Secrets and the store `axiom`.
+# The default backend reads Secrets from one namespace in this cluster, which
+# the node vault (or an operator) writes; a cloud or OpenBao replaces
+# `provider` with its own block.
+externalSecrets:
+  install: true
+  store:
+    namespace: axiom-secrets
+    provider: {}                # empty: the in-cluster namespace backend above
+
+# Settings passed to the components (keys are the subcharts' names).
+cert-manager:
+  crds: {enabled: true, keep: true}
+cloudnative-pg:
+  crds: {create: true}
+external-secrets:
+  installCRDs: true
+traefik:
+  ingressClass: {enabled: false}  # this chart owns the class named axiom
+  providers:
+    kubernetesIngress: {ingressClass: axiom}
+localpv-provisioner:
+  hostpathClass: {enabled: false} # this chart owns the class names

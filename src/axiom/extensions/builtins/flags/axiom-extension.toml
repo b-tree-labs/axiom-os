@@ -1,0 +1,44 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Feature flags (ADR-210): extensions declare flags in [[flags]]; overrides are
+# stored per node, account or user in this extension's own schema (ADR-052).
+[extension]
+name = "flags"
+version = "0.1.0"
+description = "Feature flags declared by extensions, overridden per node, account or user"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052: the flag_overrides table.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# Not `features`: that noun is ADR-164 node functions.
+[[extension.provides]]
+kind = "cmd"
+noun = "flags"
+entry = "axiom.extensions.builtins.flags.cli:main"
+description = "Feature flags: list, resolve, set and clear overrides"
+tier = "core"
+intent_groups = ["operate"]
+
+# /api/v1/flags — the caller's resolved map (signed in), and PATCH by scope.
+[[extension.provides]]
+kind = "api"
+subpath = "/flags"
+entry = "axiom.extensions.builtins.flags.api:register_routes"
+description = "Resolved feature flags for the signed-in caller; overrides by role"
+
+# flags.list / flags.resolve / flags.set reach MCP through the skills package.
+[extension.mcp]
+enabled = true

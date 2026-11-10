@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-node
+  labels: {axiom.io/node-identity: "true"}
+data:
+  node.json: {{ toJson .Values.node | quote }}

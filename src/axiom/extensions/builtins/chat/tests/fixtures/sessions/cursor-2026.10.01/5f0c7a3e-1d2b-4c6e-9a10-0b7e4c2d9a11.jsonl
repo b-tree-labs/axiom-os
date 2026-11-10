@@ -1,0 +1,8 @@
+{"role": "user", "message": {"content": [{"type": "text", "text": "<dynamic_tools>\n<id>t1</id>\n</dynamic_tools>"}]}}
+{"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>Wednesday, Oct 7, 2026, 11:43 AM (UTC-5)</timestamp>\n<user_query>\nRun echo @@SECRET@@ and tell me the single word it prints back as pong.\n</user_query>"}]}}
+{"role": "assistant", "message": {"content": [{"type": "text", "text": "I will run that command."}, {"type": "tool_use", "name": "Shell", "input": {"command": "echo @@SECRET@@", "description": "echo"}}]}}
+{"type": "turn_ended", "status": "success"}
+{"role": "assistant", "message": {"content": [{"type": "text", "text": "pong"}]}}
+{"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>Wednesday, Oct 7, 2026, 11:45 AM (UTC-5)</timestamp>\n<user_query>\nThanks, now a second question.\n</user_query>"}]}}
+{"role": "assistant", "message": {"content": [{"type": "text", "text": "Ask away."}]}}
+{"type": "turn_ended", "status": "success"}

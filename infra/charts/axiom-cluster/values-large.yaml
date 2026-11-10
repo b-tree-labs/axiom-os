@@ -1,0 +1,22 @@
+# large on VMs: RKE2 (v1.36+ bundles Traefik), several nodes. RKE2 has no
+# local volume provisioner, so OpenEBS LocalPV backs both classes on each
+# node's own disk. Set certManager.issuer.acmeEmail for a public name.
+storage:
+  fast:
+    provisioner: openebs.io/local
+    reclaimPolicy: Retain
+    annotations: &hostpath
+      openebs.io/cas-type: local
+      cas.openebs.io/config: |
+        - name: StorageType
+          value: hostpath
+        - name: BasePath
+          value: /var/openebs/local
+  standard:
+    provisioner: openebs.io/local
+    annotations: *hostpath
+  localpv: {install: true}
+ingress: {install: false}
+certManager: {install: true}
+cloudnativePg: {install: true}
+externalSecrets: {install: true}
