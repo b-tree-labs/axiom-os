@@ -1,0 +1,116 @@
+Axiom — domain-agnostic agentic platform
+=========================================
+
+Copyright (c) 2026 The University of Texas at Austin
+Copyright (c) 2026 B-Tree Labs
+
+Licensed under the Apache License, Version 2.0 (the "License"); you
+may not use this work except in compliance with the License. You may
+obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing
+permissions and limitations under the License.
+
+*B-Tree Labs is the operating name of B-Tree Ventures, LLC.*
+
+
+Joint copyright (entire repository)
+-----------------------------------
+
+The entire `axiom-os` repository is jointly copyrighted by:
+
+  * The University of Texas at Austin
+  * B-Tree Labs
+
+Authorship spans:
+
+  * Work performed by Benjamin Booth as a UT-Austin researcher under
+    federally-funded research grants. UT-Austin holds the UT-portion
+    of the joint copyright on this work.
+
+  * Work performed by Benjamin Booth on personal time using personal
+    resources, as principal of B-Tree Labs. B-Tree Labs holds the
+    B-Tree-portion of the joint copyright on this work.
+
+The two contribution streams are interleaved across the codebase to
+the point where no clean per-file or per-product split would
+accurately carry either name alone. The platform is therefore
+released as a single jointly-copyrighted work under Apache-2.0
+rather than via per-file attribution.
+
+
+Scope
+-----
+
+The joint UT + B-Tree Labs copyright applies to the entire `axiom-os`
+repository — the Axiom platform itself, plus the products and
+extensions that ride on top of it within this repo (Vega federation,
+Keplo classroom, scidisplay, signals, publishing, chat, and
+NeutronOS support code). There is no per-product carve-out within
+this repo.
+
+NeutronOS as deployed at UT lives in a separate repository
+(https://github.com/b-tree-labs/neutron-os) and is jointly
+copyrighted on the same terms as this repo.
+
+The `docs/working/ownership-map.md` document records this rule in
+authoritative form.
+
+
+Substrate lineage
+-----------------
+
+Portions of Axiom's design and code were adapted from Substrate
+(https://github.com/b-tree-labs/substrate), Copyright (c) 2025
+B-Tree Labs, also licensed under Apache-2.0. Files that are direct
+ports retain Substrate's original copyright line above any new
+copyright lines added during adaptation.
+
+Substrate is preserved as a historical reference; active development
+of the platform that grew out of it lives in this repository.
+
+
+Funding
+-------
+
+The UT-portion of work on Axiom (and the wholly-UT-owned NeutronOS
+deployment) was supported in part by federally-funded research
+grants administered through The University of Texas at Austin.
+Specific award identifiers are maintained separately and may be
+disclosed in release notes.
+
+Per the grant terms and the federal Bayh-Dole framework as applied
+by UT, the resulting software is released under an OSI-approved
+license (Apache-2.0) for the public good.
+
+
+Trademarks
+----------
+
+"Axiom", "Neut", "NeutronOS", "Vega", "Keplo", "Vyzier",
+"WALL-E", "EVE", "PR-T", "BURN-E", "M-O", "D-FIB", "CURI-O",
+"CHALK-E", "V-EGA", and the B-Tree Labs origin-glyph mark are
+trademarks of B-Tree Labs (B-Tree Ventures, LLC). The Apache-2.0
+license does not grant rights to use these marks; see Apache-2.0 §6.
+
+Use of "The University of Texas at Austin" and associated UT marks
+is governed by UT brand policy and is not granted by this license.
+
+
+Contributing
+------------
+
+Contributors agree to license their contributions under Apache-2.0.
+Each commit must carry a `Signed-off-by:` trailer (DCO sign-off).
+Per-file copyright lines may be extended to name additional
+contributors as work accumulates; existing UT and B-Tree Labs
+lines remain.
+
+This product includes software developed by:
+  - The University of Texas at Austin (https://www.utexas.edu)
+  - B-Tree Labs (https://b-tree-labs.com)

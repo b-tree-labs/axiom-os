@@ -1,0 +1,15 @@
+{"question": "What is nuclear fission?", "expected_keywords": ["heavy nuclei", "neutron"], "category": "fundamentals"}
+{"question": "What is nuclear fusion?", "expected_keywords": ["light nuclei", "combine"], "category": "fundamentals"}
+{"question": "What does a control rod do in a reactor?", "expected_keywords": ["absorb", "neutron"], "category": "reactor_core"}
+{"question": "What materials are control rods typically made from?", "expected_keywords": ["boron", "cadmium"], "category": "reactor_core"}
+{"question": "What is the role of a moderator in a nuclear reactor?", "expected_keywords": ["slow", "neutron"], "category": "reactor_core"}
+{"question": "What does the primary coolant loop do?", "expected_keywords": ["heat", "reactor"], "category": "thermal_hydraulics"}
+{"question": "Why are fuel assemblies arranged in a lattice?", "expected_keywords": ["lattice", "fuel"], "category": "reactor_core"}
+{"question": "What is reactor criticality?", "expected_keywords": ["chain", "self-sustain"], "category": "reactor_physics"}
+{"question": "What is the difference between thermal and fast neutrons?", "expected_keywords": ["energy", "fission"], "category": "reactor_physics"}
+{"question": "What is a pressurized water reactor (PWR)?", "expected_keywords": ["pressure", "water"], "category": "reactor_types"}
+{"question": "What is decay heat and why does it matter after shutdown?", "expected_keywords": ["decay", "shutdown"], "category": "safety"}
+{"question": "What is defense in depth in reactor safety?", "expected_keywords": ["barriers", "safety"], "category": "safety"}
+{"question": "What is a scram and when is it triggered?", "expected_keywords": ["rapid", "shutdown"], "category": "safety"}
+{"question": "What does 10 CFR 50 regulate?", "expected_keywords": ["domestic", "facilities"], "category": "regulatory"}
+{"question": "What is the role of the Nuclear Regulatory Commission (NRC)?", "expected_keywords": ["license", "regulate"], "category": "regulatory"}

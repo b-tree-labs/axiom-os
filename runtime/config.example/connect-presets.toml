@@ -1,0 +1,72 @@
+# Connect presets — built-in worked example.
+#
+# Domain consumers (the domain consumer, Keplo, etc.) ship their own presets via
+# `[[connect.preset]]` blocks in their extension's axiom-extension.toml.
+# This file holds only generic, domain-agnostic placeholders.
+#
+# Apply a preset:
+#     axi connect <preset_name>            # probes endpoints, then writes
+#     axi connect <preset_name> --dry-run  # show what would be configured
+#     axi connect <preset_name> --no-test  # skip probe, write anyway
+#
+# List all known presets:
+#     axi connect list
+#
+# Show currently-wired endpoints + reachability:
+#     axi connect status
+
+# ── Built-in self-test preset ─────────────────────────────────────────────
+# Used by the axiom test suite. Not intended for production. Domain consumers
+# should never reference this preset; ship your own.
+
+[[connect.preset]]
+name = "axiom-internal-test"
+description = "Built-in self-test preset (no external deps)"
+discovery_hint = "Used by axiom tests; not intended for production"
+
+[[connect.preset.providers]]
+kind = "llm"
+provider_name = "internal-test-llm"
+endpoint = "${AXIOM_TEST_LLM_ENDPOINT}"
+api_key_env = "AXIOM_TEST_LLM_KEY"
+model = "test-model"
+routing_tier = "any"
+routing_tags = ["internal_test"]
+probe_path = "/v1/models"
+
+[[connect.preset.providers]]
+kind = "rag"
+endpoint = "${AXIOM_TEST_RAG_ENDPOINT}"
+probe_path = "/v1/info"
+
+
+# ── Worked-example: generic private LLM + RAG over VPN ───────────────────
+# This is a reference shape — copy it into your own extension's manifest
+# and substitute real endpoints / env-var names. Do NOT add domain-specific
+# names here per the axiom-domain-agnostic rule.
+
+[[connect.preset]]
+name = "example-private-llm"
+description = "Generic private LLM + RAG over VPN (placeholder)"
+discovery_hint = "Reachable when on VPN; tries an OpenAI-compatible endpoint at the configured host."
+
+[[connect.preset.providers]]
+kind = "llm"
+provider_name = "private-llm"
+endpoint = "${PRIVATE_LLM_ENDPOINT}"
+api_key_env = "PRIVATE_LLM_KEY"
+model = "private-llm"
+routing_tier = "export_controlled"
+routing_tags = ["export_controlled", "private_network"]
+requires_vpn = true
+verify_ssl = false
+probe_path = "/v1/models"
+
+[[connect.preset.providers]]
+kind = "rag"
+provider_name = "private-rag"
+endpoint = "${PRIVATE_RAG_ENDPOINT}"
+api_key_env = "PRIVATE_RAG_KEY"
+routing_tier = "export_controlled"
+requires_vpn = true
+probe_path = "/v1/info"

@@ -1,0 +1,10 @@
+# large on AKS: Premium SSD, Traefik behind Azure Load Balancer, Key Vault.
+storage:
+  fast: {provisioner: disk.csi.azure.com, parameters: {skuName: Premium_LRS}, reclaimPolicy: Retain, allowVolumeExpansion: true}
+  standard: {provisioner: disk.csi.azure.com, parameters: {skuName: StandardSSD_LRS}, allowVolumeExpansion: true}
+  localpv: {install: false}
+ingress: {install: true}
+externalSecrets:
+  store:
+    provider:
+      azurekv: {vaultUrl: ""}

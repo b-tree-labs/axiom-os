@@ -1,0 +1,9 @@
+# medium: k3s on one server. k3s bundles Traefik and local-path. Set
+# certManager.issuer.acmeEmail for a public name.
+storage:
+  fast: {provisioner: rancher.io/local-path, reclaimPolicy: Retain}
+  standard: {provisioner: rancher.io/local-path}
+ingress: {install: false}
+certManager: {install: true}
+cloudnativePg: {install: true}
+externalSecrets: {install: true}

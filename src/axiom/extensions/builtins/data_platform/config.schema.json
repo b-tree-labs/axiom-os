@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataPlatformConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "connector_labels": {
+      "type": "array",
+      "default": [],
+      "description": "Site-supplied attribution map pairing a source top-level folder with its registered connector label. Used by data.activity and data.refresh when the chunks table lacks the canonical data_source column and attribution falls back to the source_path top-folder. Axiom ships an empty map; folders without an entry pass through unchanged. Operator-durable home: <config-dir>/data_platform.toml as [[data_platform.connector_labels]] entries.",
+      "x-reloadable": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "folder",
+          "connector"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "folder": {
+            "type": "string",
+            "description": "Top-level folder name exactly as it appears in source_path."
+          },
+          "connector": {
+            "type": "string",
+            "description": "Registered connector name the folder's documents are attributed to."
+          }
+        }
+      }
+    },
+    "data_platform.timeseries": {
+      "type": "array",
+      "title": "Managed time-series tables",
+      "description": "Time-series tables this node manages. Declared, never discovered \u2014 a table absent from this list is never touched. `engine = \"hypertable\"` declares the TimescaleDB contract (hypertable, compression by identity, policies; applied by `axi data ensure-schema`); the default engine manages native RANGE(ts) partitions created ahead of the data and optionally retired past a window.",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema",
+          "table"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "engine": {
+            "type": "string",
+            "enum": [
+              "partitions",
+              "hypertable"
+            ],
+            "default": "partitions",
+            "description": "`hypertable`: the TimescaleDB contract (time_column, identity, rows_per_day, chunk_interval, compress_after, retain, forward_guard). `partitions`: native range partitions (granularity, ahead, retain_periods)."
+          },
+          "schema": {
+            "type": "string",
+            "description": "Schema holding the table (the partitioned parent, for the partitions engine)."
+          },
+          "table": {
+            "type": "string",
+            "description": "The table (the partitioned PARENT, not a partition, for the partitions engine)."
+          },
+          "time_column": {
+            "type": "string",
+            "default": "ts",
+            "description": "hypertable: the column the table is partitioned and ordered on."
+          },
+          "identity": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "hypertable: the columns that identify a series. Compression segments by these."
+          },
+          "rows_per_day": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "hypertable: the declared rate. The chunk interval is derived from it (about ten million rows per chunk, snapped to 1h..30d); omit for one-day chunks."
+          },
+          "chunk_interval": {
+            "type": "string",
+            "description": "hypertable: an explicit chunk width (e.g. 6h, 1d) overriding the derived one."
+          },
+          "compress_after": {
+            "type": "string",
+            "default": "7d",
+            "description": "hypertable: compress chunks whose newest row is older than this."
+          },
+          "retain": {
+            "type": "string",
+            "description": "hypertable: drop chunks older than this. Omit to keep everything; deleting history is never a default."
+          },
+          "forward_guard": {
+            "type": "boolean",
+            "default": false,
+            "description": "hypertable: this table is the copy the node forwards upstream, so retention runs only while no batch awaits delivery."
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "default": "day"
+          },
+          "ahead": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 7,
+            "description": "Future partitions to keep created. A partition created only once its data arrives is too late \u2014 the rows already fell to DEFAULT."
+          },
+          "retain_periods": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Drop partitions entirely older than this many periods. Omit to never drop."
+          }
+        }
+      }
+    }
+  }
+}

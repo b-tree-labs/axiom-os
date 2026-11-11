@@ -1,0 +1,77 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "actors"
+version = "0.1.0"
+description = "Team: the people, agents and nodes that can act at a site, read across the gate, the directory, the agent roster and the node; no store of its own"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# No [database]: the directory of actors is a read across where each actor's
+# facts already live, and writes nothing of its own (MVP-23-A4).
+
+[[extension.provides]]
+kind = "cmd"
+noun = "actors"
+entry = "axiom.extensions.builtins.actors.cli:main"
+description = "Team: list and show the people, agents and nodes that can act here"
+tier = "starter"
+intent_groups = ["govern", "operate"]
+
+[[extension.provides]]
+kind = "skill"
+name = "actors.list"
+entry = "axiom.extensions.builtins.actors.skills:list_actors"
+path = "skills/list"
+description = "The people, agents and nodes that can act here, in one list; agents name their accountable person. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "actors.show"
+entry = "axiom.extensions.builtins.actors.skills:show_actor"
+path = "skills/show"
+description = "One actor by @name:context, with the fields the asker's role may see. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+# /api/v1/actors: the Team page (list, show; invite, roles, suspend, reinstate for admins).
+[[extension.provides]]
+kind = "api"
+subpath = "/actors"
+entry = "axiom.extensions.builtins.actors.api:register_routes"
+description = "Team: the directory of actors, and the gate's invite and role verbs for administrators"
+
+[extension.mcp]
+enabled = true
+
+# ADR-182: a read-only API on the http app; it switches with it.
+[extension.availability]
+switch = "blue-green"
+readiness = "http:/healthz"
+drain_s = 15
+migrations = "none"
+single_flight = false
+verified_by = "../http/tests/test_every_mounted_service_answers_through_a_switch.py"
+
+# The Team rail item (MVP-23). `soon` keeps the rail item and its page saying
+# what is coming until a deployment turns it on.
+[[flags]]
+key = "team"
+description = "Team: the directory of people, agents and nodes in the rail"
+default = "soon"
+default_by_env = { development = "on", staging = "on" }

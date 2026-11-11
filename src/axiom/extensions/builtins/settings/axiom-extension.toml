@@ -1,0 +1,54 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# MCP: settings.list|get|set and settings.changes reach MCP through the skills package.
+[extension]
+name = "settings"
+version = "0.1.0"
+description = "View and edit Axiom settings"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "settings"
+entry = "axiom.extensions.builtins.settings.cli:main"
+description = "View and edit Axiom settings"
+tier = "core"
+intent_groups = ["start"]
+
+# /api/v1/settings — the web Settings panel's allowlisted face (read for anyone
+# signed in; a narrower set changeable by the owner or an operator).
+[[extension.provides]]
+kind = "api"
+subpath = "/settings"
+entry = "axiom.extensions.builtins.settings.api:register_routes"
+description = "Allowlisted node settings for the web Settings panel"
+
+# settings.list / settings.get / settings.set reach MCP through the skills
+# package; settings.set refuses the safety switches (CLI only).
+[extension.mcp]
+enabled = true
+
+# Account (the person's own page, from the avatar menu) and Settings (the site's,
+# for administrators), with the change log under Settings (MVP-08, MVP-13). On in
+# development and staging; a production install turns them on (ADR-210).
+[[flags]]
+key = "account_pages"
+description = "Account's sections (Overview, Profile, Sign-in, Keys, Notifications, Preferences, My agents, Data, Devices) and Settings' site sections"
+default = "off"
+default_by_env = { development = "on", staging = "on", production = "off" }
+
+[[flags]]
+key = "settings_change_log"
+description = "Settings › Change log, with the audit trail beneath and its chain verification"
+default = "off"
+default_by_env = { development = "on", staging = "on", production = "off" }
