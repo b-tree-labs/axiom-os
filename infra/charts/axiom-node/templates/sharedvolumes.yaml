@@ -1,0 +1,14 @@
+{{- /* Volumes several workloads mount at once (values `sharedVolumes`). Kept on uninstall. */ -}}
+{{- range $name, $v := (default dict .Values.sharedVolumes) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $.Release.Name }}-shared-{{ $name }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" (printf "shared-%s" $name)) | nindent 4 }}
+  annotations: {helm.sh/resource-policy: keep}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with include "axiom-node.storageClass" (dict "root" $ "cfg" $v "kind" (default "default" $v.kind)) }}{{ . | nindent 2 }}{{- end }}
+  resources: {requests: {storage: {{ required (printf "sharedVolumes.%s.size" $name) $v.size }}}}
+---
+{{- end }}

@@ -1,0 +1,25 @@
+# A small logbook used by the attest tests. It exercises every rule the loader
+# enforces without naming any domain.
+[logbook]
+id = "demo_log"
+version = "1"
+display = "Demo Log"
+assurance = { posture = "sso" }
+
+[[type]]
+id = "ROUND_CHECK"
+meanings = ["performed"]
+roles = ["operator", "senior_operator"]
+fields = [
+  { id = "reading", type = "text", observe = true, required = true },
+  { id = "walkdown", type = "attest_checkbox", label = "Walkdown performed", required = true },
+  { id = "note", type = "text" },
+]
+confirm = { modalities_any = ["screen", "cli", "voice"], voice_confirm_allowed = true, timeout = "10m", read_back = "on_voice_origin" }
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["operator"]
+assurance = { posture = "attested" }
+fields = [{ id = "text", type = "text", required = true }]

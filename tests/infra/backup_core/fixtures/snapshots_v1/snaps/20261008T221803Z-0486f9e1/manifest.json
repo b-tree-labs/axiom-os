@@ -1,0 +1,46 @@
+{
+ "body": {
+  "axiom_version": "0.47.0",
+  "created_at": "2026-10-08T22:18:03.082970Z",
+  "db": {
+   "covered": false,
+   "how": "axi state snapshot --with-db   (or: axi data backup)",
+   "restore_with": "psql / pg_restore from the dump; see the runbook in spec-state-snapshots",
+   "what": "Postgres-backed stores (memory ledger, receipts, schedule, data platform, ...)"
+  },
+  "excluded": [],
+  "files": [
+   {
+    "mode": 420,
+    "path": "identity/node.json",
+    "sha256": "68f436139f37aa09fb465f7b3080d8430ac00a4c7c430ff8b201c714fb948c7a",
+    "size": 20,
+    "tier": "critical"
+   },
+   {
+    "mode": 420,
+    "path": "settings.toml",
+    "sha256": "dd38e7a8bb1c7e1396843602cd17b62985dac53a0b9a37eafefc452076318ffe",
+    "size": 10,
+    "tier": "critical"
+   }
+  ],
+  "host": "MECH-A94401",
+  "id": "20261008T221803Z-0486f9e1",
+  "inputs_hash": "0486f9e1da76b0772635862e7a691b6db67a8b976189e68df6086749920384b9",
+  "not_covered": [
+   "database contents (see db)",
+   "credential/keychain/vault VALUES (names only in secret_metadata)",
+   "excluded files listed above"
+  ],
+  "reason": "fixture one",
+  "scan_errors": [],
+  "secret_metadata": [],
+  "state_dir": "/var/folders/hf/bvj5tqt10bl2hwzfgsw2k82r0000gq/T/axiom-fixture-k1i48a5i/axiom_state_dir",
+  "trigger": "manual",
+  "version": 1
+ },
+ "body_sha256": "e69fef082237aac7d0a9a6ede67062b356abbf3bb47bfd0e759d96e6c3e7ecf1",
+ "chain_hash": "3cc60b5ce0ef1ff9109b7e81100da7fd9d9914a4550df03a672845ea53da3453",
+ "prev": ""
+}

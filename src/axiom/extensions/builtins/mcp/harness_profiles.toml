@@ -1,0 +1,411 @@
+# Harness profiles: how each supported MCP client NAMES what Axiom exposes, and
+# which slash commands it reserves for itself. This file is the source of truth
+# for the collision detector (harness_collisions.py), the lint test, and the
+# per-harness coercion hook. Edit data here; do not hard-code a harness in code.
+#
+# PROVENANCE. Every behavioural claim carries a mark. A mark is a statement
+# about HOW the claim was established, never about how likely it is:
+#   verified-by-run  observed by running the installed harness (the probe is
+#                    described in `evidence`); re-checkable by the opt-in tests
+#                    in tests/test_harness_behaviour_live.py.
+#   from-binary      read out of the installed harness binary's strings; the
+#                    harness was not driven to confirm it.
+#   from-docs        taken from the harness's published documentation.
+#   unverified       recalled or assumed; the harness is absent or broken on
+#                    the machine that wrote this file, or the claim was not
+#                    exercised. The detector treats an unverified reserved
+#                    name or naming rule as ADVISORY, never as a failure.
+#
+# Probed 2026-10-08 on macOS arm64.
+#   claude    2.1.291   installed, driven (-p, stream-json init event)
+#   opencode  1.17.8    installed, driven (`opencode run --format json`)
+#   codex               on PATH but broken (native binary missing: ENOENT)
+#   gemini, cursor-agent, goose   not on PATH
+#   hermes    0.20.4    on PATH, not driven here
+#
+# Placeholders in `template`: {server} the MCP server name as registered,
+# {tool} the tool name, {prompt} the prompt name.
+#
+# [harness.<name>.coerce] is the server-side lever (see apply_client_coercion):
+#   hide   = ["tool_name", ...]            do not list these for this harness
+#   rename = { "tool_name" = "new_name" }  list under another name, route back
+# Both default to empty: no tool changes anywhere unless a row says so.
+
+schema = 1
+
+# Axiom's own chat REPL owns these commands (chat/commands.py CHAT_META_COMMANDS).
+# A command that mutates or ends a conversation belongs to the surface that owns
+# the conversation. Exposing one as an MCP tool or prompt would let a model
+# reach into a session it does not own, and would collide with the very slash
+# command a user types. The tests check every entry is a real chat command.
+[axiom_chat]
+session_owning = ["new", "resume", "clear", "compact", "exit", "sessions", "model"]
+
+# ---------------------------------------------------------------------------
+# claude-code
+# ---------------------------------------------------------------------------
+[harness.claude-code]
+binary = "claude"
+client_names = ["claude-code"]
+probed_version = "2.1.291"
+installed_when_probed = true
+
+[harness.claude-code.tool_name]
+template = "mcp__{server}__{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "verified-by-run"
+evidence = "stream-json init event `tools` listed mcp__probe__renew for server probe/tool renew; server 'long-server.name' + tool 'dotted.tool' listed as mcp__long-server_name__dotted_tool; two 74-char tool names were listed untruncated (the 64 limit is the API's and was not exercised)."
+
+[harness.claude-code.prompt_slash]
+surfaces = true
+template = "/mcp__{server}__{prompt}"
+status = "verified-by-run"
+evidence = "init event `slash_commands` listed mcp__probe__resume for a server prompt named resume; sending `/mcp__probe__resume` delivered the prompt body to the model."
+
+[harness.claude-code.noninteractive]
+command = "claude -p <line> --output-format stream-json --verbose --mcp-config <file> --strict-mcp-config --no-session-persistence"
+builtin_slash_line = "handled-by-harness"
+unknown_slash_line = "passed-to-model"
+status = "verified-by-run"
+evidence = "`/context`, `/cost` printed locally; `/resume` and `/help` answered 'isn't available in this environment' with model=<synthetic>, 0 turns, 0 cost. `/renew` (no such command) went to the model as text."
+
+[harness.claude-code.slash]
+verified_by_run = [
+  "debug", "simplify", "batch", "fewer-permission-prompts", "doctor", "loop",
+  "claude-api", "workflow-authoring", "run", "run-skill-generator",
+  "plugin-authoring", "advisor", "agents", "auto-mode-setup", "autocompact",
+  "clear", "color", "compact", "config", "output-style", "context", "effort",
+  "fast", "focus", "heapdump", "init", "mcp", "import", "model",
+  "reload-plugins", "reload-skills", "rename", "security-review", "usage",
+  "insights", "recap", "skill-doctor", "goal", "list-agents", "team-onboarding",
+  "update-config", "verify", "code-review", "dataviz",
+  # interactive-only builtins: answered by the harness in -p mode, not listed in slash_commands
+  "resume", "help", "cost",
+]
+from_docs = []
+unverified = [
+  "status", "plan", "memory", "permissions", "review", "login", "logout", "bug",
+  "vim", "exit", "quit", "export", "ide", "add-dir", "terminal-setup",
+  "pr-comments", "statusline", "hooks", "todos", "rewind", "theme", "upgrade",
+  "release-notes", "bashes", "privacy-settings", "migrate-installer",
+]
+
+[harness.claude-code.coerce]
+hide = []
+rename = {}
+
+# ---------------------------------------------------------------------------
+# opencode
+# ---------------------------------------------------------------------------
+[harness.opencode]
+binary = "opencode"
+client_names = ["opencode"]
+probed_version = "1.17.8"
+installed_when_probed = true
+
+[harness.opencode.tool_name]
+template = "{server}_{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "verified-by-run"
+evidence = "`opencode run --format json` tool event for server probe/tool renew carried tool=probe_renew, and the probe server's own call log recorded the call."
+
+[harness.opencode.prompt_slash]
+surfaces = false
+template = "/{server}:{prompt}"
+status = "unverified"
+evidence = "Not established. Sending `/probe:resume` through `opencode run` reached the model as text (see noninteractive); whether the TUI lists MCP prompts as slash commands was not driven."
+
+[harness.opencode.noninteractive]
+command = "opencode run --format json -m <provider/model> <line>   (stdin must be /dev/null)"
+builtin_slash_line = "passed-to-model"
+unknown_slash_line = "passed-to-model"
+status = "verified-by-run"
+evidence = "`opencode run '/undo'` (a TUI command, below) was not executed by the harness: the model answered in prose that it has no undo command and made no tool call."
+
+[harness.opencode.slash]
+verified_by_run = []
+from_binary = [
+  "compact", "summarize", "copy", "export", "fork", "redo", "rename", "share",
+  "thinking", "toggle-thinking", "timeline", "timestamps", "toggle-timestamps",
+  "undo", "unshare", "new",
+]
+from_docs = []
+unverified = [
+  "sessions", "models", "themes", "help", "exit", "init", "details", "editor",
+  "connect", "clear", "status", "mcps", "agents", "skills", "variants",
+]
+
+[harness.opencode.coerce]
+hide = []
+rename = {}
+
+# ---------------------------------------------------------------------------
+# codex  -- on PATH but the native binary is missing, so nothing was driven.
+# ---------------------------------------------------------------------------
+[harness.codex]
+binary = "codex"
+client_names = ["codex", "codex-cli", "codex-mcp-client"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.codex.tool_name]
+template = "{server}__{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "unverified"
+evidence = "codex 0.129 fails to start (spawn ... codex-darwin-arm64/.../codex ENOENT); the naming scheme is recalled, not observed."
+
+[harness.codex.prompt_slash]
+surfaces = false
+template = "/{server}:{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.codex.noninteractive]
+command = "codex exec <line>"
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "not driven"
+
+[harness.codex.slash]
+verified_by_run = []
+from_docs = []
+unverified = [
+  "model", "approvals", "new", "init", "compact", "diff", "mention", "status",
+  "review", "resume", "logout", "quit", "exit", "mcp",
+]
+
+[harness.codex.coerce]
+hide = []
+rename = {}
+
+# ---------------------------------------------------------------------------
+# harnesses that were absent (or not driven) when this file was written.
+# Naming is assumed WORST CASE: the bare tool name, no prefix at all, so the
+# bare-verb rule is the only protection and the detector says so.
+# ---------------------------------------------------------------------------
+[harness.gemini]
+binary = "gemini"
+client_names = ["gemini-cli", "gemini-cli-mcp-client"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.gemini.tool_name]
+template = "{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 63
+max_len_status = "unverified"
+status = "unverified"
+evidence = "gemini not on PATH; assumed worst case (no prefix)."
+
+[harness.gemini.prompt_slash]
+surfaces = true
+template = "/{prompt}"
+status = "unverified"
+evidence = "gemini not on PATH"
+
+[harness.gemini.noninteractive]
+command = "gemini -p <line>"
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "not on PATH"
+
+[harness.gemini.slash]
+verified_by_run = []
+from_docs = []
+unverified = [
+  "help", "clear", "compress", "memory", "mcp", "tools", "chat", "restore",
+  "stats", "theme", "auth", "about", "bug", "copy", "editor", "extensions",
+  "privacy", "quit", "exit", "init", "directory", "settings", "vim",
+]
+
+[harness.gemini.coerce]
+hide = []
+rename = {}
+
+[harness.cursor]
+binary = "cursor-agent"
+client_names = ["cursor", "cursor-vscode", "cursor-agent"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.cursor.tool_name]
+template = "{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 60
+max_len_status = "unverified"
+status = "unverified"
+evidence = "cursor-agent not on PATH (Cursor.app is installed but was not driven); assumed worst case (no prefix)."
+
+[harness.cursor.prompt_slash]
+surfaces = true
+template = "/{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.cursor.noninteractive]
+command = "cursor-agent -p <line>"
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "not on PATH"
+
+[harness.cursor.slash]
+verified_by_run = []
+from_docs = []
+unverified = ["model", "new-chat", "vim", "help", "clear", "compress", "mcp", "rules", "commands", "resume", "status"]
+
+[harness.cursor.coerce]
+hide = []
+rename = {}
+
+[harness.claude-desktop]
+binary = ""
+client_names = ["claude-ai", "claude-desktop"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.claude-desktop.tool_name]
+template = "{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "unverified"
+evidence = "Claude.app is installed; no headless mode, not driven. Assumed worst case (no prefix)."
+
+[harness.claude-desktop.prompt_slash]
+surfaces = true
+template = "/{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.claude-desktop.noninteractive]
+command = ""
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "no non-interactive mode"
+
+[harness.claude-desktop.slash]
+verified_by_run = []
+from_docs = []
+unverified = []
+
+[harness.claude-desktop.coerce]
+hide = []
+rename = {}
+
+[harness.windsurf]
+binary = "windsurf"
+client_names = ["windsurf", "codeium"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.windsurf.tool_name]
+template = "{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 0
+max_len_status = "unverified"
+status = "unverified"
+evidence = "windsurf not on PATH; assumed worst case (no prefix)."
+
+[harness.windsurf.prompt_slash]
+surfaces = true
+template = "/{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.windsurf.noninteractive]
+command = ""
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "no non-interactive mode known"
+
+[harness.windsurf.slash]
+verified_by_run = []
+from_docs = []
+unverified = []
+
+[harness.windsurf.coerce]
+hide = []
+rename = {}
+
+[harness.vscode]
+binary = "code"
+client_names = ["vscode", "visual-studio-code", "github-copilot-developer"]
+probed_version = ""
+installed_when_probed = false
+
+[harness.vscode.tool_name]
+template = "{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "unverified"
+evidence = "`code` is on PATH but the Copilot chat surface has no headless mode; not driven. Assumed worst case (no prefix)."
+
+[harness.vscode.prompt_slash]
+surfaces = true
+template = "/{server}.{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.vscode.noninteractive]
+command = ""
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "no non-interactive mode"
+
+[harness.vscode.slash]
+verified_by_run = []
+from_docs = []
+unverified = ["clear", "new", "help", "explain", "fix", "tests", "doc"]
+
+[harness.vscode.coerce]
+hide = []
+rename = {}
+
+[harness.hermes]
+binary = "hermes"
+client_names = ["hermes", "hermes-agent"]
+probed_version = "0.20.4"
+installed_when_probed = true
+
+[harness.hermes.tool_name]
+template = "mcp_{server}_{tool}"
+sanitize = "[^A-Za-z0-9_-]->_"
+max_len = 64
+max_len_status = "unverified"
+status = "unverified"
+evidence = "hermes 0.20.4 is installed but was not driven here (needs its own provider config); naming is recalled."
+
+[harness.hermes.prompt_slash]
+surfaces = false
+template = "/{prompt}"
+status = "unverified"
+evidence = "not driven"
+
+[harness.hermes.noninteractive]
+command = "hermes chat -q <line>"
+builtin_slash_line = "unknown"
+unknown_slash_line = "unknown"
+status = "unverified"
+evidence = "not driven"
+
+[harness.hermes.slash]
+verified_by_run = []
+from_docs = []
+unverified = ["help", "new", "reset", "model", "tools", "skills", "compress", "usage", "quit", "exit"]
+
+[harness.hermes.coerce]
+hide = []
+rename = {}

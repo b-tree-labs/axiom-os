@@ -1,0 +1,17 @@
+# large on EKS: EBS for block storage, Traefik behind an NLB, Secrets Manager.
+# Requires the EBS CSI driver and the AWS Load Balancer Controller.
+storage:
+  fast: {provisioner: ebs.csi.aws.com, parameters: {type: gp3}, reclaimPolicy: Retain, allowVolumeExpansion: true}
+  standard: {provisioner: ebs.csi.aws.com, parameters: {type: gp3}, allowVolumeExpansion: true}
+  localpv: {install: false}
+ingress: {install: true}
+traefik:
+  service:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: external
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+externalSecrets:
+  store:
+    provider:
+      aws: {service: SecretsManager, region: us-east-1}

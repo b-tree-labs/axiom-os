@@ -1,0 +1,73 @@
+{{- /*
+Ingresses for a role or service that asks for them (`ingress.enabled`), on the
+cluster base's ingress class with a certificate from its issuer (ADR-215), or
+an existing one (`tlsSecret`). They route to the role's Service, which for a
+blue/green role is the front, so a switch never changes an Ingress. Several
+roles may share a host. A role may split its paths into `routes`, each with
+its own `forwardAuth` (a URL that approves each request first, as Traefik's
+ForwardAuth middleware: Traefik is the ingress at every size) and annotations.
+Without `routes`, `path`/`paths` and `forwardAuth` describe one route.
+*/ -}}
+{{- $all := merge (dict) .Values.roles (default dict .Values.services) -}}
+{{- range $name := keys $all | sortAlpha }}
+{{- $cfg := index $all $name }}
+{{- $ing := default dict $cfg.ingress }}
+{{- if and $cfg.enabled $ing.enabled }}
+{{- if not $.Values.contract.enabled }}
+{{- fail (printf "%s.ingress needs contract.enabled: an Ingress uses the cluster base's ingress class and issuer (ADR-215)" $name) }}
+{{- end }}
+{{- $host := required (printf "%s.ingress.host" $name) $ing.host }}
+{{- $full := printf "%s-%s" $.Release.Name $name }}
+{{- $routes := $ing.routes }}
+{{- if not $routes }}
+{{- $routes = list (dict "name" "" "paths" (default (list (default "/" $ing.path)) $ing.paths) "forwardAuth" $ing.forwardAuth) }}
+{{- end }}
+{{- range $route := $routes }}
+{{- $rname := ternary $full (printf "%s-%s" $full $route.name) (empty $route.name) }}
+{{- with $route.forwardAuth }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $rname }}-auth
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $name) | nindent 4 }}
+spec:
+  forwardAuth:
+    address: {{ required (printf "%s.ingress forwardAuth.url" $name) .url | quote }}
+    trustForwardHeader: true
+    {{- with .responseHeaders }}
+    authResponseHeaders: {{ toJson . }}
+    {{- end }}
+---
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $rname }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" $name) | nindent 4 }}
+  {{- $ann := mergeOverwrite (deepCopy (default dict $ing.annotations)) (deepCopy (default dict $route.annotations)) }}
+  {{- if not $ing.tlsSecret }}{{- $_ := set $ann "cert-manager.io/cluster-issuer" $.Values.contract.issuer }}{{- end }}
+  {{- if $route.forwardAuth }}{{- $_ := set $ann "traefik.ingress.kubernetes.io/router.middlewares" (printf "%s-%s-auth@kubernetescrd" $.Release.Namespace $rname) }}{{- end }}
+  {{- with $ann }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $.Values.contract.ingressClass }}
+  tls:
+    - hosts: [{{ $host | quote }}]
+      secretName: {{ default (printf "%s-%s-tls" $.Release.Name (regexReplaceAll "[^a-z0-9-]" (lower $host) "-")) $ing.tlsSecret }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          {{- range (required (printf "%s.ingress routes[].paths" $name) $route.paths) }}
+          - path: {{ . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}
+                port: {name: {{ default "http" $ing.portName }}}
+          {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

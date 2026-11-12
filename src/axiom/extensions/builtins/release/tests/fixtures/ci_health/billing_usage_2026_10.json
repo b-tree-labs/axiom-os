@@ -1,0 +1,66 @@
+{
+ "usageItems": [
+  {
+   "date": "2026-10-01T00:00:00Z",
+   "product": "actions",
+   "sku": "Actions Linux",
+   "quantity": 10000,
+   "unitType": "Minutes",
+   "pricePerUnit": 0.006,
+   "grossAmount": 60.0,
+   "discountAmount": 10.0,
+   "netAmount": 50.0,
+   "organizationName": "example-org",
+   "repositoryName": "app"
+  },
+  {
+   "date": "2026-10-10T00:00:00Z",
+   "product": "actions",
+   "sku": "Actions Linux",
+   "quantity": 15000,
+   "unitType": "Minutes",
+   "pricePerUnit": 0.006,
+   "grossAmount": 90.0,
+   "discountAmount": 0.0,
+   "netAmount": 90.0,
+   "organizationName": "example-org",
+   "repositoryName": "app"
+  },
+  {
+   "date": "2026-10-20T00:00:00Z",
+   "product": "actions",
+   "sku": "Actions Linux",
+   "quantity": 2000,
+   "unitType": "Minutes",
+   "pricePerUnit": 0.006,
+   "grossAmount": 12.0,
+   "discountAmount": 0.0,
+   "netAmount": 12.0,
+   "organizationName": "example-org",
+   "repositoryName": "tools"
+  },
+  {
+   "date": "2026-10-20T00:00:00Z",
+   "product": "actions",
+   "sku": "Actions storage",
+   "quantity": 3.0,
+   "unitType": "GigabyteHours",
+   "pricePerUnit": 0.006,
+   "grossAmount": 0.5,
+   "discountAmount": 0.0,
+   "netAmount": 0.5,
+   "organizationName": "example-org",
+   "repositoryName": "app"
+  },
+  {
+   "date": "2026-10-20T00:00:00Z",
+   "product": "packages",
+   "sku": "Packages",
+   "quantity": 1,
+   "unitType": "GigabyteHours",
+   "grossAmount": 99.0,
+   "netAmount": 99.0,
+   "repositoryName": "app"
+  }
+ ]
+}

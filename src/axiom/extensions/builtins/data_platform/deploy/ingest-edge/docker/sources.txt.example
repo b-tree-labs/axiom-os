@@ -1,0 +1,6 @@
+# Who may push to this edge: <source>=<site>, one per line.
+# The source is the name the partner's collector sends as ([ingest] source in
+# its site.toml) and the name the platform already uses for that partner, so
+# what the platform pulls continues the partner's existing series.
+site-a-src=site-a
+site-b-src=site-b

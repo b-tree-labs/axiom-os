@@ -1,0 +1,49 @@
+# HERALD configuration: an annotated example.
+#
+# Installed at <config-dir>/herald.toml (written by `axi notifications setup
+# <channel>`). Every key under [herald] can be overridden per key by an
+# AXIOM_HERALD_<KEY> environment variable (e.g. AXIOM_HERALD_EMAIL_FROM_ADDRESS).
+# A value of "vault:<name>" is read from the node's vault.
+
+[herald]
+# --- email ----------------------------------------------------------------
+# The channel-level sender. Use an address on a domain you have verified with
+# the provider. A provider's default address (for example
+# DoNotReply@<guid>.azurecomm.net) still delivers, but people do not
+# recognise it; `axi doctor` reports it (ADR-249 A6).
+email_from_address = "alerts@node.example.org"
+# Display name for senders HERALD cannot attribute to an agent.
+email_from_name = "Node alerts"
+# One backend, e.g. Azure Communication Services:
+# acs_connection_string = "vault:acs-connection-string"
+#
+# Note: Azure Communication Services takes the From display name from the
+# sender username configured on the verified domain, not from the message,
+# so on that backend the names below apply only to other email backends.
+
+# --- links in alerts -------------------------------------------------------
+# This node's public base URL, for the "Full record" link in alert messages
+# (<public_base_url>/app#/incidents/<id>). Falls back to AXIOM_PUBLIC_URL.
+public_base_url = "https://node.example.org"
+
+# Who writes alert messages (ADR-249 D4): "model" (default; the node's model,
+# checked against the message shape, with the template as fallback) or
+# "template" (deterministic only).
+alert_writer = "model"
+
+# --- senders (ADR-066, ADR-249 D7) -------------------------------------------
+# Site-wide defaults for every agent's email. Env overrides:
+# AXIOM_HERALD_SENDER_FROM_ADDRESS, AXIOM_HERALD_SENDER_FROM_NAME.
+[sender]
+from_address = "alerts@node.example.org"
+# from_name = "Example Lab alerts"   # verbatim for every agent; usually omit it
+
+# Per agent, keyed by handle without the "@". Each key is optional.
+# Without from_name an agent's email is from "<DISPLAY_NAME> via Axiom"
+# (the product name follows the distribution's branding).
+[sender.plinth]
+from_address = "data@node.example.org"
+
+[sender.rivet]
+display_name = "RIVET"
+from_name = "Release desk"

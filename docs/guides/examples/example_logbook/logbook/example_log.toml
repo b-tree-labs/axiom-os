@@ -1,0 +1,60 @@
+# The example log: a small, complete logbook declaration that carries no trade.
+# Copy the extension that holds it and rename what you need. Every key here is
+# one the loader enforces today; `axi attest logbook validate` lists nothing
+# under "declared, not yet enforced".
+
+[logbook]
+id = "example_log"
+version = "1"
+display = "Example Log"
+# The floor every type inherits. `attested` can be signed at the command line.
+assurance = { posture = "attested" }
+
+# A period is opened by one signed entry and closed by another. Entries signed
+# while it is open carry its number.
+[interval.period]
+opens = ["OPEN_PERIOD"]
+closes = ["CLOSE_PERIOD"]
+
+[[type]]
+id = "OPEN_PERIOD"
+meanings = ["authored"]
+roles = ["member", "lead"]
+requires_interval = "none_open"
+
+[[type]]
+id = "CHECK"
+meanings = ["performed"]
+roles = ["member", "lead"]
+requires_interval = "period"
+fields = [
+  # Observed: only the person who signs may enter it; software never fills it.
+  { id = "reading", type = "quantity", unit = "kg", observe = true, required = true },
+  { id = "confirmed", type = "attest_checkbox", label = "Check completed", required = true },
+  { id = "note", type = "text" },
+]
+confirm = { modalities_any = ["screen", "cli", "voice"], voice_confirm_allowed = true, timeout = "10m", read_back = "on_voice_origin" }
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["member", "lead"]
+assurance = { posture = "attested" }
+fields = [{ id = "text", type = "text", required = true }]
+
+[[type]]
+id = "CLOSE_PERIOD"
+meanings = ["authored"]
+roles = ["lead"]
+requires_interval = "period"
+
+# While a period is open, a CHECK is due every 60 minutes unless the site sets
+# `example_log.checks.interval_minutes`. A miss is an alarm sent to members.
+[[obligation]]
+id = "periodic_check"
+type = "CHECK"
+every = { site_key = "example_log.checks.interval_minutes", default = 60 }
+warn_before = { default = 5 }
+while = "interval.period.open"
+notify = ["member"]
+required = true

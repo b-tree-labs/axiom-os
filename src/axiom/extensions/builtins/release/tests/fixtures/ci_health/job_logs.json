@@ -1,0 +1,5 @@
+{
+ "9002": "2026-10-26T06:03:00Z collecting\n2026-10-26T06:03:01Z selection: 120/4210 reason=affected\n",
+ "9003": "2026-10-26T07:01:00Z selection: 4210/4210 reason=base-mismatch\n",
+ "9004": "2026-10-26T09:01:00Z no marker here\n"
+}

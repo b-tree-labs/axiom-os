@@ -1,0 +1,480 @@
+{{/* One image reference for every role: digest wins over tag. */}}
+{{- define "axiom-node.image" -}}
+{{- if .Values.image.digest -}}{{ .Values.image.repository }}@{{ .Values.image.digest }}{{- else -}}{{ .Values.image.repository }}:{{ .Values.image.tag }}{{- end -}}
+{{- end -}}
+
+{{- define "axiom-node.labels" -}}
+app.kubernetes.io/name: axiom-node
+app.kubernetes.io/instance: {{ .root.Release.Name }}
+app.kubernetes.io/component: {{ .role }}
+{{- with .slot }}
+axiom.io/slot: {{ . }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Resources come from the profile; a role may override. Realtime roles get
+guaranteed resources (requests = limits, so they are the last to be evicted);
+background roles request half and are throttled first.
+*/}}
+{{/*
+The deployment's size (ADR-215), with the names before it resolved through
+profileAliases. An unknown name fails the render instead of producing a role
+with no limits.
+*/}}
+{{- define "axiom-node.size" -}}
+{{- $name := toString .Values.profile -}}
+{{- $size := get (default dict .Values.profileAliases) $name | default $name -}}
+{{- if not (hasKey .Values.resources $size) -}}
+{{- fail (printf "profile %q is not a size: use micro, small, medium or large (ADR-215)" $name) -}}
+{{- end -}}
+{{- $size -}}
+{{- end -}}
+
+{{- define "axiom-node.resources" -}}
+{{- if eq (toString .cfg.resources) "none" }}
+{{- /* No requests or limits: a laptop's development database sized by the machine. */}}
+{{- else }}
+{{- $p := index .root.Values.resources (include "axiom-node.size" .root) -}}
+{{- $r := default $p .cfg.resources -}}
+{{- if eq (default "background" .priority) "realtime" }}
+resources:
+  requests: {cpu: {{ $r.cpu | quote }}, memory: {{ $r.memory | quote }}}
+  limits: {cpu: {{ $r.cpu | quote }}, memory: {{ $r.memory | quote }}{{ with .cfg.gpu }}, nvidia.com/gpu: {{ . }}{{ end }}}
+{{- else }}
+resources:
+  requests: {cpu: {{ $r.cpu | quote }}, memory: {{ $r.memory | quote }}}
+  limits: {memory: {{ $r.memory | quote }}{{ with .cfg.gpu }}, nvidia.com/gpu: {{ . }}{{ end }}}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+The storage class line for a claim, when the cluster base's names are in use
+(contract.enabled). Called with dict "root" "cfg" "kind" (database|default).
+*/}}
+{{- define "axiom-node.storageClass" -}}
+{{- if .root.Values.contract.enabled -}}
+storageClassName: {{ default (index .root.Values.contract.storageClass (default "default" .kind)) .cfg.storageClass }}
+{{- end -}}
+{{- end -}}
+
+{{/* Whether a name is a role or a service, for lookups by name (a job's dataFrom, a watched volume). */}}
+{{- define "axiom-node.isBlueGreen" -}}
+{{- $cfg := dict -}}
+{{- if hasKey .root.Values.roles .name }}{{- $cfg = index .root.Values.roles .name -}}
+{{- else if hasKey (default dict .root.Values.services) .name }}{{- $cfg = index .root.Values.services .name -}}
+{{- else }}{{- fail (printf "%q is neither a role nor a service" .name) -}}{{- end -}}
+{{- ternary "true" "" (dig "blueGreen" "enabled" false $cfg) -}}
+{{- end -}}
+
+{{- define "axiom-node.priorityClass" -}}
+{{ printf "%s-%s" .root.Release.Name (default "background" .priority) }}
+{{- end -}}
+
+{{/*
+A role that runs the runtime image: one replica (one writer on its volume),
+packages installed once into /data by the entrypoint, probes, limits.
+Called with dict "root" . "role" name "cfg" values "command" list "port" int
+"probePath" string "priority" realtime|background "extraPorts" list of
+{name, port}.
+*/}}
+{{- define "axiom-node.workload" -}}
+{{- $fullname := printf "%s-%s" .root.Release.Name .role -}}
+{{- /* A role runs the runtime image unless it names its own (a model server,
+a third-party UI); a slot may override either, which is how a release of an
+image-only role is deployed. Such a role gets no package environment. */ -}}
+{{- $own := not (empty .cfg.image) -}}
+{{- $img := dict "repository" .root.Values.image.repository "tag" .root.Values.image.tag "digest" (default "" .root.Values.image.digest) "pullPolicy" .root.Values.image.pullPolicy -}}
+{{- if $own }}{{- $img = mergeOverwrite (dict "digest" "" "pullPolicy" "IfNotPresent") (deepCopy .cfg.image) -}}{{- end }}
+{{- with .slotImage }}{{- $img = mergeOverwrite (deepCopy $img) (deepCopy .) -}}{{- end }}
+{{- $imgRef := printf "%s:%v" $img.repository $img.tag -}}
+{{- if $img.digest }}{{- $imgRef = printf "%s@%s" $img.repository $img.digest -}}{{- end }}
+{{- $dataPath := default "/data" .cfg.dataPath -}}
+{{- $uid := .root.Values.runAsUser -}}
+{{- if hasKey .cfg "runAsUser" }}{{- $uid = .cfg.runAsUser -}}{{- end }}
+{{- if .slot }}{{- $fullname = printf "%s-%s" $fullname .slot -}}{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}
+  labels: {{- include "axiom-node.labels" . | nindent 4 }}
+  annotations:
+    axiom.io/role: {{ .role | quote }}
+    axiom.io/priority: {{ default "background" .priority | quote }}
+    {{- with .cfg.egress }}
+    axiom.io/egress: {{ toJson . | quote }}
+    {{- end }}
+    {{- with .cfg.listen }}
+    axiom.io/listen: {{ toJson . | quote }}
+    {{- end }}
+    {{- if and .port .cfg.publish (not .slot) }}
+    axiom.io/publish: {{ printf "%s:%v" .cfg.publish .port | quote }}
+    {{- end }}
+    {{- with .slot }}
+    axiom.io/slot: {{ . | quote }}
+    {{- end }}
+spec:
+  serviceName: {{ $fullname }}
+  replicas: 1
+  podManagementPolicy: OrderedReady
+  updateStrategy: {type: RollingUpdate}
+  selector:
+    matchLabels: {{- include "axiom-node.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "axiom-node.labels" . | nindent 8 }}
+        {{- with include "axiom-node.sharedNames" .cfg }}
+        axiom.io/shared-volume: {{ . | quote }}
+        {{- end }}
+    spec:
+      {{- if .cfg.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      priorityClassName: {{ include "axiom-node.priorityClass" . }}
+      {{- if .cfg.gpu }}
+      runtimeClassName: {{ .root.Values.gpu.runtimeClassName }}
+      {{- end }}
+      {{- $watch := default list .cfg.watchVolumes }}
+      {{- $shared := include "axiom-node.sharedNames" .cfg }}
+      {{- if and $shared (not (or .slot $watch)) }}
+      # A shared volume is ReadWriteOnce: everything that mounts it runs on one node.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchExpressions:
+                    - {key: axiom.io/shared-volume, operator: Exists}
+      {{- end }}
+      {{- if or .slot $watch }}
+      # Both slots mount the role's one data volume, and a watched volume is
+      # mounted where it lives, so these pods share a node. A slot is placed
+      # beside its own role only when it watches nothing: the scheduler lets
+      # the first pod of a group satisfy a term matching itself only while no
+      # running pod matches any of its terms, so beside a running watched role
+      # the first slot could never be placed. Placed beside the watched roles,
+      # every slot shares their node, and so each other's.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            {{- if and .slot (not $watch) }}
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: {{ .root.Release.Name }}
+                  app.kubernetes.io/component: {{ .role }}
+            {{- end }}
+            {{- range $watch }}
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: {{ $.root.Release.Name }}
+                  app.kubernetes.io/component: {{ .role }}
+            {{- end }}
+      {{- end }}
+      {{- /* A third-party image may need its own user; only an explicit 0 runs as root. */}}
+      securityContext: {runAsUser: {{ $uid }}, runAsNonRoot: {{ ne (int $uid) 0 }}, fsGroup: {{ $uid }}, fsGroupChangePolicy: OnRootMismatch}
+      {{- $pk0 := default .root.Values.packages .cfg.packages }}
+      {{- if .cfg.init }}
+      initContainers:
+        - name: init
+          image: {{ include "axiom-node.image" .root | quote }}
+          args: {{ toJson .cfg.init }}
+          # Start in the role's own writable volume: tools that default to a
+          # path relative to where they start (a collector's journal) work.
+          workingDir: /data
+          env:
+            - {name: AXIOM_PACKAGES, value: {{ $pk0.pin | quote }}}
+            - {name: AXIOM_PACKAGES_VERSION, value: {{ $pk0.version | quote }}}
+            {{- with $.root.Values.packages.indexSecret }}{{ if .name }}
+            - name: PIP_EXTRA_INDEX_URL
+              valueFrom: {secretKeyRef: {name: {{ .name | quote }}, key: {{ .key | quote }}}}
+            {{- end }}{{ end }}
+            - {name: AXIOM_NODE_CONFIG, value: /tmp/axiom-node.toml}
+            - {name: AXIOM_NODE_TOML, value: {{ include "axiom-node.nodeToml" (dict "root" $.root "cfg" .cfg) | quote }}}
+            {{- range $k, $v := .cfg.env }}
+            - {name: {{ $k }}, value: {{ $v | quote }}}
+            {{- end }}
+          {{- if .cfg.secretFrom }}
+          envFrom: [{secretRef: {name: {{ .cfg.secretFrom }}}}]
+          {{- end }}
+          # The init sees what the role sees: a package or a file it installs
+          # may come from the role's config.
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            {{- if .cfg.configFrom }}
+            - {name: config, mountPath: /config, readOnly: true}
+            {{- end }}
+            {{- range .cfg.extraConfig }}
+            - {name: {{ .name }}, mountPath: {{ .path }}, readOnly: true}
+            {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .role }}
+          image: {{ $imgRef | quote }}
+          imagePullPolicy: {{ $img.pullPolicy }}
+          {{- $ov := default dict .cfg.overlap }}
+          {{- if and $ov.enabled .command }}
+          {{- $wrap := list "python" "-m" "axiom.infra.switch" "--worker" "--subject" .role "--drain-s" (toString (default 30 $ov.drainS)) "--ready-timeout-s" (toString (default 120 $ov.readyTimeoutS)) }}
+          {{- with $ov.instanceEnv }}{{- $wrap = concat $wrap (list "--instance-env" .) }}{{- end }}
+          args: {{ toJson (concat $wrap (list "--") .command) }}
+          {{- else }}
+          {{- with .command }}
+          args: {{ toJson . }}
+          {{- end }}
+          {{- end }}
+          {{- if not $own }}
+          workingDir: /data
+          {{- end }}
+          {{- $pk := mergeOverwrite (deepCopy .root.Values.packages) (default dict .cfg.packages) (default dict .slotPackages) }}
+          env:
+            {{- if not $own }}
+            - {name: AXIOM_PACKAGES, value: {{ $pk.pin | quote }}}
+            - {name: AXIOM_PACKAGES_VERSION, value: {{ $pk.version | quote }}}
+            - {name: AXIOM_NODE_CONFIG, value: /tmp/axiom-node.toml}
+            {{- with .root.Values.packages.indexSecret }}{{ if .name }}
+            - name: PIP_EXTRA_INDEX_URL
+              valueFrom: {secretKeyRef: {name: {{ .name | quote }}, key: {{ .key | quote }}}}
+            {{- end }}{{ end }}
+            - {name: AXIOM_NODE_TOML, value: {{ include "axiom-node.nodeToml" (dict "root" $.root "cfg" .cfg) | quote }}}
+          {{- with $watch }}
+            - {name: AXIOM_DISK_WATCH, value: {{ include "axiom-node.diskWatch" . | quote }}}
+          {{- end }}
+            {{- if .slot }}
+            - {name: AXIOM_ROOT, value: /pkg}
+            {{- end }}
+            {{- end }}
+            {{- with .slot }}
+            - {name: AXIOM_SLOT, value: {{ . | quote }}}
+            {{- end }}
+            {{- with .root.Values.adoption.dsn }}
+            - {name: AXIOM_ADOPT_DSN, value: {{ . | quote }}}
+            {{- end }}
+            {{- range $k, $v := .cfg.env }}
+            - {name: {{ $k }}, value: {{ $v | quote }}}
+            {{- end }}
+          {{- if .cfg.secretFrom }}
+          envFrom:
+            - secretRef: {name: {{ .cfg.secretFrom }}}
+          {{- end }}
+          {{- if or .port .extraPorts }}
+          ports:
+            {{- if .port }}
+            - {name: http, containerPort: {{ .port }}}
+            {{- end }}
+            {{- range .extraPorts }}
+            - {name: {{ .name }}, containerPort: {{ .port }}}
+            {{- end }}
+          {{- end }}
+          {{- if .probePath }}
+          startupProbe:
+            httpGet: {path: {{ .probePath }}, port: {{ .port }}}
+            periodSeconds: 10
+            failureThreshold: 60     # first boot installs the packages
+          livenessProbe:
+            httpGet: {path: {{ .probePath }}, port: {{ .port }}}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: {{ .probePath }}, port: {{ .port }}}
+            periodSeconds: 10
+          {{- end }}
+          {{- include "axiom-node.resources" . | nindent 10 }}
+          volumeMounts:
+            - {name: data, mountPath: {{ $dataPath }}}
+            {{- if and .slot (not $own) }}
+            - {name: pkg, mountPath: /pkg}
+            {{- end }}
+            {{- if .cfg.configFrom }}
+            - {name: config, mountPath: /config, readOnly: true}
+            {{- end }}
+            {{- range .cfg.extraConfig }}
+            - {name: {{ .name }}, mountPath: {{ .path }}, readOnly: true}
+            {{- end }}
+            {{- range $watch }}
+            - {name: watch-{{ .label }}, mountPath: /watch/{{ .label }}, readOnly: true}
+            {{- end }}
+            {{- with include "axiom-node.mountPoints" .cfg }}{{ . | nindent 12 }}{{- end }}
+        {{- if and .cfg.caRepeater .cfg.caRepeater.enabled }}
+        {{- if not .cfg.hostNetwork }}
+        {{- fail (printf "roles.%s.caRepeater.enabled needs roles.%s.hostNetwork=true: a Channel Access repeater only helps on the host's own network, where server beacons arrive" .role .role) }}
+        {{- end }}
+        # Channel Access clients depend on a per-host repeater to hear server beacons
+        # (an IOC coming back). The Python client ships no Linux repeater, so the chart
+        # carries one. It runs the repeater directly (no package install, no volume), and
+        # leaves a repeater the host already runs alone.
+        - name: ca-repeater
+          image: {{ include "axiom-node.image" .root | quote }}
+          imagePullPolicy: {{ .root.Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c", {{ include "axiom-node.caRepeaterScript" . | quote }}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+          livenessProbe:
+            exec: {command: ["/bin/sh", "-c", "grep -qi ':13C9 ' /proc/net/udp /proc/net/udp6"]}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+        {{- end }}
+        {{- range .cfg.companions }}
+        - name: {{ .name }}
+          image: {{ include "axiom-node.image" $.root | quote }}
+          args: {{ toJson .command }}
+          workingDir: /data
+          env:
+            - {name: AXIOM_PACKAGES, value: {{ $pk0.pin | quote }}}
+            - {name: AXIOM_PACKAGES_VERSION, value: {{ $pk0.version | quote }}}
+            {{- with $.root.Values.packages.indexSecret }}{{ if .name }}
+            - name: PIP_EXTRA_INDEX_URL
+              valueFrom: {secretKeyRef: {name: {{ .name | quote }}, key: {{ .key | quote }}}}
+            {{- end }}{{ end }}
+            - {name: AXIOM_NODE_CONFIG, value: /tmp/axiom-node.toml}
+            - {name: AXIOM_NODE_TOML, value: {{ include "axiom-node.nodeToml" (dict "root" $.root "cfg" $.cfg) | quote }}}
+            {{- range $k, $v := $.cfg.env }}
+            - {name: {{ $k }}, value: {{ $v | quote }}}
+            {{- end }}
+          {{- if $.cfg.secretFrom }}
+          envFrom: [{secretRef: {name: {{ $.cfg.secretFrom }}}}]
+          {{- end }}
+          resources: {requests: {cpu: {{ default "50m" .cpu | quote }}, memory: {{ default "64Mi" .memory | quote }}}}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            {{- if $.cfg.configFrom }}
+            - {name: config, mountPath: /config, readOnly: true}
+            {{- end }}
+            {{- range $.cfg.extraConfig }}
+            - {name: {{ .name }}, mountPath: {{ .path }}, readOnly: true}
+            {{- end }}
+        {{- end }}
+      {{- if or .cfg.configFrom .dataClaim .cfg.extraConfig $watch .cfg.mounts }}
+      volumes:
+        {{- with include "axiom-node.mountVolumes" (dict "root" .root "cfg" .cfg) }}{{ . | nindent 8 }}{{- end }}
+        {{- with .dataClaim }}
+        - name: data
+          persistentVolumeClaim: {claimName: {{ . }}}
+        {{- end }}
+        {{- if .cfg.configFrom }}
+        - name: config
+          configMap: {name: {{ .cfg.configFrom }}}
+        {{- end }}
+        {{- range .cfg.extraConfig }}
+        - name: {{ .name }}
+          configMap: {name: {{ .from }}}
+        {{- end }}
+        {{- range $watch }}
+        - name: watch-{{ .label }}
+          persistentVolumeClaim:
+            claimName: {{ if include "axiom-node.isBlueGreen" (dict "root" $.root "name" .role) }}{{ printf "%s-%s-data" $.root.Release.Name .role }}{{ else }}{{ printf "data-%s-%s-0" $.root.Release.Name .role }}{{ end }}
+            readOnly: true
+        {{- end }}
+      {{- end }}
+  {{- if and .slot $own }}
+  volumeClaimTemplates: []
+  {{- else }}
+  volumeClaimTemplates:
+    {{- if .slot }}
+    - metadata: {name: pkg}
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with include "axiom-node.storageClass" (dict "root" .root "cfg" dict) }}{{ . | nindent 8 }}{{- end }}
+        resources: {requests: {storage: 2Gi}}
+    {{- else }}
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with include "axiom-node.storageClass" (dict "root" .root "cfg" .cfg "kind" (default "default" .storageKind)) }}{{ . | nindent 8 }}{{- end }}
+        resources: {requests: {storage: {{ .cfg.storage }}}}
+    {{- end }}
+  {{- end }}
+{{- if and (or .port .extraPorts) (not .slot) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}
+  labels: {{- include "axiom-node.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "axiom-node.labels" . | nindent 4 }}
+  ports:
+    {{- if .port }}
+    - {name: http, port: {{ .port }}, targetPort: http}
+    {{- end }}
+    {{- range .extraPorts }}
+    - {name: {{ .name }}, port: {{ .port }}, targetPort: {{ .name }}}
+    {{- end }}
+{{- end }}
+{{- end -}}
+
+
+{{/*
+The node's declaration (ADR-164), written by the entrypoint to
+$AXIOM_NODE_CONFIG in every container that runs Axiom, so what a role's values
+say about agents is what the process enforces, not only what the disclosure
+says. A role may widen or narrow the agent policy for itself (`agents`).
+*/}}
+{{- define "axiom-node.nodeToml" -}}
+[node]
+role = {{ .root.Values.node.role | quote }}
+functions = {{ toJson (default list .root.Values.node.functions) }}
+agents = {{ default .root.Values.node.agents .cfg.agents | quote }}
+maintenance = {{ .root.Values.node.maintenance | quote }}
+{{- end -}}
+
+
+{{- define "axiom-node.diskWatch" -}}
+{{- $items := list -}}
+{{- range . }}{{- $items = append $items (printf "%s=/watch/%s" .label .label) -}}{{- end -}}
+{{- join "," $items -}}
+{{- end -}}
+
+{{/*
+The repeater loop. UDP 5065 (0x13C9) is the Channel Access repeater port and only one
+process on a host can hold it: a second repeater exits at once, which under a restart
+policy is a crash loop. So: if the port is held (by a repeater the host already runs, or
+by this one) wait; if it is free, run ours; if ours exits, go round again.
+*/}}
+{{- define "axiom-node.caRepeaterScript" -}}
+bound() { grep -qi ':13C9 ' /proc/net/udp /proc/net/udp6 2>/dev/null; }
+while true; do
+  if bound; then sleep 10; continue; fi
+  /usr/bin/caRepeater{{ if .cfg.caRepeater.verbose }} -v{{ end }} || true
+  sleep 1
+done
+{{- end }}
+
+
+{{/* The names of the shared volumes a workload mounts, joined with "." (a label value). */}}
+{{- define "axiom-node.sharedNames" -}}
+{{- $names := list -}}
+{{- range (default list .mounts) }}{{- with .volume }}{{- $names = append $names . -}}{{- end }}{{- end -}}
+{{- join "." $names -}}
+{{- end -}}
+
+{{/* volumeMounts for a workload's `mounts`. Called with the workload's cfg. */}}
+{{- define "axiom-node.mountPoints" -}}
+{{- range $i, $m := (default list .mounts) }}
+- {name: mount-{{ $i }}, mountPath: {{ required "mounts[].path" $m.path }}{{ if or $m.secret $m.configMap $m.readOnly }}, readOnly: true{{ end }}}
+{{- end }}
+{{- end -}}
+
+{{/* volumes for a workload's `mounts`. Called with dict "root" "cfg". */}}
+{{- define "axiom-node.mountVolumes" -}}
+{{- range $i, $m := (default list .cfg.mounts) }}
+{{- if $m.volume }}
+{{- if not (hasKey (default dict $.root.Values.sharedVolumes) $m.volume) }}{{- fail (printf "mounts: %q is not in sharedVolumes" $m.volume) }}{{- end }}
+- name: mount-{{ $i }}
+  persistentVolumeClaim: {claimName: {{ printf "%s-shared-%s" $.root.Release.Name $m.volume }}}
+{{- else if $m.secret }}
+- name: mount-{{ $i }}
+  secret: {secretName: {{ $m.secret }}}
+{{- else if $m.configMap }}
+- name: mount-{{ $i }}
+  configMap: {name: {{ $m.configMap }}}
+{{- else }}
+{{- fail "each mounts[] entry names a volume, a secret or a configMap" }}
+{{- end }}
+{{- end }}
+{{- end -}}

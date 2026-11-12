@@ -1,0 +1,96 @@
+# Logging Configuration
+# Copy to runtime/config/logging.toml and customise for your deployment.
+#
+# Two-layer logging architecture (see docs/specs/spec-logging.md):
+#   Layer 1 — System Log: standard Python logging, always active, all modes.
+#              Configured here via [[log.sinks]] entries.
+#   Layer 2 — EC Compliance Audit Log: structured HMAC-chained records, EC mode only.
+#              Configured via NEUT_AUDIT_BACKEND and NEUT_AUDIT_HMAC_KEY env vars.
+#
+# Log levels: DEBUG(10) INFO(20) WARNING(30) ERROR(40) CRITICAL(50)
+
+# ---------------------------------------------------------------------------
+# System Log — Layer 1 sinks
+# ---------------------------------------------------------------------------
+# Every enabled sink receives all records at or above its configured level.
+# EC records (is_ec_record=true) are automatically excluded from cloud sinks.
+# Sinks are processed in order; failures in one do not affect others.
+
+[[log.sinks]]
+type    = "file"
+enabled = true
+level   = "INFO"
+path    = "runtime/logs/system/neut.log"
+# uid is auto-generated on first load and written back here — do not remove it.
+
+[[log.sinks]]
+type    = "null"
+enabled = false
+level   = "DEBUG"
+# No-op sink. Enable to suppress all output (e.g. in tests).
+
+[[log.sinks]]
+type    = "signal"
+enabled = true
+level   = "DEBUG"
+# Promotes records carrying `signal_event` to the signal bus (EVE/D-FIB).
+# Ignores level — filters on event type identity only.
+# registry_path defaults to runtime/config/signal_event_registry.toml.
+# registry_path = "runtime/config/signal_event_registry.toml"
+
+# ---------------------------------------------------------------------------
+# Cloud / external sinks (optional, disabled by default)
+# EC records are NEVER sent to cloud sinks — hardcoded, not configurable.
+# ---------------------------------------------------------------------------
+
+# [[log.sinks]]
+# type       = "gcp"
+# enabled    = false
+# level      = "WARNING"
+# project_id = "my-gcp-project"
+# log_name   = "axiom"
+# # Requires: pip install google-cloud-logging
+
+# [[log.sinks]]
+# type       = "cloudwatch"
+# enabled    = false
+# level      = "WARNING"
+# log_group  = "/axiom/prod"
+# log_stream = "routing"
+# region     = "us-east-1"
+# # Requires: pip install boto3 watchtower
+
+# [[log.sinks]]
+# type     = "syslog"
+# enabled  = false
+# level    = "WARNING"
+# host     = "splunk-forwarder.internal"
+# port     = 514
+# # Forward to self-hosted SIEM (Splunk, Elastic, Fluentd). No extra deps.
+
+# ---------------------------------------------------------------------------
+# Per-logger level overrides
+# ---------------------------------------------------------------------------
+# Override log levels for specific components without changing sink levels.
+# Keys are Python logger names (dotted module paths).
+
+[log.levels]
+"axiom"                        = "INFO"     # default for all Axiom code
+"axiom.infra.gateway"          = "INFO"     # LLM routing
+"axiom.infra.audit_log"        = "WARNING"  # audit layer: warnings and up only
+"axiom.infra.router"           = "INFO"     # export-control classifier
+"axiom.infra.connections"      = "WARNING"  # VPN / connectivity checks
+"axiom.extensions"             = "INFO"     # all extensions
+
+# Uncomment to increase verbosity for debugging:
+# "axiom.infra.gateway"        = "DEBUG"
+# "axiom.infra.router"         = "DEBUG"
+# "axiom.extensions.builtins.eve_agent" = "DEBUG"
+
+# ---------------------------------------------------------------------------
+# Forensic ring buffer
+# ---------------------------------------------------------------------------
+[log.forensic]
+capacity        = 2000     # records held in memory (no I/O until incident flush)
+snapshot_dir    = "runtime/logs/forensic"
+cooldown_secs   = 30       # minimum seconds between auto-snapshots on ERROR/CRITICAL
