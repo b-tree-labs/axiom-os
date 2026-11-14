@@ -1,0 +1,62 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# One registry (ADR-254), two command nouns (owner decision 2026-11-12). This
+# extension owns the registry, the flag resolver and both nouns' skills. Its noun,
+# `features`, is what a node runs: extensions ([extension.optional]) and functions
+# (ADR-164 node functions, commands, the background-agents service and the site
+# policies), node scope only. Feature flags ([[flags]], ADR-210) are the `flags`
+# noun of the flags extension. An extension that is off makes every function and
+# flag it owns resolve off, on every surface.
+[extension]
+name = "features"
+version = "0.2.0"
+description = "What this node runs (its role, functions, optional extensions, agents and maintenance policies), and the one registry the flags noun shares."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "features"
+entry = "axiom.extensions.builtins.features.cli:main"
+description = "What this node runs: its role, functions, optional extensions, agents and maintenance policies"
+tier = "starter"
+intent_groups = ["start"]
+
+# /api/v1/features: the whole registry for the signed-in caller (every row of the
+# three kinds with its state, the resolved flag map, which scopes the caller may
+# set), and PATCH by scope. /api/v1/flags is the canonical flags endpoint.
+[[extension.provides]]
+kind = "api"
+subpath = "/features"
+entry = "axiom.extensions.builtins.features.api:register_routes"
+description = "The whole registry for the signed-in caller: extensions, functions and flags with their state, set by scope"
+
+# features.list / enable / disable / set / role reach MCP through the skills
+# package (axiom_features__*), and the flag verbs as flags.* (axiom_flags__*), on
+# the same bind. The flag tools that were only axiom_features__<verb> keep that
+# name, deprecated, until 0.71.0.
+[extension.mcp]
+enabled = true
+
+# The rollout modes' clock (LOOP-F16, F18, F19): every minute, apply the scheduled changes
+# that are due, advance, halt or roll back stage plans by their gates, and refresh the
+# cohorts that follow an external group. Hosted: the scheduler host registers it when it starts.
+[[extension.schedule]]
+name = "features_rollout_tick"
+description = "Apply due flag changes, advance or halt stage plans, refresh followed cohorts"
+cadence = { kind = "interval", interval_seconds = 60 }
+action = "flags.rollout_tick"
+params = {}
+hosted = true
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 1 }

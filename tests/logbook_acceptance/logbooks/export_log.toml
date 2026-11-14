@@ -1,0 +1,27 @@
+# A small logbook for the export tests (unit L6). CHECK carries a quantity and a checkbox, NOTE a
+# text; one declared export renders through a template beside this file. No domain words.
+[logbook]
+id = "export_log"
+version = "1"
+display = "Export Log"
+assurance = { posture = "sso" }
+
+[[type]]
+id = "CHECK"
+meanings = ["performed"]
+roles = ["member"]
+fields = [
+  { id = "weight", type = "quantity", unit = "kg", required = true },
+  { id = "ok", type = "attest_checkbox", label = "All in order" },
+]
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["member"]
+fields = [{ id = "text", type = "text", required = true }]
+
+[[export]]
+id = "sheet"
+template = "templates/sheet.txt"
+site_overrides = ["header", "filename"]

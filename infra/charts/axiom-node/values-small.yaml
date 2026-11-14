@@ -1,0 +1,3 @@
+profile: small
+# The cluster base's names (infra/charts/axiom-cluster) are in use at this size.
+contract: {enabled: true}

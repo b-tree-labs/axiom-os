@@ -1,0 +1,78 @@
+[
+  {
+    "attestation_id": "<masked>",
+    "cosign": null,
+    "digest": "<masked>",
+    "entry_type": "OPEN_PERIOD",
+    "fields": {},
+    "interval": {
+      "event": "opened",
+      "kind": "period",
+      "number": 1
+    },
+    "kind": "statement",
+    "label": null,
+    "logbook": "my_notes",
+    "meaning": "authored",
+    "occurred_at": "<masked>",
+    "recorded_at": "<masked>",
+    "seq": 1,
+    "signer": "@member1:site-a",
+    "signer_name": "@member1:site-a",
+    "site_id": "site-a",
+    "target": null,
+    "title": "Start"
+  },
+  {
+    "attestation_id": "<masked>",
+    "cosign": null,
+    "digest": "<masked>",
+    "entry_type": "CHECK",
+    "fields": {
+      "confirmed": true,
+      "note": "fine",
+      "reading": {
+        "unit": "kg",
+        "value": "4.2"
+      }
+    },
+    "interval": {
+      "kind": "period",
+      "number": 1
+    },
+    "kind": "statement",
+    "label": null,
+    "logbook": "my_notes",
+    "meaning": "performed",
+    "occurred_at": "<masked>",
+    "recorded_at": "<masked>",
+    "seq": 2,
+    "signer": "@member1:site-a",
+    "signer_name": "@member1:site-a",
+    "site_id": "site-a",
+    "target": null,
+    "title": "Check"
+  },
+  {
+    "attestation_id": "<masked>",
+    "cosign": null,
+    "digest": "<masked>",
+    "entry_type": "NOTE",
+    "fields": {
+      "text": "all quiet"
+    },
+    "interval": null,
+    "kind": "statement",
+    "label": null,
+    "logbook": "my_notes",
+    "meaning": "authored",
+    "occurred_at": "<masked>",
+    "recorded_at": "<masked>",
+    "seq": 3,
+    "signer": "@member1:site-a",
+    "signer_name": "@member1:site-a",
+    "site_id": "site-a",
+    "target": null,
+    "title": "Note"
+  }
+]

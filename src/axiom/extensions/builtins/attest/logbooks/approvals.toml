@@ -1,0 +1,25 @@
+# The approvals log (logbook unit X3): a person's decision on a held action, signed.
+#
+# One type, ACTION_DECISION, meaning approved or rejected. Its subject is the action
+# ({kind = "action", value = <action id>}); the gate moves the action only on this record.
+# A site grants the role with `axi attest role grant <person> approver`; an administration role
+# never counts. A decision no person made (a rule) creates no record here.
+[logbook]
+id = "approvals"
+version = "1"
+display = "Approvals"
+assurance = { posture = "sso" }
+
+[[type]]
+id = "ACTION_DECISION"
+meanings = ["approved", "rejected"]
+roles = ["approver"]
+assurance = { posture = "sso", fresh_within = "5m" }
+devices = { sign = ["personal", "kiosk", "tablet"] }
+fields = [
+  { id = "decision", type = "text", label = "Decision", required = true },
+  { id = "action_name", type = "text", label = "Action", required = true },
+  { id = "reason", type = "text", label = "Why it was held" },
+  { id = "summary", type = "text", label = "Parameters" },
+  { id = "action_id", type = "text", label = "Action id", required = true },
+]

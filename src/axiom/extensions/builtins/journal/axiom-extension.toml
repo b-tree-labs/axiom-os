@@ -1,0 +1,89 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# The journal (ADR-163, ADR-241 D6): an append-only index of references over the records
+# other extensions keep, in lanes. It writes nothing anywhere else and offers no write on
+# any surface. Logbook unit J1; design in docs/working/design-note-j1-journal.md.
+[extension]
+name = "journal"
+version = "0.1.0"
+description = "One append-only index of what happened on this node, in lanes; references to records, never copies"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052. journal_events is partitioned by month and
+# append-only, enforced by triggers in migration 0001; journal_keys is the idempotence key.
+# The lane column is text: the journal declares eight lanes in lanes.py, and any extension
+# declares more in its own manifest with a root-level [[lanes]] table (name, retention,
+# patterns, durable, description), so a new lane needs no migration.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# No command noun here. ADR-243 (accepted 2026-11-10) adds no `axi journal`: the Timeline is
+# `axi log timeline` (`timeline lanes`, `timeline verify`), built with the `log` noun in unit
+# F5 over the skills below; `journal` stays the code name.
+
+# /api/v1/journal, /journal/lanes and /journal/stream. GET only; a test walks the router.
+[[extension.provides]]
+kind = "api"
+subpath = "/journal"
+entry = "axiom.extensions.builtins.journal.api:register_routes"
+description = "The journal: rows the caller may see, the lanes, and a live stream"
+
+[[extension.provides]]
+kind = "skill"
+name = "journal.query"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.journal.skills.read:query"
+description = "What happened on this node: journal rows the caller may see, newest first, by lane, subject and time"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "journal.lanes"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.journal.skills.read:lanes"
+description = "The journal's lanes the caller may see, with retention, counts and unmapped subjects"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "journal.verify"
+path = "skills/read.py"
+entry = "axiom.extensions.builtins.journal.skills.read:verify"
+description = "Check the journal's references against the records they point at; report, never repair"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "journal.tail"
+path = "follow.py"
+entry = "axiom.extensions.builtins.journal.follow:tail"
+description = "Tail a lane: its last rows in the Tail's columns and, with follow, every new row until interrupted"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+# The read skills project to MCP through the skill registry (ADR-073). Nothing writes.
+[extension.mcp]
+enabled = true
+prefix = "axiom_journal"

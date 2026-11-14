@@ -1,0 +1,66 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Feedback from people and agents (the loop, phase 5: LOOP-B1 to B7). One report skill on
+# every surface; reports group by cause; a group is one ask in its owner's Needs you with the
+# rollback already chosen; the automatic stop goes through flags.kill.
+[extension]
+name = "feedback"
+version = "0.1.0"
+description = "Say something is good or bad in one action; reports group by cause and reach the owner of the flag or release with the rollback already chosen."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "feedback"
+entry = "axiom.extensions.builtins.feedback.cli:main"
+description = "Say something is good or bad; see a flag's reports; answer a feedback ask"
+tier = "starter"
+intent_groups = ["operate"]
+
+# POST /api/v1/feedback (a report), POST /api/v1/feedback/groups/{id}/decide (the owner's
+# answer) and GET /api/v1/feedback/flags/{key} (a flag's People view, site admins).
+[[extension.provides]]
+kind = "api"
+subpath = "/feedback"
+entry = "axiom.extensions.builtins.feedback.api:register_routes"
+description = "Feedback reports, the owner's answer, and a flag's reports grouped by cause"
+
+[extension.mcp]
+enabled = true
+
+# Reports are taken (LOOP-B1 to B6).
+[[flags]]
+key = "feedback_reports"
+description = "Feedback: report good or bad in one action; reports reach the owner as one ask per cause"
+default = "off"
+default_by_env = { development = "on", staging = "on", production = "off" }
+kind = "release"
+owner = "@maintainers"
+review_by = 2027-02-10
+remove_by = 2027-03-01
+
+# The automatic stop (LOOP-B7): a severe report, or the same cause from enough distinct
+# reporters within the window (settings feedback.auto_stop.reporters / .window_minutes),
+# stops the implicated flag. Never a slot rollback.
+[[flags]]
+key = "feedback_auto_stop"
+description = "Feedback stops the implicated flag by itself on a severe report or repeated reports"
+default = "off"
+default_by_env = { development = "on", staging = "on", production = "off" }
+kind = "operational"
+owner = "@maintainers"
+review_by = 2027-02-10

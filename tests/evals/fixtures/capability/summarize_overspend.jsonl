@@ -1,0 +1,3 @@
+{"type": "model", "content": "calling a tool I may not use", "tool_calls": [{"name": "shell.run", "args": {}}], "usage": {"tokens": 4000, "dollars": 0.5}}
+{"type": "tool_result", "name": "shell.run", "result": "ok"}
+{"type": "model", "content": "{\"summary\": \"x\", \"rows\": 1}", "usage": {"tokens": 10, "dollars": 0.0001}}

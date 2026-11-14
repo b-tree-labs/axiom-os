@@ -1,0 +1,92 @@
+# The end-to-end suite's fictional log (#1818, docs/working/logging-e2e-acceptance-plan.md).
+# Every word is generic: a desk, a session, a check, a lead. Nothing here names a domain.
+[logbook]
+id = "e2e_log"
+version = "1"
+display = "Desk Log"
+handle = "desk"
+assurance = { posture = "sso" }
+retention = "7y"
+integrity_notify = ["lead"]
+
+[interval.session]
+opens = ["OPEN"]
+closes = ["CLOSE"]
+number = { seed_from_site = true }
+
+[[type]]
+id = "OPEN"
+meanings = ["authored"]
+roles = ["member"]
+requires_interval = "none_open"
+fields = [{ id = "text", type = "text", label = "Text" }]
+
+[[type]]
+id = "CLOSE"
+meanings = ["authored"]
+roles = ["member"]
+requires_interval = "session"
+fields = [{ id = "text", type = "text", label = "Text" }]
+
+[[type]]
+id = "CHECK"
+meanings = ["performed"]
+roles = ["member"]
+presence = "desk_room"
+requires_interval = "session"
+fields = [{ id = "readings", type = "readings", label = "Readings", from_site = "instruments", observe = true, allow_not_taken = true, convert = [{ from = "L/s", to = "L/min", factor = "60" }] }]
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["member", "lead"]
+assurance = { posture = "attested" }
+fields = [{ id = "text", type = "text", label = "Text", required = true }]
+
+[[type]]
+id = "CHANGE"
+meanings = ["performed"]
+roles = ["member"]
+cosign = { roles = { site_key = "desk.cosign.change_roles", default = ["lead", "member"] }, assurance = { posture = "sso", fresh_within = "5m" } }
+fields = [{ id = "text", type = "text", label = "Text", required = true }]
+
+[[type]]
+id = "HANDOVER"
+meanings = ["performed"]
+roles = ["member"]
+cosign = { roles = ["lead"], party = "relieved" }
+fields = [
+  { id = "text", type = "text", label = "Text", required = true },
+  { id = "relieved", type = "text", label = "Relieved", required = true },
+]
+
+[[type]]
+id = "EXPLAIN"
+meanings = ["authored"]
+roles = ["member", "lead"]
+fields = [
+  { id = "text", type = "text", label = "Text", required = true },
+  { id = "miss", type = "obligation_ref", label = "Miss explained" },
+]
+
+[[obligation]]
+id = "check_cadence"
+type = "CHECK"
+every = { site_key = "desk.checks.interval_minutes", default = 30 }
+warn_before = { site_key = "desk.checks.warn_lead_minutes", default = 5 }
+while = "interval.session.open"
+notify = ["member", "lead"]
+required = true
+
+[period.day]
+starts = { site_key = "desk.day.starts", default = ["06:00", "18:00"] }
+grace_minutes = { site_key = "desk.day.grace_minutes", default = 30 }
+
+[seal]
+by_roles = ["lead"]
+boundary = "session"
+
+[[export]]
+id = "daily"
+template = "templates/daily.txt"
+rows_per_page = 2

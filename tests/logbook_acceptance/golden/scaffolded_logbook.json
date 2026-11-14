@@ -1,0 +1,195 @@
+{
+  "can_sign": false,
+  "display": "My Notes",
+  "exports": [],
+  "id": "my_notes",
+  "intervals": [
+    {
+      "closes": [
+        "CLOSE_PERIOD"
+      ],
+      "kind": "period",
+      "opens": [
+        "OPEN_PERIOD"
+      ]
+    }
+  ],
+  "may_import": false,
+  "not_yet_enforced": [],
+  "read_only": true,
+  "readers": [],
+  "retention": null,
+  "seal": null,
+  "types": [
+    {
+      "can_sign": false,
+      "confirm": {
+        "modalities_all": [],
+        "modalities_any": [
+          "screen",
+          "cli",
+          "kiosk"
+        ],
+        "read_back": "on_voice_origin",
+        "timeout_seconds": 900,
+        "voice_confirm_allowed": false
+      },
+      "fields": [],
+      "fresh_within_seconds": null,
+      "id": "OPEN_PERIOD",
+      "meanings": [
+        "authored"
+      ],
+      "posture": "attested",
+      "presence": null,
+      "roles": [
+        "member",
+        "lead"
+      ],
+      "sign_devices": [
+        "personal",
+        "kiosk",
+        "tablet"
+      ]
+    },
+    {
+      "can_sign": false,
+      "confirm": {
+        "modalities_all": [],
+        "modalities_any": [
+          "screen",
+          "cli",
+          "voice"
+        ],
+        "read_back": "on_voice_origin",
+        "timeout_seconds": 600,
+        "voice_confirm_allowed": true
+      },
+      "fields": [
+        {
+          "choices": [],
+          "from_site": null,
+          "id": "reading",
+          "instruments": null,
+          "label": "",
+          "observe": true,
+          "required": true,
+          "type": "quantity",
+          "unit": "kg"
+        },
+        {
+          "choices": [],
+          "from_site": null,
+          "id": "confirmed",
+          "instruments": null,
+          "label": "Check completed",
+          "observe": false,
+          "required": true,
+          "type": "attest_checkbox",
+          "unit": ""
+        },
+        {
+          "choices": [],
+          "from_site": null,
+          "id": "note",
+          "instruments": null,
+          "label": "",
+          "observe": false,
+          "required": false,
+          "type": "text",
+          "unit": ""
+        }
+      ],
+      "fresh_within_seconds": null,
+      "id": "CHECK",
+      "meanings": [
+        "performed"
+      ],
+      "posture": "attested",
+      "presence": null,
+      "roles": [
+        "member",
+        "lead"
+      ],
+      "sign_devices": [
+        "personal",
+        "kiosk",
+        "tablet"
+      ]
+    },
+    {
+      "can_sign": false,
+      "confirm": {
+        "modalities_all": [],
+        "modalities_any": [
+          "screen",
+          "cli",
+          "kiosk"
+        ],
+        "read_back": "on_voice_origin",
+        "timeout_seconds": 900,
+        "voice_confirm_allowed": false
+      },
+      "fields": [
+        {
+          "choices": [],
+          "from_site": null,
+          "id": "text",
+          "instruments": null,
+          "label": "",
+          "observe": false,
+          "required": true,
+          "type": "text",
+          "unit": ""
+        }
+      ],
+      "fresh_within_seconds": null,
+      "id": "NOTE",
+      "meanings": [
+        "authored"
+      ],
+      "posture": "attested",
+      "presence": null,
+      "roles": [
+        "member",
+        "lead"
+      ],
+      "sign_devices": [
+        "personal",
+        "kiosk",
+        "tablet"
+      ]
+    },
+    {
+      "can_sign": false,
+      "confirm": {
+        "modalities_all": [],
+        "modalities_any": [
+          "screen",
+          "cli",
+          "kiosk"
+        ],
+        "read_back": "on_voice_origin",
+        "timeout_seconds": 900,
+        "voice_confirm_allowed": false
+      },
+      "fields": [],
+      "fresh_within_seconds": null,
+      "id": "CLOSE_PERIOD",
+      "meanings": [
+        "authored"
+      ],
+      "posture": "attested",
+      "presence": null,
+      "roles": [
+        "lead"
+      ],
+      "sign_devices": [
+        "personal",
+        "kiosk",
+        "tablet"
+      ]
+    }
+  ],
+  "version": "1"
+}

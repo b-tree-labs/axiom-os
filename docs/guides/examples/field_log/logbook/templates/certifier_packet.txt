@@ -1,0 +1,7 @@
+${header}
+
+${rows}
+
+Chain head: ${chain_head}
+${verification}
+${footer}

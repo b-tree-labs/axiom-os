@@ -1,0 +1,51 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: setup.check and setup.detect are read-only and projected; the walk itself asks a person
+[extension]
+name = "setup"
+version = "0.1.0"
+description = "One command to get a computer ready: upgrade, vault, shell, browser sign-in with the key straight into the vault, AI apps; doctor runs the same checks."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+[[extension.provides]]
+kind = "skill"
+name = "setup.run"
+entry = "axiom.extensions.builtins.setup.skills.run:run"
+path = "skills/run"
+description = "Get this computer ready, asking before each change; ends with a checklist."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "setup.check"
+entry = "axiom.extensions.builtins.setup.skills.run:check"
+path = "skills/check"
+description = "Every setup check, read only: green, or red with the one thing to do."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "setup.detect"
+entry = "axiom.extensions.builtins.setup.skills.run:detect"
+path = "skills/detect"
+description = "What this computer is: OS, shell and start-up file, installer, Docker, AI apps."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []

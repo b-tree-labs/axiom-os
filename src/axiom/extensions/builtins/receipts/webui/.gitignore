@@ -1,0 +1,5 @@
+# The receipts webui ships its REAL built bundle (founder rule 2026-09-24:
+# nothing placeholder ships; deployed nodes and CI serve the same build the
+# e2e suite exercises). node_modules stays ignored.
+!dist/
+node_modules/

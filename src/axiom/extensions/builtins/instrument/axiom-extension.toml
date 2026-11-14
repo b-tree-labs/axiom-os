@@ -1,0 +1,74 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Instruments (ADR-256; prd-instrument, spec-instrument). One thin owner of the
+# `instrument` noun and a registry of instrument kinds. A kind is another extension's
+# or a consumer package's: it declares [[instrument_kinds]] or an
+# `axiom.instrument_kinds` entry point, passes the portfolio gate, and never claims the
+# noun. Capture, frames, triggers, journals and connector kinds belong to a kind.
+[extension]
+name = "instrument"
+version = "0.1.0"
+description = "Instruments: the instrument noun and the registry of instrument kinds (video first)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# The noun's two reads are MCP tools on the platform's unified server. A kind's verbs
+# are the kind's skills.
+[extension.mcp]
+enabled = true
+
+# The noun measures nothing: it lists and summarises what its kinds report. Each kind
+# declares its own posture.
+[extension.uncertainty]
+posture = "not-applicable"
+
+# `axi instrument`: ADR-056, each of the noun's verbs is a thin wrapper over the skill of
+# the same name; any other first word is a registered kind (ADR-256 D4). ADR-164: the
+# noun belongs to the `acquire` function, so every kind under it does.
+[[extension.provides]]
+kind = "cmd"
+noun = "instrument"
+entry = "axiom.extensions.builtins.instrument.commands:main"
+description = "Instruments: what this node quantifies from its sensors (list / status / <kind> <verb>)"
+tier = "core"
+intent_groups = ["operate"]
+functions = ["acquire"]
+subcommands = ["list", "status"]
+
+# Skills: declared once as SkillSpecs in skills/__init__.py; the block below and each
+# skills/<verb>/SKILL.md are generated from them by `axi skills emit-md --ext instrument`.
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "instrument.list"
+entry = "axiom.extensions.builtins.instrument.skills.listing:run"
+path = "skills/list"
+description = "List what this node takes in from its sensors: one row per declared instrument, of every registered instrument kind, with its kind, name, health (ready, degraded, failed, unmounted) and state. With kinds=true, the registered instrument kinds instead: each one's name, what it yields (frames, readings), where it came from and what it is, and any kind that was refused, declared twice or cannot load, with the reason and the fix. A kind that does not answer is listed under failed; the others still answer. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "instrument.status", when = "always", why = "see each kind's summary" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "instrument.status"
+entry = "axiom.extensions.builtins.instrument.skills.status:run"
+path = "skills/status"
+description = "One summary per instrument kind on this node: whether it answered, a one-line summary, its instruments counted by health, and any error with its fix. A kind that was refused, declared twice, cannot load or does not answer is shown as not ok with why; the others still answer. Answers 'is everything this node measures working'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "instrument.list", when = "always", why = "see each instrument and its health" }]
+# END axi-skills-emit-md

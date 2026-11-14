@@ -1,0 +1,87 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "sites"
+version = "0.1.0"
+description = "Tenant sites: the ones you may see (the scope selector) and each site's readiness checklist (ADR-178 D4)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.68"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "sites"
+entry = "axiom.extensions.builtins.sites.cli:main"
+description = "A tenant site's readiness checklist (ADR-178)"
+tier = "starter"
+intent_groups = ["operate"]
+
+[[extension.provides]]
+kind = "skill"
+name = "sites.checklist"
+entry = "axiom.extensions.builtins.sites.skills.checklist:run"
+path = "skills/checklist"
+description = "Run every ADR-178 readiness check for a site: ok, waiting, failing (with the fix) or not applicable. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+# GET /api/v1/first-run: the five first-run steps (MVP-25-A6).
+[[extension.provides]]
+kind = "api"
+subpath = "/first-run"
+entry = "axiom.extensions.builtins.sites.api:register_routes"
+description = "The first-run checklist for the web app"
+
+[[extension.provides]]
+kind = "skill"
+name = "sites.list"
+entry = "axiom.extensions.builtins.sites.skills.tenancy:list_sites"
+path = "skills/list"
+description = "The sites you may see here, the scope selector's choice, and whether there is anything to choose. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+[[extension.provides]]
+kind = "skill"
+name = "sites.show"
+entry = "axiom.extensions.builtins.sites.skills.tenancy:show_site"
+path = "skills/show"
+description = "One site you may see; a site you may not see answers like one that does not exist. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+
+# /api/v1/sites: what the scope selector lists (MVP-15).
+[[extension.provides]]
+kind = "api"
+subpath = "/sites"
+entry = "axiom.extensions.builtins.sites.api:register_site_routes"
+description = "The sites the signed-in person may see, and the scope selector's choice"
+
+[extension.mcp]
+enabled = true
+
+# The header scope selector (MVP-15). It also hides itself for a person with one
+# site, so turning it on changes nothing for them.
+[[flags]]
+key = "scope_selector"
+description = "The site scope selector in the shell header"
+default = "off"
+default_by_env = { development = "on", staging = "on" }
+kind = "release"
+owner = "@maintainers"
+review_by = 2027-02-10
+remove_by = 2027-03-01

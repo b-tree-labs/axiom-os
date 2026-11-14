@@ -1,0 +1,6 @@
+{{- $name := toString .Values.profile -}}
+{{- if hasKey (default dict .Values.profileAliases) $name }}
+WARNING: profile "{{ $name }}" is a deprecated name for the size "{{ get .Values.profileAliases $name }}" (ADR-215).
+Use -f values-{{ get .Values.profileAliases $name }}.yaml (or profile: {{ get .Values.profileAliases $name }}); the old name is removed after one minor release.
+{{- end }}
+Size: {{ include "axiom-node.size" . }}

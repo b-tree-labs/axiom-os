@@ -1,0 +1,27 @@
+flowchart TD
+  U["User · agent · MCP client<br/>needs a token to call Axiom"]:::neutral
+  EXT["External IdP<br/>Entra (tenant) · Google · any OIDC issuer"]:::neutral
+
+  subgraph RP["auth builtin — Relying Party (ADR-075)"]
+    AUTH["auth<br/>log in VIA someone else<br/>device-code · JWKS verify · token_source<br/>extensions declare consumes, never touch OAuth"]:::vega
+  end
+
+  subgraph ASV["oauth builtin — Authorization Server (ADR-082)"]
+    OAUTH["oauth<br/>OAuth 2.1 AS · OIDC · MCP Resource Server<br/>/authorize · /token · /introspect · /revoke<br/>PKCE S256 · audience-bound (RFC 8707)"]:::core
+    WEBAUTH["webauth<br/>ES256 signer · JWKS (ADR-085)<br/>establishes WHO the caller is"]:::core
+  end
+
+  GUARD["GUARD — authz builtin<br/>consent = decide() at /authorize<br/>resource-server hook: bearer → ActorContext → decide()<br/>decides WHAT the caller may do"]:::accent
+
+  U -->|"log in via an external IdP"| AUTH
+  AUTH -->|"upstream OIDC / device code"| EXT
+  U -->|"first-party / agent token request"| OAUTH
+  OAUTH -->|"mints access token"| WEBAUTH
+  WEBAUTH -->|"audience-bound ES256 token"| U
+  OAUTH -.->|"consent + enforcement"| GUARD
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

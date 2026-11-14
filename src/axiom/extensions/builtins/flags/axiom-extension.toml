@@ -1,0 +1,76 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Feature flags (ADR-210; ADR-254 amended 2026-11-12): the `flags` noun, the
+# axiom_flags__* tools and /api/v1/flags, and the flag_overrides storage in its
+# own schema (ADR-052). Flags are declared by extensions in [[flags]] and are the
+# `flag` kind of the one registry, which the features extension owns with the
+# resolver; both nouns read and write that registry.
+[extension]
+name = "flags"
+version = "0.2.0"
+description = "Feature flags: list, resolve, set, explain, the kill switch, cohorts, rollouts, stage plans, schedules and approvals; and their stored overrides"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# Schema-per-extension persistence per ADR-052: the flag_overrides table. The
+# switchboard's node-scope switches are recorded here too, keyed
+# extension:<name> / function:<name> (ADR-254 §6); no schema change.
+[database]
+needs_schema = true
+migrations_path = "migrations"
+
+# Feature flags. What a node runs is `features`.
+[[extension.provides]]
+kind = "cmd"
+noun = "flags"
+entry = "axiom.extensions.builtins.flags.cli:main"
+description = "Feature flags: list, resolve, set, explain, kill, cohorts, rollouts, stage plans and approvals"
+tier = "core"
+intent_groups = ["operate"]
+
+# /api/v1/flags: the canonical flags endpoint, the shape appkit's FlagProvider reads;
+# /api/v1/features returns the whole registry.
+[[extension.provides]]
+kind = "api"
+subpath = "/flags"
+entry = "axiom.extensions.builtins.flags.api:register_routes"
+description = "Feature flags for the signed-in caller: resolved values, overrides by role, explain and the kill switch"
+
+# Every flag verb reaches MCP as axiom_flags__<verb>, bound by the features
+# skills package (one registry, one bind).
+[extension.mcp]
+enabled = true
+
+# LOOP-F11: every Monday, each maintainer (setting flags.maintainers) gets one grouped notice of
+# the flags that are work to remove (fully on past review_by, or off and unreferenced). A flag's
+# owner is the maintainer of the extension that declares it, never a site admin. Hosted, so the
+# scheduler host binds this package's skills. The notice sends nothing while flag_review_notices
+# is off or no maintainer is configured.
+[[extension.schedule]]
+name = "flags_stale_weekly"
+description = "Send each flag maintainer one grouped notice of the stale flags"
+cadence = { kind = "cron", cron = "0 14 * * 1", tz = "UTC", jitter_seconds = 300 }
+action = "flags.stale_notify"
+params = {}
+hosted = true
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 2, backoff = "exponential", dedup_window_seconds = 3600 }
+
+[[flags]]
+key = "flag_review_notices"
+description = "Flag owners get a weekly notice of the flags that are work to remove (LOOP-F11)"
+default = "off"
+kind = "release"
+owner = "@maintainers"
+review_by = 2027-02-10
+remove_by = 2027-03-01

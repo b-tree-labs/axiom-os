@@ -1,0 +1,402 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""``axi release`` — release control surface (consolidated from
+``axi rivet`` per the 2026-05-30 noun-convention policy).
+
+Per ADR-056: CLI verbs are thin wrappers over registered skill
+functions. Business logic lives in ``release.skills``; today, those
+skills delegate to legacy handlers in ``_legacy_rivet_cli`` and
+``_legacy_release_cli``.
+
+Verb grammar fixes (per spec-aeos-0.1 §4.3.1 + the 2026-05-30 audit):
+
+    OLD `axi release <noun>`     →  NEW `axi release <verb> <resource>`
+    patterns                   →  list patterns
+    watched                    →  list watched
+    paused                     →  list paused
+    close-stale                →  close stale
+    `axi release <part>`       →  `axi release cut <part>`
+
+RIVET remains the agent-persona name (the LLM character that reasons
+over CI / failure patterns / release readiness); the CLI noun is the
+purpose-named ``release``.
+"""
+
+from __future__ import annotations
+
+import argparse
+from typing import Any
+
+from . import _legacy_rivet_cli as _rivet_legacy
+from . import skills as release_skills
+
+# Back-compat re-exports for code/tests that imported these symbols
+# from the pre-migration `cli` module (which was the simple
+# release-bump tool, now `_legacy_release_cli`).
+from . import _legacy_release_cli  # noqa: E402
+from ._legacy_release_cli import (  # noqa: F401, E402
+    ReleaseInfo,
+    ReleaseManager,
+    ensure_repo_or_offer_init,
+    git_available,
+)
+
+
+_PROG = "axi release"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    legacy = _rivet_legacy.build_parser()
+    legacy_sub = next(
+        a for a in legacy._subparsers._actions if isinstance(a, argparse._SubParsersAction)
+    )
+    legacy_subs = legacy_sub.choices
+
+    parser = argparse.ArgumentParser(
+        prog=_PROG,
+        description="release — version bumps + CI/release reasoning surface",
+    )
+    sub = parser.add_subparsers(dest="verb")
+
+    # ---- `cut <part>` (was simple `axi release <part>`) -----------------
+    cut_p = sub.add_parser("cut", help="Bump version, tag, push.")
+    cut_p.add_argument("part", nargs="?", choices=["major", "minor", "patch"])
+    cut_p.add_argument("--dry-run", action="store_true")
+    cut_p.add_argument("--status", action="store_true")
+    cut_p.add_argument("--changelog", action="store_true")
+    cut_p.add_argument("--tag-only", action="store_true")
+    cut_p.add_argument("--no-push", action="store_true")
+    cut_p.add_argument("--skip-tests", action="store_true")
+    cut_p.add_argument("--yes", "-y", action="store_true")
+
+    # ---- `changelog` — the story between two refs -----------------------
+    cl_p = sub.add_parser(
+        "changelog",
+        help="Human-readable changelog between two refs (curated or synthesized).",
+    )
+    cl_p.add_argument("--repo", default=".", help="repo path (default: cwd)")
+    cl_p.add_argument("--from", dest="from_ref", help="older ref (tag/sha)")
+    cl_p.add_argument("--to", dest="to_ref", default="HEAD", help="newer ref")
+    cl_p.add_argument(
+        "--since-state",
+        dest="state_file",
+        help="read the older ref from this state file (deploy flows)",
+    )
+    cl_p.add_argument(
+        "--update-state",
+        dest="update_state",
+        action="store_true",
+        help="record --to into --since-state after rendering",
+    )
+    cl_p.add_argument(
+        "--format",
+        dest="fmt",
+        choices=("text", "markdown", "json"),
+        default="text",
+    )
+    cl_p.add_argument("--limit", type=int, default=20, help="max commits (default 20)")
+    cl_p.add_argument(
+        "--changelog-file",
+        dest="changelog_file",
+        default="auto",
+        help="curated CHANGELOG.md path, 'auto' (repo root), or 'none'",
+    )
+    cl_p.add_argument(
+        "--since", dest="from_ref",
+        help="alias of --from; also accepts a YYYY-MM-DD date",
+    )
+    cl_p.add_argument(
+        "--releases", dest="releases", type=int,
+        help="scope to the last N tagged releases",
+    )
+    cl_p.add_argument(
+        "--ai", dest="ai", choices=("auto", "on", "off"), default="auto",
+        help="LLM polish: group related changes, phrase each as change \u2014 benefit (auto: silent fallback)",
+    )
+    cl_p.add_argument("--user", dest="user", help="principal for the per-user viewed state")
+    cl_p.add_argument(
+        "--since-viewed", dest="since_viewed", action="store_true",
+        help="default --from to what --user last viewed",
+    )
+    cl_p.add_argument(
+        "--mark-viewed", dest="mark_viewed", action="store_true",
+        help="record --to as seen for --user after rendering",
+    )
+
+    land_p = sub.add_parser(
+        "land",
+        help="Report pull-request batches. --act lands an eligible green pull request.",
+    )
+    land_p.add_argument("--repo", default="", help="owner/name to read")
+    land_p.add_argument("--window-hours", dest="window_hours", type=float, default=None)
+    land_p.add_argument("--config", default=None, help="per-repo lander TOML")
+    land_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    land_p.add_argument("--suite-minutes", dest="suite_minutes", type=int, default=None)
+    land_p.add_argument(
+        "--propose",
+        action="store_true",
+        help="Record a local proposal. Does not merge or enqueue.",
+    )
+    land_p.add_argument(
+        "--act",
+        action="store_true",
+        help=(
+            "Land a green, unprotected, non-draft pull request with no pending "
+            "human review and no changes-requested review. A protected path is held."
+        ),
+    )
+
+    # ---- CI health: detect, fix what is safe, prevent ------------------
+    for verb, text in (
+        ("ci-health", "Actions spend, projection, minutes, and waste signals. Reads only."),
+        ("ci-sweep", "Cancel superseded runs, record the budget state, alert. The hourly check."),
+        ("ci-digest", "Weekly CI-health digest through notifications."),
+    ):
+        ci_p = sub.add_parser(verb, help=text)
+        ci_p.add_argument("--repo", default=None, help="owner/name (comma list); default: ci_health.repos")
+        ci_p.add_argument("--config", default=None, help="lander TOML with a [ci_health] table")
+        ci_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+        if verb != "ci-health":
+            ci_p.add_argument("--dry-run", dest="dry_run", action="store_true", help="propose; cancel and send nothing")
+    head_p = sub.add_parser(
+        "ci-head",
+        help=(
+            "The CI verdict for one head: success, failure, pending or superseded. "
+            "Judged from the head's own run, never the last completed run."
+        ),
+    )
+    head_p.add_argument("--repo", default=None, help="owner/name")
+    head_p.add_argument("--sha", default=None, help="the head to judge (default: the branch's current head)")
+    head_p.add_argument("--branch", default=None, help="branch (default: ci_health.default_branch)")
+    head_p.add_argument("--config", default=None, help="lander TOML with a [ci_health] table")
+    head_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    # ---- the release lock: nothing lands between "bump opened" and "tag pushed" --
+    lock_p = sub.add_parser(
+        "lock",
+        help="Take the release lock: landing pauses until unlock, the tag, or the timeout.",
+    )
+    lock_p.add_argument("--repo", default=None, help="owner/name (default: this checkout's origin)")
+    lock_p.add_argument("--reason", default=None, help="why the window is open (default: manual release window)")
+    lock_p.add_argument("--minutes", type=int, default=None, help="timeout in minutes (default 30)")
+    lock_p.add_argument("--config", default=None, help="lander TOML with a [ci_health] table (the roster)")
+    lock_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    unlock_p = sub.add_parser("unlock", help="Lift the release lock now and re-arm what it disarmed.")
+    unlock_p.add_argument("--repo", default=None, help="owner/name (default: this checkout's origin)")
+    unlock_p.add_argument("--config", default=None)
+    unlock_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    lock_status_p = sub.add_parser("lock-status", help="Whether a release lock is held, by whom, and until when.")
+    lock_status_p.add_argument("--repo", default=None, help="owner/name (default: this checkout's origin)")
+    lock_status_p.add_argument("--config", default=None)
+    lock_status_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+
+    main_p = sub.add_parser("ci-main-watch", help="Read the default branch and keep its one incident.")
+    main_p.add_argument("--repo", default=None, help="owner/name")
+    main_p.add_argument("--config", default=None, help="lander TOML with a [ci_health] table")
+    main_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    main_p.add_argument("--act", action="store_true", help="write the incident; default reports only")
+    # ---- the loop, phase 3 (ADR-257 D6, D7) -----------------------------------
+    guards_p = sub.add_parser(
+        "guards",
+        help="Run the cheap guards on a pushed range and report its tier. The hook and the server run this.",
+    )
+    guards_p.add_argument("--base", default=None, help="where the pushed range starts (default: merge-base with origin/main)")
+    guards_p.add_argument("--head", default=None, help="the pushed head (default HEAD)")
+    guards_p.add_argument("--root", default=None, help="repository root (default: this checkout)")
+    guards_p.add_argument("--only", default=None, help="comma list of guard ids")
+    guards_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    guards_p.add_argument("--stamp", action="store_true",
+                          help="when every guard passes, stamp the head so the server skips them (the hook)")
+    revert_p = sub.add_parser(
+        "auto-revert",
+        help="Judge a main commit whose required check failed; revert it only with --act and AXIOM_AUTO_REVERT=1.",
+    )
+    revert_p.add_argument("--repo", default=None, help="owner/name")
+    revert_p.add_argument("--sha", default=None, help="the main commit to judge (default: the branch head)")
+    revert_p.add_argument("--config", default=None, help="lander TOML with a [ci_health] table")
+    revert_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+    revert_p.add_argument(
+        "--act", action="store_true", help="revert, re-run or ask; ignored unless AXIOM_AUTO_REVERT=1"
+    )
+    lint_p = sub.add_parser("ci-lint", help="Warn on workflow shapes that waste CI minutes.")
+    lint_p.add_argument("--path", default=None, help="workflow directory (default .github/workflows)")
+    lint_p.add_argument("--repo", default=None, help="also check this repo's branch protection")
+    lint_p.add_argument("--config", default=None)
+    lint_p.add_argument("--format", dest="format", choices=("text", "json"), default="text")
+
+    # ---- imperative-leaf verbs (1:1 from rivet) -------------------------
+    # `heartbeat` is the load-bearing dispatcher target: launchd / systemd
+    # fire `axi release heartbeat` every `heartbeat_interval` seconds. Per
+    # the autopsy of the 2026-05-30 → 2026-06-01 silence, omitting it from
+    # this list silently bricked RIVET's heartbeat.jsonl writer for 28 hours.
+    for leaf in (
+        "status",
+        "mode",
+        "check",
+        "plan",
+        "sync",
+        "watch",
+        "unwatch",
+        "pause",
+        "resume",
+        "heartbeat",
+    ):
+        if leaf in legacy_subs:
+            legacy_p = legacy_subs[leaf]
+            sub.add_parser(
+                leaf,
+                parents=[legacy_p],
+                add_help=False,
+                conflict_handler="resolve",
+                help=(legacy_p.description or "")[:60],
+            )
+
+    # ---- consolidating verbs --------------------------------------------
+    list_p = sub.add_parser("list", help="List resource (patterns|watched|paused).")
+    list_sub = list_p.add_subparsers(dest="resource", required=True)
+    for res in ("patterns", "watched", "paused"):
+        if res in legacy_subs:
+            legacy_p = legacy_subs[res]
+            list_sub.add_parser(res, parents=[legacy_p], add_help=False, conflict_handler="resolve")
+
+    close_p = sub.add_parser("close", help="Close resource (stale).")
+    close_sub = close_p.add_subparsers(dest="resource", required=True)
+    if "close-stale" in legacy_subs:
+        legacy_p = legacy_subs["close-stale"]
+        close_sub.add_parser(
+            "stale", parents=[legacy_p], add_help=False, conflict_handler="resolve"
+        )
+
+    return parser
+
+
+def _args_to_params(args: argparse.Namespace) -> dict[str, Any]:
+    params = {k: v for k, v in vars(args).items() if v is not None}
+    if params.get("changelog_file") == "none":
+        params["changelog_file"] = None
+    return params
+
+
+_LEGACY_PART_VERBS = {"major", "minor", "patch"}
+
+#: Verbs that read the forge or the state directory, not the working directory.
+#: The heartbeat is one: launchd starts it in ``/``. Anything not listed keeps
+#: the guard, so a new verb is safe by default.
+_NON_REPO_VERBS = frozenset(
+    {
+        "heartbeat",
+        "ci-health",
+        "ci-head",
+        "ci-sweep",
+        "ci-lint",
+        "ci-digest",
+        "ci-repair",
+        "land",
+        "lock",
+        "unlock",
+        "lock-status",
+        "review",
+        "watch",
+        "unwatch",
+        "pause",
+        "resume",
+        "list",
+    }
+)
+
+
+def _needs_repo(argv: list[str]) -> bool:
+    # Help is pure: it never consults the guard, which on a terminal offers to
+    # run `git init` in whatever folder help was asked from (#709).
+    if "-h" in argv or "--help" in argv:
+        return False
+    return not argv or argv[0] not in _NON_REPO_VERBS
+
+
+def _is_legacy_cut_invocation(argv: list[str]) -> bool:
+    """Pre-migration form: bare `axi release <part>` or `axi release --status`."""
+    if not argv:
+        return False
+    if argv[0] in _LEGACY_PART_VERBS:
+        return True
+    return argv[0] in {
+        "--status",
+        "--changelog",
+        "--dry-run",
+        "--tag-only",
+        "--no-push",
+        "--skip-tests",
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Back-compat for the pre-migration positional form. Tests in
+    # test_release.py patch `cli.git_available` and expect cli.main()
+    # to consult it — so we route the legacy form straight through
+    # `_legacy_release_cli.main` (which calls `git_available()` from
+    # *its* module). We override that lookup transparently below.
+    if argv is None:
+        import sys as _sys
+
+        argv = list(_sys.argv[1:])
+
+    # Repo guard — applies to legacy and modern dispatch alike, except the
+    # verbs in _NON_REPO_VERBS. It never creates a repository unattended.
+    # Tests patch both `git_available` and `ensure_repo_or_offer_init` on
+    # this module (test_release.py::TestCLI), so the guard must read
+    # attributes off this module (not import-binding) to honor the patches.
+    import axiom.extensions.builtins.release.cli as _self
+
+    if _needs_repo(argv):
+        if not _self.git_available():
+            print("git: not found on PATH")
+            return 1
+        # Path arg is required by the underlying helper; tests patch this to
+        # a no-arg lambda so the *args/**kwargs sink absorbs whatever we pass.
+        from pathlib import Path as _Path
+
+        if not _self.ensure_repo_or_offer_init(_Path.cwd()):
+            return 1
+
+    if _is_legacy_cut_invocation(argv):
+        # Make _legacy_release_cli's `git_available` resolve to whatever
+        # tests patched on THIS module — keeps the legacy contract.
+        import axiom.extensions.builtins.release.cli as _self
+
+        _legacy_release_cli.git_available = _self.git_available
+        return _legacy_release_cli.main(argv)
+
+    args = build_parser().parse_args(argv)
+    if not getattr(args, "verb", None):
+        args.verb = "cut"
+
+    from axiom.infra import skill_dispatch
+    from axiom.infra.skill_dispatch import CLI_SURFACE
+    from axiom.infra.skills import SkillContext
+    from axiom.infra.paths import get_user_state_dir
+    import logging
+
+    registry = release_skills.bind_default()
+    ctx = SkillContext(
+        registry=registry,
+        state_dir=get_user_state_dir(),
+        logger=logging.getLogger("axi.release"),
+        user_prompt=None,
+    )
+    params = _args_to_params(args)
+    verb = str(args.verb).replace("-", "_")
+    # One command, two skills: the report is a read and landing is a write, and the
+    # dispatcher has to know which it is running. --propose wins, and never merges.
+    if verb == "land" and params.get("act") and not params.get("propose"):
+        verb = "land_act"
+    result = skill_dispatch.invoke_capability(
+        registry, f"release.{verb}", params, ctx, surface=CLI_SURFACE
+    )
+    if verb == "status" and isinstance(result.value, dict) and result.value.get("release_lock"):
+        print(f"  {result.value['release_lock']}")
+    return result.exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

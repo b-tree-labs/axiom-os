@@ -1,0 +1,350 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+"""The ``library`` command: upload, ls, show, status, search, update, move, reextract, rm, restore, ec.
+
+Every verb is a thin projection of a ``library.*`` skill through
+``invoke_capability``, so the authority gate, the action audit and the
+capability telemetry see a CLI call exactly as they see an MCP one.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import sys
+from typing import Any
+
+from axiom.infra.cli_format import Column, table
+from axiom.infra.paths import get_user_state_dir
+from axiom.infra.principal import resolve_principal
+from axiom.infra.skill_dispatch import CLI_SURFACE, invoke_capability
+from axiom.infra.skills import SkillContext
+
+from . import skills as library_skills
+
+
+def _brand_cli() -> str:
+    try:
+        from axiom.infra.branding import get_branding
+
+        return get_branding().cli_name
+    except Exception:  # noqa: BLE001
+        return "axi"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    cli = _brand_cli()
+    p = argparse.ArgumentParser(
+        prog=f"{cli} library",
+        description="The document library: files you upload are classified, filed and searchable by content",
+    )
+    sub = p.add_subparsers(dest="verb", required=True)
+
+    up = sub.add_parser("upload", help="file one or more documents")
+    up.add_argument("paths", nargs="+")
+    up.add_argument("--private", action="store_true", help="only you can see it (default: your site)")
+    up.add_argument("--title", default="", help="a display title (single file only)")
+    up.add_argument("--tag", action="append", default=[], help="a tag (repeatable)")
+    up.add_argument("--collection", default="")
+    up.add_argument("--label", default="", help="the export-control label you confirm (public|internal|regulated|controlled)")
+    up.add_argument("--retention", default="", help="the retention class (default operational)")
+
+    ls = sub.add_parser("ls", help="list documents you may see, newest first")
+    ls.add_argument("q", nargs="?", default="")
+    for flag in ("category", "collection", "tag", "visibility", "status"):
+        ls.add_argument(f"--{flag}", default="")
+    ls.add_argument("--deleted", action="store_true", help="your deleted documents")
+    ls.add_argument("--limit", type=int, default=200)
+
+    show = sub.add_parser("show", help="one document")
+    show.add_argument("id")
+
+    se = sub.add_parser("search", help="find documents by what they say")
+    se.add_argument("q")
+    se.add_argument("--limit", type=int, default=20)
+
+    upd = sub.add_parser("update", help="change a document you filed")
+    upd.add_argument("id")
+    upd.add_argument("--title")
+    upd.add_argument("--tags", help="comma-separated; replaces the tag list")
+    upd.add_argument("--collection")
+    upd.add_argument("--visibility", choices=("site", "private"))
+
+    rm = sub.add_parser("rm", help="remove a document from retrieval and listings (restorable)")
+    rm.add_argument("id")
+    rs = sub.add_parser("restore", help="bring back a document you removed")
+    rs.add_argument("id")
+
+    st = sub.add_parser("status", help="what happened to a file: stages, extractions, routes, filing")
+    st.add_argument("id")
+    rx = sub.add_parser("reextract", help="run a document's extractors again from bronze")
+    rx.add_argument("id")
+    rx.add_argument("--extractor", action="append", default=[], help="only this extractor (repeatable)")
+    rx.add_argument("--stale", action="store_true", help="only extractors whose version changed")
+    mv = sub.add_parser("move", help="file a document in another Data Book folder (remembered)")
+    mv.add_argument("id")
+    mv.add_argument("folder")
+    lb = sub.add_parser("label", help="show, confirm or change a document's export-control label and retention class")
+    lb.add_argument("id", nargs="?", default="")
+    lb.add_argument("label", nargs="?", default="", help="public | internal | regulated | controlled")
+    lb.add_argument("--sweep", action="store_true",
+                    help="take every unlabelled indexed document out of retrieval (run when library_labels turns on)")
+    lb.add_argument("--retention", default="", help="system | operational | qualification | lifetime | legal_hold")
+    lb.add_argument("--release-hold", action="store_true", help="end a legal hold")
+    pg = sub.add_parser("purge", help="delete a removed document forever (only after its retention floor)")
+    pg.add_argument("id")
+
+    ec = sub.add_parser("ec", help="export-control review of a held file: status, release, keep-held, re-hold")
+    ec.add_argument("action", choices=("status", "release", "keep-held", "re-hold"))
+    ec.add_argument("id")
+    ec.add_argument("--reason", default="", help="one line saying why (required to decide)")
+
+    sh = sub.add_parser("share", help="share a file (or folder:<path>) with a person or group, remove them, "
+                                      "or set general access and settings")
+    sh.add_argument("id", help="a file id, or folder:<path>")
+    sh.add_argument("--with", dest="with_", default="", help="@name:<site> or group:<id>")
+    sh.add_argument("--role", default="viewer", help="viewer | editor")
+    sh.add_argument("--expires", default="", help="YYYY-MM-DD, within a year")
+    sh.add_argument("--remove", action="store_true", help="remove --with's access")
+    sh.add_argument("--general", default="", help="restricted | site | site:<role>")
+    sh.add_argument("--editors-can-share", choices=("on", "off"), default=None)
+    sh.add_argument("--viewers-can-download", choices=("on", "off"), default=None)
+    sh.add_argument("--no-notify", action="store_true", help="do not tell the person")
+    sh.add_argument("--message", default="", help="a note for the person told")
+    ac = sub.add_parser("access", help="who has access to a file or folder, and why")
+    ac.add_argument("id")
+    tr = sub.add_parser("transfer", help="make someone already on the access list the owner")
+    tr.add_argument("id")
+    tr.add_argument("--to", required=True, help="@name:<site>")
+    rq = sub.add_parser("request", help="ask for access; or, as its owner, list, approve or decline requests")
+    rq.add_argument("action", nargs="?", default="ask",
+                    choices=("ask", "status", "withdraw", "remind", "list", "approve", "decline"))
+    rq.add_argument("id")
+    rq.add_argument("--role", default="", help="the role asked for, or given (default viewer)")
+    rq.add_argument("--note", default="")
+    rq.add_argument("--request", dest="request_id", default="", help="the request id")
+    rq.add_argument("--reason", default="", help="why, when declining (the requester sees it as written)")
+
+    for sp in (up, ls, show, se, upd, rm, rs, st, rx, mv, lb, pg, ec, sh, ac, tr, rq):
+        sp.add_argument("--json", action="store_true")
+    return p
+
+
+def _ctx() -> SkillContext:
+    return SkillContext(
+        registry=library_skills.bind_default(),
+        state_dir=get_user_state_dir(),
+        logger=logging.getLogger("axi.library"),
+        user_prompt=None,
+        principal=resolve_principal(),
+        surface=CLI_SURFACE,
+    )
+
+
+_COLUMNS = (
+    Column("id"),
+    Column("category"),
+    Column("index"),
+    Column("visibility"),
+    Column("title", wrap=True),
+)
+
+
+_STAGE_COLUMNS = (Column("stage"), Column("status"), Column("detail", wrap=True))
+
+
+def _cells(item: dict[str, Any]) -> list[str]:
+    vis = "private" if item.get("visibility") == "private" else "site"
+    return [
+        str(item.get("id", ""))[:8],
+        str(item.get("category", "")),
+        str(item.get("index_status", "")),
+        vis,
+        str(item.get("title") or item.get("file_name") or ""),
+    ]
+
+
+def _print_items(items: list[dict[str, Any]]) -> None:
+    for line in table([_cells(i) for i in items], _COLUMNS):
+        print(line)
+
+
+def _run(ctx: SkillContext, name: str, params: dict[str, Any]):
+    return invoke_capability(ctx.registry, name, params, ctx, surface=CLI_SURFACE)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    ctx = _ctx()
+    out: list[Any] = []
+    failed = False
+
+    if args.verb == "upload":
+        for path in args.paths:
+            params: dict[str, Any] = {"path": path, "visibility": "private" if args.private else "site"}
+            if args.title and len(args.paths) == 1:
+                params["title"] = args.title
+            if args.tag:
+                params["tags"] = args.tag
+            if args.collection:
+                params["collection"] = args.collection
+            if args.label:
+                params["ec_label"] = args.label
+            if args.retention:
+                params["retention_class"] = args.retention
+            result = _run(ctx, "library.upload", params)
+            if not result.ok:
+                failed = True
+                for err in result.errors:
+                    print(f"{path}: {err}", file=sys.stderr)
+                continue
+            out.append(result.value)
+            if not args.json:
+                for line in result.actions_taken or [f"filed {path}"]:
+                    print(line)
+    else:
+        name, params = {
+            "ls": ("library.list", lambda: {
+                "q": args.q, "category": args.category, "collection": args.collection, "tag": args.tag,
+                "visibility": args.visibility, "status": args.status, "deleted": args.deleted, "limit": args.limit,
+            }),
+            "show": ("library.show", lambda: {"id": args.id}),
+            "status": ("library.status", lambda: {"id": args.id}),
+            "reextract": ("library.reextract", lambda: {"id": args.id, "extractors": args.extractor, "stale_only": args.stale}),
+            "move": ("library.move", lambda: {"id": args.id, "folder": args.folder}),
+            "search": ("library.search", lambda: {"q": args.q, "limit": args.limit}),
+            "update": ("library.update", lambda: {
+                k: v for k, v in {
+                    "id": args.id, "title": args.title, "tags": args.tags,
+                    "collection": args.collection, "visibility": args.visibility,
+                }.items() if v is not None
+            }),
+            "ec": ({"status": "library.ec_status", "release": "library.ec_release",
+                    "keep-held": "library.ec_keep_held", "re-hold": "library.ec_rehold"}.get(getattr(args, "action", ""), ""),
+                   lambda: {"id": args.id, **({"reason": args.reason} if args.action != "status" else {})}),
+            "rm": ("library.delete", lambda: {"id": args.id}),
+            "restore": ("library.restore", lambda: {"id": args.id}),
+            "label": ("library.label", lambda: {"sweep": True} if args.sweep else {
+                "id": args.id, "label": args.label, "retention_class": args.retention,
+                "release_hold": args.release_hold,
+            }),
+            "purge": ("library.purge", lambda: {"id": args.id}),
+            "share": ("library.share", lambda: {k: v for k, v in {
+                "id": args.id, "with": args.with_ or None, "role": args.role, "expires": args.expires or None,
+                "remove": args.remove or None, "general": args.general or None,
+                "editors_can_share": None if args.editors_can_share is None else args.editors_can_share == "on",
+                "viewers_can_download": None if args.viewers_can_download is None else args.viewers_can_download == "on",
+                "notify": False if args.no_notify else None, "message": args.message or None,
+            }.items() if v is not None}),
+            "access": ("library.access", lambda: {"id": args.id}),
+            "transfer": ("library.transfer", lambda: {"id": args.id, "to": args.to}),
+            "request": ("library.request", lambda: {k: v for k, v in {
+                "id": args.id, "action": args.action, "role": args.role or None, "note": args.note or None,
+                "request_id": args.request_id or None, "reason": args.reason or None,
+            }.items() if v is not None}),
+        }[args.verb]
+        result = _run(ctx, name, params())
+        if not result.ok:
+            for err in result.errors:
+                print(err, file=sys.stderr)
+            return 2
+        value = result.value or {}
+        if args.json:
+            print(json.dumps(value, indent=2, default=str))
+            return 0
+        if args.verb == "ls":
+            items = value.get("items", [])
+            _print_items(items)
+            print(f"{len(items)} document(s) at {value.get('site', '')}")
+        elif args.verb == "search":
+            for hit in value.get("results", []):
+                _print_items([hit])
+                snippet = " ".join(str(hit.get("snippet", "")).split())[:160]
+                if snippet:
+                    print(f"          {snippet}")
+        elif args.verb == "status":
+            item = value.get("item") or {}
+            _print_items([item])
+            placement = value.get("placement") or {}
+            if placement.get("explanation"):
+                print(f"  {placement['explanation']}")
+            stages = (value.get("job") or {}).get("stages", [])
+            for line in table(
+                [[st["stage"], st["status"], st.get("detail") or ""] for st in stages],
+                _STAGE_COLUMNS,
+            ):
+                print(line)
+            for ex in value.get("extractions", []):
+                if ex.get("current"):
+                    where = f" [{ex['member']}]" if ex.get("member") else ""
+                    tail = ex.get("summary") or ex.get("error") or ""
+                    print(f"  {ex['extractor']}@{ex['version']}{where}: {ex['status']} {tail}")
+            for r in value.get("routes", []):
+                print(f"  -> {r['tag']}: {r['status']} {r.get('detail') or ''}")
+        elif args.verb == "ec":
+            print(f"{value.get('verdict', '')}: {'; '.join(value.get('reasons') or []) or 'no hold'}")
+            for h in value.get("history", []):
+                print(f"  {h['seq']:>4}  {h['action']:<9} {h['principal']}: {h['reason']}"
+                      f"{'' if h['signed'] else '  (unsigned)'}")
+            if value.get("why_not") and value.get("verdict") == "held":
+                print(f"  you cannot release it: {value['why_not']}")
+        elif args.verb == "label" and args.sweep:
+            print(f"took {value.get('count', 0)} unlabelled document(s) out of retrieval at {value.get('site', '')}")
+        elif args.verb == "label":
+            label = value.get("ec_label") or {}
+            ret = value.get("retention") or {}
+            state = "confirmed" if label.get("confirmed") else ("proposed" if label else "none")
+            print(f"{value.get('title', '')}: label {label.get('value', '-')} ({state}); "
+                  f"retention {ret.get('class', '-')} (kept at least {ret.get('floor', '-')})")
+        elif args.verb == "purge":
+            print(f"deleted forever: {value.get('id', '')}; {value.get('bytes_removed', 0)} blob(s) removed; "
+                  "the record of it stays")
+        elif args.verb in ("share", "transfer"):
+            parts = value.values() if "words" not in value else [value]
+            for part in parts:
+                if isinstance(part, dict) and part.get("words"):
+                    print(part["words"])
+        elif args.verb == "access":
+            g = value.get("general") or {}
+            line = "Restricted" if g.get("general") == "restricted" else f"Everyone at the site · {g.get('general_role')}"
+            print(f"{value.get('name', '')}: owner {value.get('owner', '')}; you: {value.get('your_role')}")
+            print(f"  general access: {line}")
+            for person in value.get("people") or []:
+                until = f" until {person['expires_at'][:10]}" if person.get("expires_at") else ""
+                print(f"  {person['subject']}: {person['role']}{until}")
+            if value.get("hidden"):
+                print(f"  {value['hidden']}")
+            if not value.get("may_share") and value.get("why_not"):
+                print(f"  you cannot share it: {value['why_not']}")
+        elif args.verb == "request":
+            if isinstance(value, list):
+                for r in value:
+                    print(f"  {r['id']}  {r['requester']} asks for {r['role']}: {r.get('note') or ''}")
+                if not value:
+                    print("no open requests")
+            elif args.action == "status":
+                if value.get("open"):
+                    print(f"asked for {value['open']['role']} on {value['open']['created_at'][:10]}; waiting")
+                refused = value.get("previously_refused")
+                if refused:
+                    print(f"declined by {refused['by']} on {(refused['at'] or '')[:10]}: {refused['reason']}")
+                if not value.get("open") and not refused:
+                    print("no request")
+            else:
+                print(value.get("words") or f"request {value.get('id', '')}: {value.get('state', '')}")
+        elif args.verb == "reextract":
+            print(f"re-extracting {value.get('file_name', '')}: job {value.get('id', '')}; `status` shows progress")
+        else:
+            _print_items([value])
+            if args.verb == "rm":
+                print("removed from retrieval and listings; `restore` brings it back")
+        return 0
+
+    if args.json:
+        print(json.dumps(out, indent=2, default=str))
+    return 1 if failed else 0
+
+
+__all__ = ["build_parser", "main"]
