@@ -1,0 +1,39 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+services:
+  ingest-edge:
+    build: .
+    image: axiom-ingest-edge:0.70.0
+    restart: unless-stopped
+    # Loopback only: nginx is the one public face.
+    ports:
+      - "127.0.0.1:8787:8787"
+    env_file: edge.env
+    # The edge writes only under /data. Nothing else in the container is
+    # writable, it holds no capability it does not use, and a runaway cannot
+    # take the host's process table or disk with it.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    # A ceiling on memory, for a host that shares the machine with other things.
+    # The edge measured 177 MiB at its busiest. Left off by default because it
+    # needs the kernel's memory cgroup, which a minimal or nested host may lack
+    # (the container then fails to start with "cgroup configuration").
+    # mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    volumes:
+      - edge-data:/data
+      # Who may push: owned by the operator on the host, read here, never written.
+      - ${EDGE_CONFIG_DIR:?set EDGE_CONFIG_DIR in .env to the operator's config folder}:/config:ro
+volumes:
+  edge-data:

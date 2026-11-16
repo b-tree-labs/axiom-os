@@ -1,0 +1,17 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The platform's own acceptance config: this repository only, paths relative
+# to its root. A workspace that spans the UI kit, a product and a site puts an
+# `acceptance.toml` at its root (or names one in $AXIOM_ACCEPTANCE_CONFIG) with
+# one [[repo]] per repository; see docs/guides/acceptance-harness.md.
+
+[acceptance]
+spec = "docs/specs/spec-webapp-buildout-mvp.md"
+
+[[repo]]
+name = "axiom"
+path = "."
+lang = "python"
+include = ["src", "tests", "packages"]

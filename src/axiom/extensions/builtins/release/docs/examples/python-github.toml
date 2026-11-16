@@ -1,0 +1,53 @@
+# Python repository on GitHub. Names are placeholders.
+
+mode = "warn"
+language = "python"
+test_command = "pytest"
+forge = "github"
+window_hours = 6
+suite_cost = "learned"
+selector = "testmon"
+fix_provider = "mechanical"
+land_method = "merge"
+signals = ["batch_label", "session", "ticket", "branch_prefix", "exact_files", "affected_scope"]
+repos = ["owner/name"]
+
+[watch]
+env = "AXIOM_LANDER_REPOS"
+
+[token]
+env = "GH_TOKEN"
+scopes = ["repo"]
+
+[selector_options]
+database = ".testmondata"
+full_contexts = ["merge-queue", "main", "nightly"]
+
+[raci]
+approvers = ["@approver:local"]
+auto_allowed = []
+needs_approval = ["repair", "batch", "update_branch", "merge", "enqueue", "close", "rerun"]
+max_rounds = 3
+kill_switch_env = "AXIOM_LANDER_KILL"
+approval_ttl_hours = 72
+# Auto-approval is off until auto_approver is set. See auto-approve.toml.
+# auto_approver = "@reviewer:local"
+
+# When this file is the lander for a repo, that lander is the only one
+# that merges. Outside actors deliver fixes on rivet-fix/<pr>-<shortsha>.
+#
+# Webhook handoff replaces the string above, because a string and a table
+# cannot share the fix_provider key:
+#
+# [fix_provider]
+# name = "handoff"
+#
+# [fix_provider.webhook]
+# url_env = "RELEASE_FIX_WEBHOOK_URL"
+# key_env = "RELEASE_FIX_WEBHOOK_KEY"
+# key_header = "X-Fix-Key"
+# separate_reviewer = true
+#
+# [claims]
+# label = "rivet:claimed"
+# foreign_labels = ["janna:working"]

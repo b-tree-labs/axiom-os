@@ -1,0 +1,28 @@
+# A small logbook for the co-signature tests (unit L4). HANDOVER needs a lead's co-signature
+# within a fresh sign-in and declares the two keys later units enforce (party, window); CHECK
+# needs a co-signature under the type's own assurance; NOTE needs none. No domain words.
+[logbook]
+id = "pair_log"
+version = "1"
+display = "Pair Log"
+assurance = { posture = "sso" }
+
+[[type]]
+id = "HANDOVER"
+meanings = ["performed"]
+roles = ["member"]
+cosign = { roles = ["lead"], assurance = { posture = "sso", fresh_within = "5m" }, party = "relieved", window = "30m" }
+fields = [{ id = "summary", type = "text", required = true }]
+
+[[type]]
+id = "CHECK"
+meanings = ["performed"]
+roles = ["member"]
+cosign = { roles = ["lead"] }
+fields = [{ id = "ok", type = "attest_checkbox", label = "All in order", required = true }]
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["member", "lead"]
+fields = [{ id = "text", type = "text", required = true }]

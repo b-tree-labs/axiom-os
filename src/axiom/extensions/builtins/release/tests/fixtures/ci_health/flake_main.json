@@ -1,0 +1,46 @@
+{
+  "_comment": "ci.yml on main, oldest first. 302 failed test_old::test_x once before; 304 is the run under test (its tests come from job 3041's log). commit_files is what each head's merge commit changed.",
+  "workflow_runs": [
+    {
+      "id": 300, "name": "CI", "workflow_id": 1, "path": ".github/workflows/ci.yml", "event": "pull_request",
+      "head_branch": "feat/fwd", "head_sha": "p24", "status": "completed", "conclusion": "success", "run_attempt": 1,
+      "created_at": "2026-11-10T17:00:00Z", "run_started_at": "2026-11-10T17:00:00Z", "updated_at": "2026-11-10T17:12:00Z",
+      "head_commit": {"message": "feat: forwarder"}, "pull_requests": [{"number": 24}]
+    },
+    {
+      "id": 301, "name": "CI", "workflow_id": 1, "path": ".github/workflows/ci.yml", "event": "push",
+      "head_branch": "main", "head_sha": "m1", "status": "completed", "conclusion": "success", "run_attempt": 1,
+      "created_at": "2026-11-10T18:00:00Z", "run_started_at": "2026-11-10T18:00:00Z", "updated_at": "2026-11-10T18:12:00Z",
+      "head_commit": {"message": "feat: one (#21)"}
+    },
+    {
+      "id": 302, "name": "CI", "workflow_id": 1, "path": ".github/workflows/ci.yml", "event": "push",
+      "head_branch": "main", "head_sha": "m2", "status": "completed", "conclusion": "failure", "run_attempt": 1,
+      "created_at": "2026-11-10T18:30:00Z", "run_started_at": "2026-11-10T18:30:00Z", "updated_at": "2026-11-10T18:42:00Z",
+      "head_commit": {"message": "feat: two (#22)"}
+    },
+    {
+      "id": 303, "name": "CI", "workflow_id": 1, "path": ".github/workflows/ci.yml", "event": "push",
+      "head_branch": "main", "head_sha": "m3", "status": "completed", "conclusion": "success", "run_attempt": 1,
+      "created_at": "2026-11-10T19:00:00Z", "run_started_at": "2026-11-10T19:00:00Z", "updated_at": "2026-11-10T19:12:00Z",
+      "head_commit": {"message": "fix: two (#23)"}
+    },
+    {
+      "id": 304, "name": "CI", "workflow_id": 1, "path": ".github/workflows/ci.yml", "event": "push",
+      "head_branch": "main", "head_sha": "m4", "status": "completed", "conclusion": "failure", "run_attempt": 1,
+      "created_at": "2026-11-10T20:00:00Z", "run_started_at": "2026-11-10T20:00:00Z", "updated_at": "2026-11-10T20:12:00Z",
+      "head_commit": {"message": "feat: forwarder (#24)"}
+    }
+  ],
+  "jobs": {
+    "302": [{"id": 3021, "name": "unit (3.13)", "conclusion": "failure"}],
+    "304": [{"id": 3041, "name": "unit (3.13)", "conclusion": "failure"}, {"id": 3042, "name": "lint", "conclusion": "success"}]
+  },
+  "job_logs": {
+    "3021": "2026-11-10T18:40:00Z FAILED tests/test_old.py::test_x - AssertionError\n",
+    "3041": "2026-11-10T20:10:00Z FAILED tests/test_fwd.py::test_forwarder - TimeoutError\n"
+  },
+  "commit_files": {
+    "m4": ["src/forwarder.py", "docs/working/notes.md"]
+  }
+}

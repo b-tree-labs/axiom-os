@@ -1,0 +1,66 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "recipe"
+version = "0.1.0"
+description = "Vetted chains of skills: list them, check one against what is installed, and dry-run it to see the steps, the unmet preconditions and where a person approves."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "recipe"
+entry = "axiom.extensions.builtins.recipe.cli:main"
+description = "List, check and dry-run vetted chains of skills"
+
+# Read-only: an agent checks a recipe before following it.
+[extension.mcp]
+enabled = true
+
+[[extension.provides]]
+kind = "skill"
+name = "recipe.check"
+entry = "axiom.extensions.builtins.recipe.skills:check_recipe"
+path = "skills/check"
+description = "Validate one recipe against the tools actually installed: every step real, outputs wired to inputs, approval on destructive steps."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "recipe-exists", description = "the recipe id must name a published recipe", fix = "call recipe.list and pass one of its ids as id" }]
+produces = []
+next_steps = [{ target = "recipe.plan", when = "ok", why = "dry-run it with your parameters" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "recipe.list"
+entry = "axiom.extensions.builtins.recipe.skills:list_recipes"
+path = "skills/list"
+description = "List the published recipes: vetted chains of tools for a task, and whether each is ready to follow on this install."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = [{ kind = "recipe_id", how_to_use = "pass as id to recipe.check or recipe.plan", field = "recipe_id" }]
+next_steps = [{ target = "recipe.check", when = "produced:recipe_id", why = "confirm the recipe is sound here", feeds = { id = "recipe_id" } }]
+
+[[extension.provides]]
+kind = "skill"
+name = "recipe.plan"
+entry = "axiom.extensions.builtins.recipe.skills:plan_recipe"
+path = "skills/plan"
+description = "Dry-run a recipe: its steps in order, what each needs, which preconditions are unmet now, and where a person approves. Executes nothing."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "recipe-exists", description = "the recipe id must name a published recipe", fix = "call recipe.list and pass one of its ids as id" }]
+produces = []
+next_steps = []

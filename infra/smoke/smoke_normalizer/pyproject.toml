@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smoke-normalizer"
+version = "0.1.0"
+description = "A normalizer for the infra smoke tests' rows (smoke/rows-v1)."
+
+[project.entry-points."axiom.portfolio_member"]
+smoke-normalizer = "smoke_normalizer:__name__"
+
+[project.entry-points."axiom.data_platform.normalizers"]
+smoke-normalizer = "smoke_normalizer:register_all"

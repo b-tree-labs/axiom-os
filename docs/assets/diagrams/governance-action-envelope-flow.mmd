@@ -1,0 +1,26 @@
+flowchart TD
+  ACT["Any governed action<br/>GUARD · KEEP · HERALD · PULSE"]:::neutral
+  ENV["ActionEnvelope<br/>actor · capability · classification<br/>intent · resource · provenance"]:::core
+  GUARD["GUARD — the sole PDP<br/>decide(envelope)"]:::vega
+  FGA["OpenFGA substrate<br/>UNDER GUARD · abstains if unset<br/>never a direct authorizer"]:::neutral
+  VERDICT["Verdict<br/>Decision — one of six<br/>plus next_action_for_caller"]:::accent
+  BRANCH["Caller branches on<br/>next_action_for_caller<br/>NEVER inspects Decision"]:::data
+  PROCEED["PROCEED"]:::data
+  ABORT["ABORT<br/>deny · rate-limit · expired"]:::neutral
+  ENQ["ENQUEUE_PROPOSAL<br/>await human approval"]:::neutral
+  CHAL["SATISFY_CHALLENGE<br/>step up · then retry"]:::neutral
+  ACT --> ENV
+  ENV --> GUARD
+  GUARD -->|"consults"| FGA
+  FGA -->|"check or abstain"| GUARD
+  GUARD --> VERDICT
+  VERDICT --> BRANCH
+  BRANCH --> PROCEED
+  BRANCH --> ABORT
+  BRANCH --> ENQ
+  BRANCH --> CHAL
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

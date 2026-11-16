@@ -1,0 +1,208 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# Video sources and stream triggers (ADR-240; prd-video, spec-video). A source is a
+# connector of kind `video` whose `source.kind` names what it is (`rtsp` first). A
+# capture service holds each started source once, decodes it in an ffmpeg
+# subprocess and fans frames out on an in-process bus. Triggers subscribe to it
+# and append what they see to the node's event ledger; `motion` is the first.
+[extension]
+name = "video"
+version = "0.1.0"
+description = "Video sources as connectors (RTSP first): one capture session per source, decoded out of process, fanned out to triggers"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# The reads (list, status, diagnose, events) are MCP tools on the platform's unified
+# server; the verbs that change a node's capture stay on its own command line.
+[extension.mcp]
+enabled = true
+
+# Frames are handed on raw, in process, and never served; fps, latency and frame
+# age are the health of a link, not measurements of anything in view. A trigger's
+# score is not one either: motion's is a count, exact for the frames it was given
+# (the fraction of downscaled pixels past a fixed threshold), that opens and closes
+# an episode. It estimates no measurand and nothing aggregates it. A consumer's
+# trigger that reports a measured value declares its own posture.
+[extension.uncertainty]
+posture = "not-applicable"
+
+# Video is instrument kind `video` (ADR-256): its verbs are `<cli> instrument video <verb>`,
+# each a thin wrapper over the skill of the same name (ADR-056), and the skills keep their
+# `video.` names. Video claims no noun of its own: the `instrument` noun owns it and the
+# ADR-164 `acquire` function, and video reaches it through the same gated door a
+# consumer's kind uses.
+[[instrument_kinds]]
+name = "video"
+entry = "axiom.extensions.builtins.video.instrument:KIND"
+
+# One supervisor thread per started source: claim, ffmpeg subprocess, frame bus.
+[[extension.provides]]
+kind = "service"
+name = "capture"
+entry = "axiom.extensions.builtins.video.services.capture:CaptureService"
+description = "Holds each started video source once and fans its decoded frames out on the frame bus"
+deployment_profile = "edge"
+
+# Triggers (ADR-240 D3): a consumer's trigger is a package that declares the same
+# block, or an `axiom.video_triggers` entry point; both pass the portfolio gate
+# before import. `motion` registers exactly as a consumer's would.
+[[video_triggers]]
+name = "motion"
+factory = "axiom.extensions.builtins.video.motion:MotionTrigger"
+
+# Skills: declared once as SkillSpecs in skills/__init__.py; the block below and each
+# skills/<verb>/SKILL.md are generated from them by `axi skills emit-md --ext video`.
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "video.add"
+entry = "axiom.extensions.builtins.video.skills.add:run"
+path = "skills/add"
+description = "Declare a video source (a connector of kind video) and verify it. Writes the connector file with the source kind's parameters (for rtsp: url and transport) and a credential_ref into the vault, then asks the source for one frame and records codec, size, frame rate and latency. A URL that carries a username or password is refused with the vault instruction. The source is declared even when verify fails, and is not active until a verify passes."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "video.start", when = "ok", why = "start capturing the verified source" }, { target = "video.diagnose", when = "error", why = "find the rung that fails and its exact fix" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.diagnose"
+entry = "axiom.extensions.builtins.video.skills.diagnose:run"
+path = "skills/diagnose"
+description = "Find out why a video source does not work, as a ladder whose first failing rung names the exact fix: ffmpeg installed, numpy installed, the source declared, its kind registered, its credential resolvable, then the kind's own rungs (for rtsp: the URL resolves, DESCRIBE answers, the login is accepted, the codec is decodable), then one real frame. Contacts the source; changes nothing."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "video.verify", when = "ok", why = "record a passing verify so the source is active" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.events"
+entry = "axiom.extensions.builtins.video.skills.events:run"
+path = "skills/events"
+description = "What the triggers on the video sources saw, from the node's event ledger, oldest first: each event's source, trigger and version, time, kind (an episode's started and ended share one incident key; occurred is a moment), severity, score and detail. Answers 'did anything move on the door camera this morning'. Optionally one source, optionally since a time. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "video.status", when = "always", why = "see each source's triggers and their health" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.install"
+entry = "axiom.extensions.builtins.video.skills.install:run"
+path = "skills/install"
+description = "Make video capture come back after a reboot: register a capture service that captures every started source as a unit this machine's service manager starts at boot (a systemd user unit, launchd or Task Scheduler), pinned to this install's state directory, and start it. Refused where nothing would survive a reboot. Says whether a systemd unit will outlive the login."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "video.status", when = "ok", why = "see that the service holds the started sources" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.list"
+entry = "axiom.extensions.builtins.video.skills.listing:run"
+path = "skills/list"
+description = "List the declared video sources with their kind, health and capture state; with kinds=true, the registered source kinds and whether each is replayable or live; with triggers=true, the triggers that can be attached to a source (name, version, where each comes from, what it does) and any that were refused or declared twice, with the reason. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "video.status", when = "always", why = "see each source's session and counters" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.revoke"
+entry = "axiom.extensions.builtins.video.skills.revoke:run"
+path = "skills/revoke"
+description = "Remove a video source: stop capturing it, release it, and delete its declaration and what was recorded about it (the last verify, its session). Its login stays in the vault, where another source may use it; the result says how to remove it. Undo by adding the source again."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "source-declared", description = "the source must be declared (a connector of kind video)", fix = "declare it with `{cli} instrument video add {name} --kind rtsp --url <rtsp://host/path> --credential-ref <ref>`; `{cli} instrument video list` shows what is declared" }]
+next_steps = [{ target = "video.list", when = "ok", why = "confirm it is gone" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.start"
+entry = "axiom.extensions.builtins.video.skills.start:run"
+path = "skills/start"
+description = "Start capturing a verified video source: mark it started and bring up a capture service that takes the source's claim, holds one session on it and reconnects when it is lost. A source is captured whether or not anything consumes its frames. Starting a source that a live copy already holds is a no-op that says so."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "source-declared", description = "the source must be declared (a connector of kind video)", fix = "declare it with `{cli} instrument video add {name} --kind rtsp --url <rtsp://host/path> --credential-ref <ref>`; `{cli} instrument video list` shows what is declared" }, { id = "source-verified", description = "the source must have produced a frame: it is not active until its last verify passed", fix = "run `{cli} instrument video verify {name}`; if it fails, `{cli} instrument video diagnose {name}` names the rung and its fix" }, { id = "ffmpeg-available", description = "ffmpeg and ffprobe must be installed on this machine: decoding is an ffmpeg subprocess", fix = "install ffmpeg (`sudo apt install ffmpeg`, `brew install ffmpeg` or `winget install ffmpeg`), or set AXIOM_VIDEO_FFMPEG and AXIOM_VIDEO_FFPROBE to where it is" }, { id = "numpy-available", description = "numpy must be installed: decoded frames are numpy arrays", fix = "pip install 'axiom-os-lm[video]'" }]
+next_steps = [{ target = "video.status", when = "ok", why = "watch its counters advance" }, { target = "video.diagnose", when = "error", why = "find the rung that fails and its exact fix" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.status"
+entry = "axiom.extensions.builtins.video.skills.status:run"
+path = "skills/status"
+description = "Every video source's capture as it is now: health (ready, degraded, failed, unmounted), session state, the process holding it, session_id, fps, frames, drops, reconnects and last_frame_age_s, the last verify, and any error with its fix. Credentials are never shown, only the reference to them. Answers 'is the camera alive', 'is it still streaming'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "video.diagnose", when = "always", why = "find out why a source is degraded or failed" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.stop"
+entry = "axiom.extensions.builtins.video.skills.stop:run"
+path = "skills/stop"
+description = "Stop capturing a video source: clear its started mark; the copy holding it kills its decoder and releases the claim within the drain time. Stopping a source that is not running says so."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "video.status", when = "ok", why = "confirm nothing holds it" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.uninstall"
+entry = "axiom.extensions.builtins.video.skills.uninstall:run"
+path = "skills/uninstall"
+description = "Stop the boot-time capture service and remove its unit. Started sources stay started; after this they are captured only by `instrument video start` until the service is installed again."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "video.status", when = "ok", why = "see which started sources nothing is capturing now" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "video.verify"
+entry = "axiom.extensions.builtins.video.skills.verify:run"
+path = "skills/verify"
+description = "Ask a declared video source for one frame through the same ffmpeg pipe capture uses, and record what it showed: codec, width, height, fps and latency_ms. A pass makes the source active; a failure records the classified error and its fix (login refused, not found, unreachable, codec, ffmpeg missing) with no credential in it."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = [{ id = "source-declared", description = "the source must be declared (a connector of kind video)", fix = "declare it with `{cli} instrument video add {name} --kind rtsp --url <rtsp://host/path> --credential-ref <ref>`; `{cli} instrument video list` shows what is declared" }]
+next_steps = [{ target = "video.start", when = "ok", why = "start capturing it" }, { target = "video.diagnose", when = "error", why = "find the rung that fails and its exact fix" }]
+# END axi-skills-emit-md
+
+# ADR-182: a new copy starts beside the old, waits on each source's claim and takes
+# over as the old copy releases it (spec-video §Overlap). Two copies never both
+# hold one source.
+[extension.availability]
+switch = "overlap"
+readiness = "process"
+drain_s = 10
+migrations = "none"
+single_flight = true
+verified_by = "pending"

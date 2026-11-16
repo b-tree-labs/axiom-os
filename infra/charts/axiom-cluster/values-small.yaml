@@ -1,0 +1,8 @@
+# small: K3D on a laptop or desktop. k3s bundles Traefik and local-path.
+storage:
+  fast: {provisioner: rancher.io/local-path, reclaimPolicy: Delete}
+  standard: {provisioner: rancher.io/local-path}
+ingress: {install: false}
+certManager: {install: true}
+cloudnativePg: {install: true}
+externalSecrets: {install: true}

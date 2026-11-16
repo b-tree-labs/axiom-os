@@ -1,0 +1,2 @@
+# Deprecated alias (ADR-215): use values-micro.yaml. Removed after one minor release.
+profile: lowpower
