@@ -1,5 +1,5 @@
 # ---- builder ----
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /build
 
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --prefix=/install \
     anthropic
 
 # ---- runtime ----
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.version="0.3.1" \
       org.opencontainers.image.description="Modular digital platform for facilities"
