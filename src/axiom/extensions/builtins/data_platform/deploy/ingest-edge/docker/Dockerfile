@@ -4,7 +4,7 @@
 #
 # The ingest edge (ADR-177) as one container: push lanes /ingest, the
 # downstream's export /edge, and /healthz. Nothing else is served.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ARG AXIOM_VERSION=0.70.0
 RUN pip install --no-cache-dir "axiom-os-lm==${AXIOM_VERSION}" \
