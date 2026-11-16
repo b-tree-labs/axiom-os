@@ -5,7 +5,7 @@
 # The one runtime image every node role runs. It holds only a base Python and
 # the entrypoint: the packages live on the role's volume, installed once per
 # version (the updater's layout), so a release never needs a new image.
-FROM python:3.12-slim
+FROM python:3.15-slim
 # rclone: the forwarder's Box fallback (`axi data forward --box-remote`) when
 # the upstream intake is down. Checked at build so a missing binary fails here.
 # epics-base: the Channel Access repeater (the chart's `caRepeater` sidecar runs it) and
