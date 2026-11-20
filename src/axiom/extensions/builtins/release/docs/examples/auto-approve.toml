@@ -1,0 +1,23 @@
+# Opt-in auto-approval for routine fixes. Protected paths still wait
+# for raci.approvers. The reviewer identity must differ from the fix writer.
+# This repo's lander is the only lander: outside actors deliver fixes on
+# rivet-fix/<pr>-<shortsha> and do not merge.
+
+mode = "warn"
+language = "python"
+test_command = "pytest"
+forge = "github"
+selector = "testmon"
+fix_provider = "mechanical"
+land_method = "merge"
+
+[raci]
+approvers = ["@approver:local"]
+auto_approver = "@reviewer:local"
+auto_allowed = []
+max_rounds = 3
+approval_ttl_hours = 72
+
+[claims]
+label = "rivet:claimed"
+foreign_labels = ["external:working"]

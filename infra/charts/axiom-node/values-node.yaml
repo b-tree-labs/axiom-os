@@ -1,0 +1,4 @@
+# Deprecated alias (ADR-215): use values-small.yaml. Removed after one minor release.
+profile: node
+# The cluster base's names (infra/charts/axiom-cluster) are in use at this size.
+contract: {enabled: true}

@@ -1,0 +1,173 @@
+# KEEL — the one agent for the machine a node runs on (ADR-230).
+# Every surface (CLI, MCP, agent) routes through the skill registry, so a chat
+# question and `axi node inventory` run the same function and get the same answer.
+[extension]
+name = "node"
+version = "0.1.0"
+description = "The machine a node runs on, as one agent: what runs here, how it is doing, what is wrong and the fix, where configuration has drifted, and what can be reclaimed. Absorbs hygiene, diagnostics and the install doctor (ADR-230)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# The skills are MCP tools on the platform's unified server (spec-builtin-mcp-server).
+[extension.mcp]
+enabled = true
+
+# On by default. A node with a role (a buoy: acquire + transmit) declares
+# `agents = "none"` in its node file and nothing here runs; that is the
+# formalization of "on for site nodes, off for buoys" (ADR-164, ADR-230).
+[agent]
+default_consent = "core"
+# "daemon", not "lazy": the Background Service only dispatches an always-on agent, and the
+# chain ledger treats a node with no fresh verdict as blind.
+startup = "daemon"
+# The soundings: every fifteen minutes KEEL reads the vitals; a breach alerts through HERALD.
+heartbeat_interval = 900
+heartbeat_command = "node vitals --alert --reap"
+
+[[extension.provides]]
+kind = "agent"
+name = "keel"
+entry = "axiom.extensions.builtins.node:keel_persona_path"
+persona = "agents/keel/persona.md"
+description = "KEEL — node steward: inventory, soundings, drift and upkeep for the machine a node runs on, including engines Axiom did not install."
+role = "node steward"
+domain = "engines, disks, drift"
+# AEOS 1.0 §3.11: a Steward (acts on resources) that is also a Sensor (observes vitals).
+classes = ["steward", "sensor"]
+namespaces = ["node"]
+asks = ["what is running on this node", "what is using the disk", "is anything drifting from its pin", "what is wrong here and how do I fix it", "give me the node report"]
+
+[sender]
+display_name = "KEEL"
+
+# `axi node <verb>` — ADR-056: verbs are thin wrappers over the skills below.
+[[extension.provides]]
+kind = "cmd"
+noun = "node"
+entry = "axiom.extensions.builtins.node.commands:main"
+description = "Node: inventory / vitals / doctor / drift / report / declare / clean / window"
+tier = "core"
+intent_groups = ["maintain"]
+verb_overrides = { clean = { tier = "advanced" } }
+
+# Skills: declared once as SkillSpecs in skills/__init__.py (descriptions, risk,
+# preconditions, produces, next steps); the block below and each skills/<verb>/SKILL.md
+# are generated from them by `axi skills emit-md --ext node`.
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "node.clean"
+entry = "axiom.extensions.builtins.node.skills.clean:run"
+path = "skills/clean"
+description = "What could be reclaimed on this machine, as a plan: models installed in Ollama that no role is pinned to, container images nothing uses, hot-tier directories that belong on the bulk tier. Plans only in this release; applying one is a separate approved step, and nothing measured is ever deleted. Answers 'what can we free up'. Not the harness's own /clear."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "confirm the headroom after the owner acts" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.declare"
+entry = "axiom.extensions.builtins.node.skills.declare:run"
+path = "skills/declare"
+description = "Tell KEEL about what Axiom did not install so the inventory and drift can see it: an engine (kind=engine: name, unit, port, weights, owner), a storage tier (kind=tier: mount, hot or bulk, floor_gb), or a tracked file (kind=tracked: live path and its source). Writes the node's declarations durably; the change is returned and recorded."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "node.inventory", when = "ok", why = "see the declaration in place" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.doctor"
+entry = "axiom.extensions.builtins.node.skills.doctor:run"
+path = "skills/doctor"
+description = "What is wrong with this install and the exact fix for each finding: the platform's health checks (endpoints, models, memory store, services, GPU contention, package coherence) including whether the local model pins, the ensure unit and the serving env agree. Answers 'something is broken', 'check this node'. Makes no change and calls no model. Not the harness's own /doctor."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.drift", when = "ok", why = "see every place the node disagrees with itself" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.drift"
+entry = "axiom.extensions.builtins.node.skills.drift:run"
+path = "skills/drift"
+description = "Where the node has moved off course: the code's local-model pins vs the unit that pulls models vs the serving env (ADR-140); live configuration files that differ from their tracked source; hand-edited files with no tracked source. Each finding names the fix. Answers 'is anything drifting', 'does this node match what we decided'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.declare", when = "ok", why = "declare a live file's source so drift is measured, not suspected" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.inventory"
+entry = "axiom.extensions.builtins.node.skills.inventory:run"
+path = "skills/inventory"
+description = "What runs on this machine: model engines (detected from their processes, and declared when Axiom did not install them), the models each serves, systemd units, listening ports, GPU use, and disks by storage tier. Answers 'what is running here', 'which models are served and from where', 'what is on the GPU'. Reads only; a credential found on a command line is reported as exposed, never shown."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = [{ kind = "engine", how_to_use = "an engine's name, port and unit; declare it with node.declare or check it with node.doctor", field = "engines" }]
+next_steps = [{ target = "node.drift", when = "ok", why = "see whether what runs matches what is pinned and tracked" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.reap_worktrees"
+entry = "axiom.extensions.builtins.node.skills.reap_worktrees:run"
+path = "skills/reap_worktrees"
+description = "Finished git worktrees, removed safely: only when the commits are on the default branch or the PR merged, nothing is uncommitted or untracked, no process is inside, it is not locked, no editable install points into it and its last git activity is old enough. Ignored state beyond regenerable caches is archived (tar.gz plus manifest) before removal, and a failed archive blocks removal. Branches are always kept. Plans by default and says why each other worktree was skipped; apply=true removes up to a batch."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "confirm the headroom after the worktrees are gone" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.report"
+entry = "axiom.extensions.builtins.node.skills.report:run"
+path = "skills/report"
+description = "The node in one document for handover or onboarding: identity, inventory, vitals, doctor findings and drift, as structured data and optionally Markdown. Answers 'give me the node report', 'what would the next operator need to know'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "fleet.report", when = "ok", why = "push this node's report to the fleet console" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.vitals"
+entry = "axiom.extensions.builtins.node.skills.vitals:run"
+path = "skills/vitals"
+description = "How the machine is doing right now: free space per mount against its declared floor and tier, memory, load, GPU memory, and one verdict (even keel, pressure, critical, or blind when a reading came back empty, which is never room). Answers 'is the disk ok', 'how much headroom is there'. With alert=true a breach is handed to HERALD; this is what the fifteen-minute heartbeat does. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.clean", when = "ok", why = "see what could be reclaimed when a mount is under its floor" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.window"
+entry = "axiom.extensions.builtins.node.skills.window:run"
+path = "skills/window"
+description = "Maintenance windows on this node: who is working on what, until when. action=open (owner, scope, expect like 45m, note), extend, close (id, outcome), check (is a scope clear before a deploy or a long job), or status (the default). An overdue window keeps blocking until its owner closes it. Answers 'is anyone working on this node', 'can I deploy now'."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "a window over a heavy job: watch the headroom while it runs" }]
+# END axi-skills-emit-md

@@ -1,0 +1,13 @@
+{
+ "budgets": [
+  {
+   "budget_product_sku": "git_lfs",
+   "budget_amount": 20
+  },
+  {
+   "budget_product_sku": "actions",
+   "budget_amount": 200,
+   "prevent_further_usage": true
+  }
+ ]
+}

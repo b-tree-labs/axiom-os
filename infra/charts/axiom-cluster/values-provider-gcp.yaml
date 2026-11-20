@@ -1,0 +1,13 @@
+# large on GKE: Persistent Disk SSD, Traefik behind Cloud Load Balancing,
+# Secret Manager.
+storage:
+  fast: {provisioner: pd.csi.storage.gke.io, parameters: {type: pd-ssd}, reclaimPolicy: Retain, allowVolumeExpansion: true}
+  standard: {provisioner: pd.csi.storage.gke.io, parameters: {type: pd-balanced}, allowVolumeExpansion: true}
+  localpv: {install: false}
+ingress: {install: true}
+externalSecrets:
+  store:
+    provider:
+      gcpsm: {projectID: ""}
+objectStore: {install: false}   # the operator writes the store entry object-store (S3 / the S3 API of Cloud Storage)
+monitoring: {install: true}

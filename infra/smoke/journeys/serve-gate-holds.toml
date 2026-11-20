@@ -1,0 +1,15 @@
+# The access gate holds: a signed-out caller is refused, never served data.
+[journey]
+name = "serve-gate-holds"
+base_url = "http://127.0.0.1:8770"
+timeout_s = 10
+
+[[step]]
+name = "a signed-out flags call is refused"
+path = "/api/v1/flags"
+expect = { status = 401, content_type = "application/json" }
+
+[[step]]
+name = "a signed-out registry call is refused"
+path = "/api/v1/features"
+expect = { status = 401, content_type = "application/json" }

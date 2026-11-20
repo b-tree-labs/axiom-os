@@ -1,0 +1,48 @@
+# Built-in export-control keyword list (domain-agnostic defaults).
+#
+# Substring match, case-insensitive, against the full query text.
+# Format: one term per line. Lines starting with # are comments.
+#
+# ── Scope ─────────────────────────────────────────────────────────────────────
+#
+# This file holds terms that are *legally* export-controlled or weapon-design-
+# adjacent under EAR / ITAR / 10 CFR 810. It is intentionally narrow.
+#
+# It is NOT a list of "all nuclear-technology terminology." Mentioning
+# `RELAP5`, `ORIGEN`, `prompt criticality`, or `SCRAM` in a course is not an
+# export-control event — those are textbook reactor physics terms covered in
+# undergraduate curricula and published peer-reviewed literature. Treating
+# them as EC triggers blocks legitimate research and teaching workflows.
+#
+# Facility-policy terms (additional protection beyond legal EC — e.g. internal
+# code names, vendor-proprietary tools, facility-specific operational details)
+# go in `runtime/config/export_control_terms.txt`, NOT here. See
+# `runtime/config.example/export_control_terms.txt` for the template.
+#
+# ── Sensitive materials (weapons-usable / SNM) ────────────────────────────────
+weapons-usable
+weapons-grade
+SNM
+plutonium-239
+highly enriched uranium
+HEU
+
+# ── Export control and regulatory framework ───────────────────────────────────
+export authorization
+EAR controlled
+ITAR
+deemed export
+export controlled
+restricted territory
+10 CFR 810
+
+# ── Removed from defaults (now require facility-policy opt-in) ────────────────
+# These terms USED to live here but were causing widespread false positives in
+# research/teaching contexts. Add them back via runtime/config/export_control_terms.txt
+# if your facility's policy requires:
+#   ORIGEN, RELAP5, RELAP7, PARCS, TRITON   — open-source / academically licensed simulation codes
+#   prompt critical, prompt criticality      — textbook reactor physics
+#   critical assembly, critical mass         — textbook reactor physics
+#   SCRAM                                    — operations terminology
+#   fissile material, enrichment             — textbook nuclear material concepts
+#   InternalSim, SimTool                     — placeholder names; replace with your tool
