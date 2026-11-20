@@ -1,0 +1,77 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+"""The ``sites`` skills, declared once; every surface routes through the registry."""
+
+from __future__ import annotations
+
+from axiom.infra.skills import SkillRegistry, SkillSpec
+
+from . import checklist as _skill
+from . import tenancy as _tenancy
+
+SPECS = (
+    SkillSpec(
+        name="sites.checklist",
+        fn=_skill.run,
+        description=(
+            "Every ADR-178 readiness check for a site: ok, waiting, failing (with the fix) "
+            "or not applicable. Reads only."
+        ),
+        inputs={
+            "site": "the site to check (not needed when kind is first_run)",
+            "kind": "first_run for the five-step first-run checklist; absent for the ADR-178 site checklist",
+            "min_version": "the oldest collector version the intake accepts",
+            "stopped_after_h": "hours without a reading before data counts as stopped (default 24)",
+        },
+        surfaces=("cli", "mcp", "agent_tool"),
+        side_effects=False,
+        idempotent=True,
+        risk="read",
+        requires=(),
+    ),
+    SkillSpec(
+        name="sites.list",
+        fn=_tenancy.list_sites,
+        description=(
+            "The sites you may see here, with their names, the scope selector's choice "
+            "and whether there is anything to choose. A site you may not see is not "
+            "listed or counted. Reads only."
+        ),
+        inputs={},
+        surfaces=("cli", "mcp", "agent_tool"),
+        side_effects=False,
+        idempotent=True,
+        risk="read",
+        requires=(),
+    ),
+    SkillSpec(
+        name="sites.show",
+        fn=_tenancy.show_site,
+        description=(
+            "One site you may see: its name and former ids. A site you may not see "
+            "answers like one that does not exist. Reads only."
+        ),
+        inputs={"site": "the site id (a former id resolves)"},
+        surfaces=("cli", "mcp", "agent_tool"),
+        side_effects=False,
+        idempotent=True,
+        risk="read",
+        requires=(),
+    ),
+)
+
+
+def bind(registry: SkillRegistry) -> None:
+    for spec in SPECS:
+        if not registry.has(spec.name):
+            registry.register_skill(spec, mutating=False)
+
+
+def bind_default() -> SkillRegistry:
+    registry = SkillRegistry()
+    bind(registry)
+    return registry
+
+
+__all__ = ["SPECS", "bind", "bind_default"]

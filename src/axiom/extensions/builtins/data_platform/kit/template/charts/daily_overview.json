@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.1",
+  "kind": "timeseries",
+  "site": "{{tenant}}",
+  "title": "Inlet and outlet temperature, hourly mean",
+  "channels": ["temperature.inlet", "temperature.outlet"],
+  "window": {"from": "2026-09-01T00:00:00+00:00", "to": "2026-09-08T00:00:00+00:00"},
+  "transform": {"bucket": "1h", "agg": "mean"}
+}

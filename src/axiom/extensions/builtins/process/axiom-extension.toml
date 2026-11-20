@@ -1,0 +1,106 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- process control is an operator surface; handing an agent a stop/panic tool is the opposite of containing agents
+[extension]
+name = "process"
+version = "0.1.0"
+description = "Process registry and containment: list, stop, sweep and emergency-stop what the harness started"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "process"
+entry = "axiom.extensions.builtins.process.cli:main"
+description = "See and stop processes and agents the harness started (ls, show, stop, sweep, panic, resume)"
+tier = "advanced"
+intent_groups = ["operate"]
+
+# Skills: invocable through axiom.infra.skills.SkillRegistry per ADR-056.
+# Namespace = CLI noun (`process`) -> skill names `process.<verb>`.
+
+[[extension.provides]]
+kind = "skill"
+name = "ls"
+path = "skills/ls.py"
+entry = "axiom.extensions.builtins.process.skills.ls:ls"
+description = "List registered processes with live state and rogue findings"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = [{ kind = "process_id", how_to_use = "pass as id to process.show or process.stop" }]
+next_steps = [{ target = "process.show", when = "produced:process_id", why = "read its full record and findings before touching it", feeds = { id = "process_id" } }, { target = "process.stop", when = "produced:process_id", why = "stop it (opens a plan; nothing stops until a person approves)", feeds = { id = "process_id" } }, { target = "process.sweep", when = "ok", why = "look for rogue processes and runaway agents across everything" }]
+recipes = ["incident-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "show"
+path = "skills/show.py"
+entry = "axiom.extensions.builtins.process.skills.show:show"
+description = "Show one registered process: record, live state, findings"
+risk = "read"
+side_effects = false
+idempotent = true
+requires = [{ id = "process-registered", description = "the target must be a process the harness registered", fix = "list what is registered with 'axi process ls' and pass one of its ids as id", consumes = "process_id", param = "id" }]
+next_steps = [{ target = "process.stop", when = "ok", why = "stop it (opens a plan; nothing stops until a person approves)" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "stop"
+path = "skills/stop.py"
+entry = "axiom.extensions.builtins.process.skills.stop:stop"
+description = "Stop one registered process (dry-run unless kill=true)"
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = [{ id = "process-registered", description = "the target must be a process the harness registered", fix = "list what is registered with 'axi process ls' and pass one of its ids as id", consumes = "process_id", param = "id" }]
+produces = [{ kind = "process_id", how_to_use = "pass as id to process.show to confirm it is gone" }]
+next_steps = [{ target = "process.ls", when = "ok", why = "confirm it is gone and see what else is registered" }, { target = "process.sweep", when = "error", why = "see why the record does not verify" }]
+recipes = ["incident-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "sweep"
+path = "skills/sweep.py"
+entry = "axiom.extensions.builtins.process.skills.sweep:sweep"
+description = "Detect rogue processes and runaway agents; report by default"
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "process.ls", when = "ok", why = "confirm what is registered now" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "panic"
+path = "skills/panic.py"
+entry = "axiom.extensions.builtins.process.skills.panic:panic"
+description = "Emergency stop: agents off and agent-owned processes stopped (dry-run unless kill=true)"
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "process.ls", when = "ok", why = "confirm what is left" }, { target = "process.resume", when = "ok", why = "turn one agent back on when it is safe" }]
+recipes = ["credential-leak-response"]
+
+[[extension.provides]]
+kind = "skill"
+name = "resume"
+path = "skills/resume.py"
+entry = "axiom.extensions.builtins.process.skills.resume:resume"
+description = "Re-enable an agent that containment paused"
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = [{ id = "agent-paused", description = "the agent must have been paused by containment", fix = "see which agents are on with 'axi agents status'; only an agent that 'axi process panic --kill' paused can be resumed" }]
+next_steps = [{ target = "process.sweep", when = "ok", why = "check that it behaves" }]

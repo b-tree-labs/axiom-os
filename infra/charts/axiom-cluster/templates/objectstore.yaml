@@ -1,0 +1,48 @@
+{{- /*
+The object store's keys and the store entry `object-store`, when this chart
+runs SeaweedFS. The keys are generated once: an upgrade reads the existing
+Secret back (lookup) instead of rolling them, so nothing that holds them breaks.
+They are kept on uninstall, with the data.
+*/ -}}
+{{- if .Values.objectStore.install }}
+{{- $name := "axiom-object-store-keys" }}
+{{- $old := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $keys := dict }}
+{{- range $k := list "admin_access_key_id" "admin_secret_access_key" "read_access_key_id" "read_secret_access_key" }}
+{{- $v := "" }}
+{{- if and $old (hasKey $old.data $k) }}{{- $v = index $old.data $k | b64dec }}
+{{- else if hasSuffix "_key_id" $k }}{{- $v = printf "axiom%s" (randAlphaNum 15 | lower) }}
+{{- else }}{{- $v = randAlphaNum 40 }}{{- end }}
+{{- $_ := set $keys $k $v }}
+{{- end }}
+{{- $ak := $keys.admin_access_key_id }}{{- $sk := $keys.admin_secret_access_key }}
+{{- $endpoint := printf "http://%s-s3.%s.svc:8333" (include "axiom-cluster.seaweedfsName" .) .Release.Namespace }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels: {app.kubernetes.io/part-of: axiom-cluster}
+  annotations: {helm.sh/resource-policy: keep}
+type: Opaque
+stringData:
+  {{- range $k, $v := $keys }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+---
+{{- if empty .Values.externalSecrets.store.provider }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: object-store
+  namespace: {{ .Values.externalSecrets.store.namespace }}
+  labels: {app.kubernetes.io/part-of: axiom-cluster}
+  annotations: {helm.sh/resource-policy: keep}
+type: Opaque
+stringData:
+  AXIOM_S3_ENDPOINT: {{ $endpoint | quote }}
+  AXIOM_S3_REGION: {{ .Values.objectStore.region | quote }}
+  AXIOM_S3_BUCKETS: {{ join "," .Values.objectStore.buckets | quote }}
+  AWS_ACCESS_KEY_ID: {{ $ak | quote }}
+  AWS_SECRET_ACCESS_KEY: {{ $sk | quote }}
+{{- end }}
+{{- end }}
