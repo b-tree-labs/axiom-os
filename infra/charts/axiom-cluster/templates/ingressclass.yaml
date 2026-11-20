@@ -1,0 +1,12 @@
+{{- /* Ingress class `axiom`, served by Traefik whether the platform bundles it or this chart installs it. */ -}}
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: axiom
+  labels: {app.kubernetes.io/part-of: axiom-cluster}
+  {{- if .Values.ingress.default }}
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
+spec:
+  controller: {{ .Values.ingress.controller }}

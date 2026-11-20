@@ -1,0 +1,4 @@
+# The database image's tag, and the sha256 of Dockerfile + check-extensions.sh it
+# was cut from. Change either and the test asks for a new tag: a host that
+# cached the old tag would otherwise run different files under one name.
+0.1.0 6388ebcb69e4195545e2e9735443d3513253c34771388c05ba3b05919390775d

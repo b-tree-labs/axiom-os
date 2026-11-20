@@ -1,0 +1,11 @@
+{{- /*
+Long-running work that is not one of the fixed roles (values `services`), on
+the same workload definition as a role. A service with blueGreen is rendered
+by bluegreen.yaml as slots behind a front.
+*/ -}}
+{{- range $name, $cfg := (default dict .Values.services) }}
+{{- if and $cfg.enabled (not (dig "blueGreen" "enabled" false $cfg)) }}
+{{ include "axiom-node.workload" (dict "root" $ "role" $name "cfg" $cfg "command" $cfg.command "port" (default 0 $cfg.port) "probePath" (default "" $cfg.probePath) "priority" (default "background" $cfg.priority) "storageKind" (default "default" $cfg.storageKind)) }}
+---
+{{- end }}
+{{- end }}

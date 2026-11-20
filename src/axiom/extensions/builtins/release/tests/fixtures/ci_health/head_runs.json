@@ -1,0 +1,96 @@
+{
+  "_comment": "Runs of ci.yml on main, oldest head first. h0 green; h1 red (Unit Tests failed); h2 had its pending run replaced (cancelled, never started); h3 green on its second attempt; h4 in progress; h5 is the branch head with no run yet.",
+  "workflow_runs": [
+    {
+      "id": 201,
+      "name": "CI",
+      "workflow_id": 1,
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "main",
+      "head_sha": "h0",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 1,
+      "created_at": "2026-11-10T20:00:00Z",
+      "run_started_at": "2026-11-10T20:00:00Z",
+      "updated_at": "2026-11-10T20:12:00Z",
+      "head_commit": {"message": "feat: first (#10)"}
+    },
+    {
+      "id": 202,
+      "name": "CI",
+      "workflow_id": 1,
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "main",
+      "head_sha": "h1",
+      "status": "completed",
+      "conclusion": "failure",
+      "run_attempt": 1,
+      "created_at": "2026-11-10T20:20:00Z",
+      "run_started_at": "2026-11-10T20:20:00Z",
+      "updated_at": "2026-11-10T20:31:00Z",
+      "head_commit": {"message": "feat: second (#11)"}
+    },
+    {
+      "id": 203,
+      "name": "CI",
+      "workflow_id": 1,
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "main",
+      "head_sha": "h2",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "run_attempt": 1,
+      "created_at": "2026-11-10T20:25:00Z",
+      "run_started_at": "2026-11-10T20:25:00Z",
+      "updated_at": "2026-11-10T20:26:00Z",
+      "head_commit": {"message": "feat: third (#12)"}
+    },
+    {
+      "id": 204,
+      "name": "CI",
+      "workflow_id": 1,
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "main",
+      "head_sha": "h3",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 2,
+      "created_at": "2026-11-10T20:26:00Z",
+      "run_started_at": "2026-11-10T20:40:00Z",
+      "updated_at": "2026-11-10T20:52:00Z",
+      "head_commit": {"message": "feat: fourth (#13)"}
+    },
+    {
+      "id": 205,
+      "name": "CI",
+      "workflow_id": 1,
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "main",
+      "head_sha": "h4",
+      "status": "in_progress",
+      "conclusion": null,
+      "run_attempt": 1,
+      "created_at": "2026-11-10T20:55:00Z",
+      "run_started_at": "2026-11-10T20:55:00Z",
+      "updated_at": "2026-11-10T20:56:00Z",
+      "head_commit": {"message": "feat: fifth (#14)"}
+    }
+  ],
+  "jobs": {
+    "202": [
+      {"id": 7001, "name": "Lint", "status": "completed", "conclusion": "success"},
+      {"id": 7002, "name": "Unit Tests", "status": "completed", "conclusion": "failure"},
+      {"id": 7003, "name": "Integration Tests", "status": "completed", "conclusion": "cancelled"}
+    ],
+    "204": [
+      {"id": 7011, "name": "Lint", "status": "completed", "conclusion": "success"},
+      {"id": 7012, "name": "Unit Tests", "status": "completed", "conclusion": "success"}
+    ]
+  }
+}

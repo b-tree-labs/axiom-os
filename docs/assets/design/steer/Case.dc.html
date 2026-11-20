@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A case and its derivation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Source Sans 3", system-ui, sans-serif; background: #0d1017; }
+a { color: #f0a15e; }
+a:hover { color: #ffb877; }
+button { font-family: inherit; cursor: pointer; }
+input, textarea { font-family: inherit; }
+/* Breadcrumb, following the SoilMetrix LibraryBrowser pattern: gap-1, a muted
+   "/" before every crumb but the first, each ancestor a real control with
+   rounded px-1 py-0.5 and hover:bg-theme-nav-hover, truncating rather than
+   wrapping. The back control is MLFileBrowser's, which LibraryBrowser lacks. */
+.crumb { border-radius: 4px; padding: 2px 4px; text-decoration: none; transition: background-color .12s; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb:hover { background: rgba(255, 255, 255, 0.06); }
+.crumb-back { border-radius: 4px; padding: 4px; display: flex; align-items: center; border: none; background: transparent; transition: background-color .12s; }
+.crumb-back:hover { background: rgba(255, 255, 255, 0.06); }
+</style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0d1017; color: #e7e9ec; display: flex; flex-direction: column; padding: 20px 28px; overflow: hidden">
+
+  <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 4px; font-size: 14px; margin-bottom: 13px">
+    <a href="Main.dc.html" class="crumb-back" aria-label="Go back" title="Go back" style="color: #c4c8ce">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 19l-7-7 7-7"></path></svg>
+    </a>
+    <a href="Main.dc.html" class="crumb" style="color: #c4c8ce">Steer</a>
+    <span style="color: #98a1ad">/</span>
+    <a href="Main.dc.html" class="crumb" style="color: #c4c8ce">Needs you</a>
+    <span style="color: #98a1ad">/</span>
+    <span class="crumb" aria-current="page" style="color: #e7e9ec; font-weight: 500">A credential that has not been used</span>
+  </nav>
+
+  <!-- header -->
+  <div style="display: flex; align-items: flex-start; gap: 15px">
+    <div style="flex-grow: 1; min-width: 0">
+      <div style="display: flex; align-items: center; gap: 11px; margin-bottom: 6px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 4px; background: rgba(232, 160, 160, 0.16); color: #e8a0a0">HARM</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #98a1ad">@warden · secrets.rotate · 09:41</span>
+      </div>
+      <h1 style="margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3">A credential that rotates by use has not been used in 94 days.</h1>
+    </div>
+    <div style="display: flex; gap: 8px; flex-shrink: 0; padding-top: 18px">
+      <button type="button" onClick="{{pickRotate}}" style="padding: 8px 15px; border-radius: 7px; border: 1px solid {{rotBd}}; background: {{rotBg}}; color: {{rotFg}}; font-size: 13px; font-weight: 600">Rotate it</button>
+      <button type="button" onClick="{{pickLeave}}" style="padding: 8px 15px; border-radius: 7px; border: 1px solid {{lvBd}}; background: {{lvBg}}; color: {{lvFg}}; font-size: 13px; font-weight: 600">Leave it</button>
+      <button type="button" onClick="{{pickDiscuss}}" style="padding: 8px 15px; border-radius: 7px; border: 1px solid {{dsBd}}; background: {{dsBg}}; color: {{dsFg}}; font-size: 13px; font-weight: 600">Discuss</button>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 18px; flex-grow: 1; min-height: 0; margin-top: 16px">
+
+    <!-- ============ LEFT: the derivation ============ -->
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 11px">
+
+      <div style="display: flex; align-items: center; gap: 9px">
+        <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480">HOW IT GOT HERE</span>
+        <div style="flex-grow: 1"></div>
+        <button type="button" onClick="{{toggleRaw}}" style="padding: 4px 11px; border-radius: 14px; border: 1px solid {{rawBd}}; background: {{rawBg}}; color: {{rawFg}}; font-size: 11.5px; font-weight: 600">{{rawLabel}}</button>
+      </div>
+
+      <sc-if value="{{raw}}" hint-placeholder-val="{{false}}">
+        <div style="flex-grow: 1; min-height: 0; box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 9px; padding: 15px 17px; overflow: hidden">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.7; color: #98a1ad; white-space: pre-wrap">{{payload}}</div>
+          <div style="margin-top: 13px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce; border-top: 1px solid #2a303a; padding-top: 11px">The same payload feeds this page, the terminal, a PDF for somebody who was not in the room, and the agent that reads it over MCP. None of them can say something the others cannot.</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{rendered}}" hint-placeholder-val="{{true}}">
+        <div style="flex-grow: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px">
+
+          <sc-for list="{{sections}}" as="s" hint-placeholder-count="3">
+            <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px">
+              <button type="button" onClick="{{s.toggle}}" style="width: 100%; box-sizing: border-box; text-align: left; background: transparent; border: none; padding: 12px 16px; display: flex; align-items: center; gap: 10px; color: inherit">
+                <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-grow: 1">{{s.head}}</span>
+                <span style="font-size: 12px; color: #98a1ad">{{s.hint}}</span>
+                <span style="font-size: 10px; color: #6b7480">{{s.chev}}</span>
+              </button>
+              <sc-if value="{{s.open}}" hint-placeholder-val="{{true}}">
+                <div style="box-sizing: border-box; padding: 0 16px 14px 16px">
+                  <div style="font-size: 13px; line-height: 1.6; color: #c4c8ce; white-space: pre-line">{{s.body}}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+
+          <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 10px">THE TEST, AS A NUMBER — so it can be re-evaluated, not only read</div>
+            <div style="display: flex; align-items: baseline; gap: 11px; margin-bottom: 10px">
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600">94</span>
+              <span style="font-size: 13px; color: #98a1ad">days against a threshold of</span>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 600; color: #c4c8ce">90</span>
+              <span style="font-size: 13px; color: #98a1ad">days</span>
+            </div>
+            <div style="box-sizing: border-box; padding: 9px 12px; border-left: 2px solid #e8a0a0; background: rgba(232, 160, 160, 0.07); border-radius: 0 6px 6px 0; font-size: 12.5px; line-height: 1.55; color: #c4c8ce"><strong style="color: #e8a0a0; font-weight: 600">Uncertainty: not reported.</strong> Nobody declared how precisely a last-use timestamp is known, so this margin of 4 days cannot be said to clear anything. It is not recorded as zero, which would claim the clock is exact.</div>
+          </div>
+
+          <div style="box-sizing: border-box; background: #161a21; border: 1px solid #2a303a; border-radius: 9px; padding: 14px 16px">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 9px">CHECK IT WITHOUT US</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #f0a15e; background: #0f131a; border: 1px solid #2a303a; border-radius: 6px; padding: 8px 11px">axi secrets audit --name gitlab-ci-runner</div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- ============ RIGHT ============ -->
+    <div style="width: 388px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; min-height: 0">
+
+      <!-- GATE: always visible -->
+      <div style="box-sizing: border-box; background: #1c212b; border: 1px solid #3a3226; border-radius: 9px; padding: 14px 16px">
+        <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 10px">WHY THIS REACHED YOU</div>
+        <div style="display: flex; gap: 5px; margin-bottom: 11px">
+          <sc-for list="{{classes}}" as="c" hint-placeholder-count="4">
+            <button type="button" onClick="{{c.pick}}" style="flex-grow: 1; padding: 5px 4px; border-radius: 6px; border: 1px solid {{c.bd}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px">{{c.label}}</button>
+          </sc-for>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 12.5px">
+          <span style="color: #98a1ad">Confidence required</span><span style="font-family: 'JetBrains Mono', monospace">{{gate.conf}}</span>
+          <span style="color: #98a1ad">Margin required</span><span style="font-family: 'JetBrains Mono', monospace">{{gate.margin}}</span>
+          <span style="color: #98a1ad">Uncertainty must be known</span><span style="font-family: 'JetBrains Mono', monospace; color: {{gate.knownFg}}">{{gate.known}}</span>
+          <span style="color: #98a1ad">Verdict</span><span style="font-family: 'JetBrains Mono', monospace; color: {{gate.vFg}}; font-weight: 600">{{gate.verdict}}</span>
+        </div>
+        <div style="height: 1px; background: #2a303a; margin: 11px 0"></div>
+        <div style="font-size: 12px; line-height: 1.55; color: #98a1ad">{{gate.note}}</div>
+      </div>
+
+      <!-- PANEL: switches with the header buttons -->
+      <div style="flex-grow: 1; min-height: 0; box-sizing: border-box; background: #161a21; border: 1px solid {{panelBd}}; border-radius: 9px; padding: 14px 16px; display: flex; flex-direction: column">
+
+        <!-- review -->
+        <sc-if value="{{isReview}}" hint-placeholder-val="{{true}}">
+          <div>
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; margin-bottom: 11px">WHAT YOU DECIDED BEFORE</div>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div style="border-left: 2px solid #2a303a; padding-left: 11px">
+                <div style="font-size: 11.5px; color: #6b7480; margin-bottom: 3px">14 Aug · same rule, a runner token</div>
+                <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 4px">Rotated</div>
+                <div style="font-size: 12.5px; line-height: 1.5; color: #c4c8ce; font-style: italic">"If a runner token has been idle three months the job that used it is gone, and I would rather break a dead job than keep a live key."</div>
+              </div>
+              <div style="border-left: 2px solid #f0a15e; padding-left: 11px">
+                <div style="font-size: 11.5px; color: #6b7480; margin-bottom: 3px">2 Jul · same rule, a signing key</div>
+                <div style="font-size: 12.5px; font-weight: 600; margin-bottom: 4px">Left it, with a condition</div>
+                <div style="font-size: 12.5px; line-height: 1.5; color: #c4c8ce; font-style: italic">"It signs releases, so it is idle by design between tags. Stop raising it under 180 days."</div>
+                <div style="margin-top: 6px; font-size: 11.5px; color: #f0a15e">In force · suppressed 4 cases · expires 2 Jan</div>
+              </div>
+            </div>
+            <div style="height: 1px; background: #2a303a; margin: 13px 0"></div>
+            <div style="font-size: 12.5px; line-height: 1.55; color: #98a1ad">Guidance you leave is an input to the rule, not a note on the case. That is what makes this Steer and not Watch.</div>
+          </div>
+        </sc-if>
+
+        <!-- deciding -->
+        <sc-if value="{{isDeciding}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-direction: column; height: 100%">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #f0a15e; margin-bottom: 4px">{{decideHead}}</div>
+            <div style="font-size: 12.5px; line-height: 1.55; color: #98a1ad; margin-bottom: 12px">{{decideWhy}}</div>
+
+            <label for="reason" style="font-size: 12px; color: #c4c8ce; margin-bottom: 6px; display: block">Your reason, kept verbatim</label>
+            <textarea id="reason" rows="3" style="box-sizing: border-box; width: 100%; background: #0f131a; border: 1px solid #2a303a; border-radius: 7px; padding: 9px 11px; color: #e7e9ec; font-size: 12.5px; line-height: 1.5; resize: none; outline: none">Rotate it. Nothing has used this runner in three months and the branch its CI served is going away.</textarea>
+
+            <div style="margin-top: 13px; box-sizing: border-box; background: #1c212b; border: 1px solid #2a303a; border-radius: 8px; padding: 11px 13px">
+              <div style="display: flex; align-items: flex-start; gap: 9px">
+                <input id="standing" type="checkbox" checked="{{standing}}" onClick="{{toggleStanding}}" style="margin-top: 2px; accent-color: #bf5700">
+                <div style="flex-grow: 1">
+                  <label for="standing" style="font-size: 12.5px; font-weight: 600; color: #e7e9ec; display: block; margin-bottom: 3px">Make this a standing condition</label>
+                  <div style="font-size: 12px; line-height: 1.5; color: #98a1ad">Applies to every future case matching this rule, until it expires.</div>
+                </div>
+              </div>
+              <sc-if value="{{standing}}" hint-placeholder-val="{{true}}">
+                <div style="margin-top: 11px; display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; font-size: 12.5px">
+                  <span style="color: #98a1ad">Applies to</span>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c4c8ce">secrets.rotate · policy=by-use · runner tokens</span>
+                  <span style="color: #98a1ad">Expires</span>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c4c8ce">in 6 months · 28 Mar 2027</span>
+                </div>
+                <div style="margin-top: 9px; font-size: 11.5px; line-height: 1.5; color: #f0a15e">Every condition expires. One set in frustration and forgotten is how a fleet goes quiet without anyone choosing it.</div>
+              </sc-if>
+            </div>
+
+            <div style="flex-grow: 1"></div>
+            <div style="display: flex; gap: 8px; margin-top: 13px">
+              <button type="button" onClick="{{confirm}}" style="flex-grow: 1; padding: 9px 0; border-radius: 7px; border: none; background: #bf5700; color: #ffffff; font-size: 13px; font-weight: 600">{{confirmLabel}}</button>
+              <button type="button" onClick="{{back}}" style="padding: 9px 15px; border-radius: 7px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 13px; font-weight: 600">Back</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- decided -->
+        <sc-if value="{{isDecided}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-direction: column; height: 100%">
+            <div style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #7fc8a0; margin-bottom: 11px">RECORDED</div>
+            <div style="font-size: 14px; font-weight: 600; margin-bottom: 9px">{{doneHead}}</div>
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.75; color: #98a1ad; white-space: pre-line; border-left: 1px solid #2a303a; padding-left: 12px">{{doneLog}}</div>
+            <div style="margin-top: 13px; font-size: 12.5px; line-height: 1.55; color: #c4c8ce">This case leaves <strong style="color: #e7e9ec">Needs you</strong> and appears under <strong style="color: #e7e9ec">Done</strong>. Your reason travels with it, and the next matching case will cite it the way this one cited July.</div>
+            <div style="flex-grow: 1"></div>
+            <div style="display: flex; gap: 8px; margin-top: 13px">
+              <a href="Main.dc.html" style="flex-grow: 1; text-align: center; text-decoration: none; padding: 9px 0; border-radius: 7px; background: #bf5700; color: #ffffff; font-size: 13px; font-weight: 600">Back to Steer</a>
+              <button type="button" onClick="{{back}}" style="padding: 9px 15px; border-radius: 7px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 13px; font-weight: 600">Undo</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- discuss -->
+        <sc-if value="{{isDiscuss}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-direction: column; height: 100%">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px">
+              <span style="font-size: 10.5px; font-weight: 700; letter-spacing: 0.7px; color: #6b7480; flex-grow: 1">DISCUSS WITH THE AGENT</span>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 7px; border-radius: 5px; background: rgba(191, 87, 0, 0.2); color: #f0a15e">@warden</span>
+            </div>
+
+            <div style="flex-grow: 1; min-height: 0; display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start">
+              <button type="button" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">Why this one?</button>
+              <button type="button" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">What would change it?</button>
+              <button type="button" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">Show me similar</button>
+              <button type="button" style="padding: 5px 11px; border-radius: 14px; border: 1px solid #2a303a; background: transparent; color: #98a1ad; font-size: 12px">What did I say last time?</button>
+            </div>
+
+            <div style="box-sizing: border-box; background: #0f131a; border: 1px solid #2a303a; border-radius: 8px; padding: 8px 11px; display: flex; align-items: center; gap: 9px; margin-top: 11px">
+              <label for="case-msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message the agent</label>
+              <input id="case-msg" type="text" placeholder="Ask it about this case…" style="flex-grow: 1; background: transparent; border: none; color: #e7e9ec; font-size: 12.5px; outline: none">
+              <button type="button" style="padding: 4px 11px; border-radius: 6px; border: none; background: #bf5700; color: #ffffff; font-size: 12px; font-weight: 600">Send</button>
+            </div>
+            <button type="button" onClick="{{back}}" style="margin-top: 11px; padding: 8px 0; border-radius: 7px; border: 1px solid #2a303a; background: transparent; color: #c4c8ce; font-size: 12.5px; font-weight: 600">Back to the record</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      mode: "review", choice: null, standing: true, raw: false,
+      cls: "harm", open: { inputs: true, rule: true }
+    };
+  }
+
+  renderVals() {
+    const m = this.state.mode;
+    const gates = {
+      harm: { conf: "0.99", margin: "1.0 u", known: "yes — it is not", knownFg: "#e8a0a0", verdict: "UNKNOWN", vFg: "#e8a0a0", note: "Harm refuses to act on an unreported uncertainty, whichever way the comparison points. That refusal is the only thing making a declaration worth making." },
+      loss: { conf: "0.95", margin: "0.5 u", known: "yes — it is not", knownFg: "#e8a0a0", verdict: "UNKNOWN", vFg: "#e8a0a0", note: "Loss also requires a known uncertainty, at a lower bar. This case would still have reached you." },
+      waste: { conf: "0.95", margin: "none", known: "no", knownFg: "#98a1ad", verdict: "SEPARATED", vFg: "#7fc8a0", note: "At waste it would have been rotated automatically at 09:41 and appeared under Done. Nothing would have reached you." },
+      noise: { conf: "0.90", margin: "none", known: "no", knownFg: "#98a1ad", verdict: "SEPARATED", vFg: "#7fc8a0", note: "At noise it would have been handled silently and aggregated into a weekly count." }
+    };
+
+    const classes = ["harm", "loss", "waste", "noise"].map((id) => {
+      const on = this.state.cls === id;
+      const isReal = id === "harm";
+      return {
+        label: id.toUpperCase(),
+        bg: on ? (isReal ? "rgba(232, 160, 160, 0.18)" : "rgba(127, 179, 213, 0.14)") : "transparent",
+        bd: on ? (isReal ? "#e8a0a0" : "#7fb3d5") : "#2a303a",
+        fg: on ? "#e7e9ec" : "#6b7480",
+        pick: () => this.setState({ cls: id })
+      };
+    });
+
+    const secDefs = [
+      { id: "inputs", head: "INPUTS — redo the arithmetic without us", hint: "6 values",
+        body: "Credential        gitlab-ci-runner (vault)\nRotation policy   by-use\nLast recorded use 2026-06-26T04:12Z\nAge of last use   94 days\nDisuse threshold  90 days\nexpires_at        2027-03-01 (not reached)" },
+      { id: "rule", head: "RULE", hint: "1 sentence",
+        body: "A credential whose policy is rotate-by-use expires from disuse, not from its expiry date. 94 days exceeds the 90-day threshold, so it is treated as expired although expires_at is five months out." },
+      { id: "limit", head: "CANNOT ESTABLISH", hint: "read this one",
+        body: "That the credential still works. Nothing has tried it, which is why its age is the only evidence there is." }
+    ];
+    const sections = secDefs.map((s) => ({
+      head: s.head, hint: s.hint, body: s.body,
+      open: this.state.open[s.id] !== false,
+      chev: this.state.open[s.id] !== false ? "▾" : "▸",
+      toggle: () => {
+        const nx = Object.assign({}, this.state.open);
+        nx[s.id] = this.state.open[s.id] === false;
+        this.setState({ open: nx });
+      }
+    }));
+
+    const payload = '{\n  "subject": "claim:credential-disuse",\n  "claim": "A credential that rotates by use has not been used in 94 days.",\n  "inputs": [\n    {"label": "Last recorded use", "value": "2026-06-26T04:12Z"},\n    {"label": "Age of last use", "value": "94 days"},\n    {"label": "Disuse threshold", "value": "90 days"}\n  ],\n  "rule": "rotate-by-use implies disuse is expiry",\n  "verify": "axi secrets audit --name gitlab-ci-runner",\n  "limit": "That the credential still works. Nothing has tried it.",\n  "comparison": {\n    "value": 94.0,\n    "threshold": 90.0,\n    "unit": "days",\n    "uncertainty": null,\n    "describes": "age of last use against the disuse threshold"\n  },\n  "consequence": "harm",\n  "resolution": "UNKNOWN"\n}';
+
+    const rotating = this.state.choice === "rotate";
+    const btn = (on, tone) => ({
+      bg: on ? (tone === "a" ? "#bf5700" : "rgba(191, 87, 0, 0.2)") : "transparent",
+      bd: on ? "#bf5700" : "#2a303a",
+      fg: on ? "#ffffff" : "#c4c8ce"
+    });
+    const rot = btn(m === "deciding" && rotating, "a");
+    const lv = btn(m === "deciding" && !rotating && this.state.choice === "leave", "b");
+    const ds = btn(m === "discuss", "b");
+
+    return {
+      raw: this.state.raw, rendered: !this.state.raw, payload, sections, classes,
+      gate: gates[this.state.cls],
+      rawLabel: this.state.raw ? "Show it rendered" : "See it as data",
+      rawBg: this.state.raw ? "rgba(191, 87, 0, 0.24)" : "transparent",
+      rawBd: this.state.raw ? "#bf5700" : "#2a303a",
+      rawFg: this.state.raw ? "#e7e9ec" : "#98a1ad",
+      rotBg: rot.bg, rotBd: rot.bd, rotFg: rot.fg,
+      lvBg: lv.bg, lvBd: lv.bd, lvFg: lv.fg,
+      dsBg: ds.bg, dsBd: ds.bd, dsFg: ds.fg,
+      isReview: m === "review", isDeciding: m === "deciding",
+      isDecided: m === "decided", isDiscuss: m === "discuss",
+      panelBd: m === "deciding" ? "#3a3226" : "#2a303a",
+      standing: this.state.standing,
+      decideHead: rotating ? "ROTATING IT" : "LEAVING IT",
+      decideWhy: rotating
+        ? "A harm-class action needs a person to own it, so your reason is stored with the act and not inferred from it."
+        : "Declining is also a decision, and it is the one most worth being able to look up later.",
+      confirmLabel: rotating ? "Rotate and record" : "Leave it and record",
+      doneHead: rotating ? "Rotated, and your reason stored with it." : "Left in place, with your condition in force.",
+      doneLog: rotating
+        ? "act   secrets.rotate gitlab-ci-runner\nnew   stored in vault, old revoked\nby    @ben:axiom at 09:52\nwhy   kept verbatim, 96 chars\ncond  standing, expires 2027-03-28\nEXIT  ok"
+        : "act   none\nby    @ben:axiom at 09:52\nwhy   kept verbatim\ncond  standing, expires 2027-03-28\nnext  matching cases will cite this\nEXIT  ok",
+      toggleRaw: () => this.setState({ raw: !this.state.raw }),
+      toggleStanding: () => this.setState({ standing: !this.state.standing }),
+      pickRotate: () => this.setState({ mode: "deciding", choice: "rotate" }),
+      pickLeave: () => this.setState({ mode: "deciding", choice: "leave" }),
+      pickDiscuss: () => this.setState({ mode: "discuss" }),
+      confirm: () => this.setState({ mode: "decided" }),
+      back: () => this.setState({ mode: "review", choice: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

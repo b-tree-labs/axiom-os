@@ -1,0 +1,10 @@
+{
+  "capture": "goose run against local ollama qwen2.5:7b with HOME in a throwaway dir",
+  "harness": "goose",
+  "kind": "db",
+  "session_id": "20261008_1",
+  "sql": {
+    "store.sql": ".local/share/goose/sessions/sessions.db"
+  },
+  "version": "1.53.0"
+}

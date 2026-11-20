@@ -1,0 +1,39 @@
+# A repository that is not Python. The selector runs the whole suite.
+# The fix provider does not invent a diff.
+
+mode = "warn"
+language = "other"
+test_command = "make test"
+forge = "gitlab"
+selector = "null"
+fix_provider = "null"
+suite_cost = "configured"
+suite_minutes = 15
+land_method = "enqueue"
+repos = ["group/name"]
+
+[token]
+env = "GITLAB_TOKEN"
+scopes = ["api"]
+
+[raci]
+approvers = ["@approver:local"]
+auto_allowed = []
+max_rounds = 2
+kill_switch_env = "AXIOM_LANDER_KILL"
+# auto_approver = "@reviewer:local"
+
+# One lander merges. Outside actors push rivet-fix/<pr>-<shortsha> only.
+#
+# [fix_provider]
+# name = "handoff"
+#
+# [fix_provider.webhook]
+# url_env = "RELEASE_FIX_WEBHOOK_URL"
+# key_env = "RELEASE_FIX_WEBHOOK_KEY"
+# key_header = "X-Fix-Key"
+# separate_reviewer = true
+#
+# [claims]
+# label = "rivet:claimed"
+# foreign_labels = ["janna:working"]
