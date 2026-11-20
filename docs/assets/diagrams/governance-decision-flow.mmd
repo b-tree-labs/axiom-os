@@ -1,0 +1,26 @@
+flowchart TD
+  ENV["ActionEnvelope<br/>actor · capability · intent<br/>resource · classification"]:::neutral
+  DECIDE["GUARD.decide(envelope) → Verdict<br/>the sole authorization decision point (ADR-055)"]:::vega
+
+  FLOOR["Capability floor  [deterministic]<br/>validity · intent · resource · classification ceiling<br/>runs first · fail-closed · never a registered source"]:::core
+  POLICY["Policy layer — deny-overrides combiner<br/>rules · substrate · graduation"]:::core
+
+  FGA[("OpenFGA substrate (ADR-083)<br/>RBAC roles · ReBAC tuples · ABAC CEL conditions<br/>ALLOW / DENY / ABSTAIN<br/>UNDER GUARD — never a call-site authorizer")]:::data
+  RECEIPT[("verdicts receipt<br/>authz Postgres schema<br/>one row per decide() — the audit spine")]:::data
+
+  VERDICT["Verdict<br/>decision + next_action_for_caller<br/>PROCEED · ABORT · ENQUEUE_PROPOSAL · SATISFY_CHALLENGE"]:::accent
+
+  ENV --> DECIDE
+  DECIDE --> FLOOR
+  FLOOR -->|"expired / out-of-scope → deny"| VERDICT
+  FLOOR -->|"pass"| POLICY
+  POLICY -->|"Check(envelope)"| FGA
+  FGA -->|"ALLOW / DENY / ABSTAIN"| POLICY
+  POLICY --> VERDICT
+  DECIDE -.->|"every path writes a receipt"| RECEIPT
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

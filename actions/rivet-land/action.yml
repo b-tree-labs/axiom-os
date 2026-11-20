@@ -1,0 +1,190 @@
+name: "RIVET land"
+description: >-
+  RIVET, the pull-request lander. Reports on a pull request, lands a green,
+  unprotected, non-draft one per the repo's RACI config, keeps one sticky
+  comment per held pull request and one "RIVET: needs <owner>" issue, and
+  honours /rivet commands from the owner only.
+author: "B-Tree Labs"
+
+# One action, every repo. The caller checks the repository out first (the
+# config file is read from the working tree) and grants the permissions in
+# caller-example.yml. Landing is per the config's [raci] auto_allowed; the
+# `act` input only switches it off. AXIOM_LANDER_KILL=1 (repo variable)
+# stops every merge and still lets the report and comments run.
+
+inputs:
+  axiom-version:
+    description: "Pinned axiom-os-lm release installed from PyPI."
+    required: false
+    default: "0.70.41"
+  config:
+    description: "Path to the repo's RIVET config, relative to the repo root."
+    required: false
+    default: ".axiom/release-lander.toml"
+  github-token:
+    description: "Token for gh. A fine-grained PAT is needed for merges to start other workflows."
+    required: false
+    default: ${{ github.token }}
+  owner:
+    description: >-
+      GitHub login who gets the "RIVET: needs <owner>" issue and whose /rivet
+      commands are honoured. Overrides [reminders] assignee in the config.
+    required: true
+  act:
+    description: "true lands per the config's RACI. false reports only: nothing is merged."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python used to run RIVET."
+    required: false
+    default: "3.11"
+  kill-switch:
+    description: >-
+      "1" stops every merge; the report and comments still run. Pass
+      vars.AXIOM_LANDER_KILL: a composite action cannot read vars itself.
+    required: false
+    default: ""
+  release-lock:
+    description: "Pass vars.AXIOM_RELEASE_LOCK. A held lock arms nothing."
+    required: false
+    default: ""
+  openrouter-api-key:
+    description: >-
+      Tier-1 fixer key (pass secrets.OPENROUTER_API_KEY). Empty leaves the fixer
+      off: blockers the mechanical rules cannot fix go to the owner. Set the
+      account's OpenRouter privacy to no training and zero data retention.
+    required: false
+    default: ""
+  fixer-model:
+    description: "OpenRouter model id for the tier-1 fixer."
+    required: false
+    default: "z-ai/glm-5.3"
+  fixer-routing-tier:
+    description: >-
+      Data tier this provider is cleared for. A repo whose [fixer] routing_tier
+      is export_controlled finds no provider here and the fixer stays off.
+    required: false
+    default: "public"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      if: >-
+        github.event_name != 'issue_comment' || github.event.issue.pull_request
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    # A /rivet command: owner only, enforced again in the script.
+    - name: Act on a /rivet command
+      if: >-
+        github.event_name == 'pull_request_review' ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        OWNER: ${{ inputs.owner }}
+        RIVET_CONFIG: ${{ inputs.config }}
+      run: python "${{ github.action_path }}/scripts/rivet_remind.py" --config "${RIVET_CONFIG}"
+
+    - name: Install axiom-os-lm
+      id: install
+      if: >-
+        github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'workflow_run' ||
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      shell: bash
+      env:
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+        RIVET_CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+        python -m pip install --disable-pip-version-check "axiom-os-lm==${AXIOM_OS_LM_VERSION}"
+        python "${{ github.action_path }}/scripts/verify_config.py" "${RIVET_CONFIG}"
+        echo "ready=true" >> "$GITHUB_OUTPUT"
+
+    - name: Configure the tier-1 fixer
+      id: fixer
+      if: steps.install.outputs.ready == 'true' && inputs.openrouter-api-key != ''
+      shell: bash
+      env:
+        MODEL: ${{ inputs.fixer-model }}
+        TIER: ${{ inputs.fixer-routing-tier }}
+      run: |
+        set -euo pipefail
+        dir="${RUNNER_TEMP}/rivet-llm"
+        mkdir -p "$dir"
+        cat > "$dir/llm-providers.toml" <<EOF
+        [gateway]
+        format = "openai"
+
+        [[gateway.providers]]
+        name = "rivet-fixer"
+        endpoint = "https://openrouter.ai/api/v1"
+        model = "${MODEL}"
+        api_key_env = "OPENROUTER_API_KEY"
+        priority = 1
+        routing_tier = "${TIER}"
+        use_for = ["release_fix"]
+        EOF
+        echo "config_dir=$dir" >> "$GITHUB_OUTPUT"
+
+    - name: RIVET land
+      id: land
+      if: steps.install.outputs.ready == 'true'
+      shell: bash
+      env:
+        AXIOM_LANDER_KILL: ${{ inputs.kill-switch }}
+        AXIOM_RELEASE_LOCK: ${{ inputs.release-lock }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+        EVENT_NAME: ${{ github.event_name }}
+        OWNER: ${{ inputs.owner }}
+        RIVET_CONFIG: ${{ inputs.config }}
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+        PIN_READY: ${{ steps.install.outputs.ready }}
+        LANDER_OUTPUT_FILE: ${{ runner.temp }}/lander.txt
+        ACT: ${{ inputs.act }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        AXIOM_RIVET_LLM_CONFIG: ${{ steps.fixer.outputs.config_dir }}
+      run: |
+        set -o pipefail
+        flag=""
+        if [ "${ACT}" = "true" ]; then flag="--act"; fi
+        python "${{ github.action_path }}/scripts/rivet_remind.py" ${flag} --config "${RIVET_CONFIG}"
+        # People see the plain-English lines. The JSON stays in the file.
+        python "${{ github.action_path }}/scripts/rivet_warn_comment.py" --stdout-only
+
+    - name: Upload lander record
+      if: always() && steps.install.outputs.ready == 'true'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: rivet-lander-output
+        path: ${{ runner.temp }}/lander.txt
+        if-no-files-found: ignore
+
+    - name: Hold check
+      if: always() && steps.install.outputs.ready == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      run: python "${{ github.action_path }}/scripts/rivet_hold_check.py"
+
+    - name: Warn comment
+      if: always() && steps.install.outputs.ready == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        LANDER_OUTPUT_FILE: ${{ runner.temp }}/lander.txt
+        PIN_READY: ${{ steps.install.outputs.ready }}
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+      run: python "${{ github.action_path }}/scripts/rivet_warn_comment.py"

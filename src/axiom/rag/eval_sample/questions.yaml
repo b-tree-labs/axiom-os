@@ -1,0 +1,55 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The public sample of a retrieval question set, over the invented documents in corpus.yaml.
+# It shows the format and runs in CI; it decides nothing. A site's real set (built from its own
+# chat traces, over its own documents) is stored on the site's node, never in a repository, and
+# is run there with the same command:
+#
+#     axi rag eval --questions <path on the node> --retrieval-only --rerank both --k 8
+#
+# Fields per question (axiom.rag.eval documents them in full):
+#   id, question          required
+#   expected_document     the document a good answer cites (a title, a path, or a path ending);
+#                         a list when several are equally right
+#   expected_pages        the page(s) of that document that hold the answer
+#   intent                the retrieval intent (lookup, diagnosis, synthesis, teaching,
+#                         operations, research, generative, metacognitive); results are
+#                         reported per intent
+#   expected_behavior     "abstain" when the documents a reader may see do not hold the answer
+- id: sample-01
+  question: How long can I borrow a book for?
+  expected_document: Lending Policy.pdf
+  expected_pages: [3]
+  intent: lookup
+- id: sample-02
+  question: Are there late fees for overdue items?
+  expected_document: Lending Policy.pdf
+  expected_pages: [6]
+  intent: lookup
+- id: sample-03
+  question: What does the Room Booking Guide say about how far ahead a room can be booked?
+  expected_document: Room Booking Guide
+  intent: lookup
+- id: sample-04
+  question: List all rooms in Table 1 with their seats
+  expected_document: rooms/Room Booking Guide.md
+  intent: synthesis
+- id: sample-05
+  question: How many visits did the library record in 2025?
+  expected_document: Annual Report 2025.pdf
+  expected_pages: [2]
+  intent: lookup
+- id: sample-06
+  question: When is the riverside branch open?
+  expected_document: Opening Hours.md
+  intent: operations
+- id: sample-07
+  question: What must a volunteer complete before their first shift?
+  expected_document: Volunteer Handbook
+  intent: teaching
+- id: sample-08
+  question: How is the desk float counted and how often does the safe code change?
+  expected_behavior: abstain
+  intent: operations

@@ -1,0 +1,36 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# The extension is named `app_buildout`, not `app`: discovery keeps the first
+# extension of a name, and a product built on Axiom ships a declarations-only extension named
+# `app` (its feature flags) in a builtins directory searched before this one.
+# Sharing the name dropped `axi app` on every NOS node (0.70.21). The noun and
+# the MCP prefix stay `app`.
+[extension]
+name = "app_buildout"
+version = "0.1.0"
+description = "The web app's build-out tooling: the acceptance harness that lists every spec row with the tests carrying its ID and a pass / fail / unproven verdict, across repositories."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "cmd"
+noun = "app"
+entry = "axiom.extensions.builtins.app_buildout.cli:main"
+description = "The web app build-out: acceptance (which spec rows are proven), variants, and run (start a variant, or all three, under the supervisor)"
+intent_groups = ["maintain"]
+
+# One read-only skill (`app.acceptance`) behind the CLI, MCP and chat ("how far
+# is the MVP?"), bound from `skills/__init__.py`; the run that executes tests
+# and caches their results (`app.acceptance_run`) is CLI-only.
+[extension.mcp]
+enabled = true
+prefix = "axiom_app"

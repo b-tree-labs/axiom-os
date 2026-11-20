@@ -1,0 +1,971 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""Where ``program sync`` reads the desired program state from — the seam.
+
+Phase 3 reconciles the program data file against a *source*. The source is
+a seam, not a vendor: a clear interface a future capture feeder (GitLab,
+GitHub, a wiki — the ADR-162 watcher instances) implements by publishing a
+:class:`ProgramData` it assembled, while phase 3 ships the two sources that
+make ``sync`` real and testable today:
+
+- :class:`FileSource` — read the desired state from a JSON data file (the
+  default source is the node's own ``data.json``, so ``sync`` reconciles a
+  hand-edited file against its own last snapshot).
+- :class:`NullSource` — a source that has nothing. ``sync`` against it is a
+  safe no-op; it is what an unconfigured feeder resolves to, so the verb is
+  always callable even before a capture connector exists.
+
+A source carries an ``origin`` — a stable, human-readable label (the shape
+ADR-087 calls a ``SourceOrigin``) stamped onto every change-log entry so a
+reader can tell a hand edit from a feeder push. The interface is read-only
+by construction: a source never writes anything, and ``sync`` is the only
+writer of the data file.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from ..model import ProgramData, ProgramError, load_program
+
+if TYPE_CHECKING:
+    from axiom.infra.skills import SkillRegistry
+
+    from ._clients import TrackerClient
+
+#: RIVET's repository-lineage skill, composed over the registry (ADR-161).
+LINEAGE_SKILL = "release.repo_lineage"
+
+#: Lineage classes whose work is another repository's work seen again.
+EXCLUDED_LINEAGE = ("mirror", "fork")
+
+
+# ---------------------------------------------------------------------------
+# Connector readiness (prd-program R9)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ConnectorReadiness:
+    """A source's position on the verification ladder (prd-program R9).
+
+    A source is used only after it climbs the whole ladder — reachable,
+    authenticated, per-project read OK. A source that stops short is
+    ``unverified``; ``sync`` skips it *loudly* rather than treating missing
+    data as "no changes". The rungs are reported individually so a caller
+    sees exactly where the climb stopped.
+    """
+
+    source: str
+    reachable: bool
+    authenticated: bool
+    project_read: bool
+    detail: str = ""
+
+    @property
+    def verified(self) -> bool:
+        return self.reachable and self.authenticated and self.project_read
+
+    @property
+    def failed_rung(self) -> str | None:
+        if not self.reachable:
+            return "reachable"
+        if not self.authenticated:
+            return "authenticated"
+        if not self.project_read:
+            return "project_read"
+        return None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "reachable": self.reachable,
+            "authenticated": self.authenticated,
+            "project_read": self.project_read,
+            "verified": self.verified,
+            "failed_rung": self.failed_rung,
+            "detail": self.detail,
+        }
+
+
+@runtime_checkable
+class ProgramSource(Protocol):
+    """A read-only source of the desired program state.
+
+    ``load`` returns the program the source currently describes, or ``None``
+    when the source has nothing to offer yet (a missing file, an
+    unconfigured feeder). It may raise :class:`ProgramError` /
+    :class:`ProgramValidationError` when the source *has* content that does
+    not parse or validate — ``sync`` turns that into a typed refusal rather
+    than writing a broken file.
+    """
+
+    @property
+    def origin(self) -> str:
+        """A stable label for this source, stamped onto every change-log
+        entry (e.g. ``file:/path/to/data.json`` or ``null``)."""
+        ...
+
+    def load(self) -> ProgramData | None:
+        """The program this source describes now, or ``None`` if it has
+        nothing."""
+        ...
+
+    def verify(self) -> ConnectorReadiness:
+        """Climb the connector-readiness ladder (R9). A local source is
+        trivially verified; a live feeder probes its connection."""
+        ...
+
+
+def _local_readiness(origin: str) -> ConnectorReadiness:
+    """A file/null source needs no network — every rung is trivially met."""
+    return ConnectorReadiness(
+        source=origin,
+        reachable=True,
+        authenticated=True,
+        project_read=True,
+        detail="local source; no connector to verify",
+    )
+
+
+def _finalize_findings(
+    base: ProgramData, fresh: list[dict[str, Any]], owned_kinds: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """Merge one feeder's freshly-computed findings with the standing set.
+
+    A feeder owns only *its* finding kinds (a tracker feeder owns the
+    attribution kinds, the mirror check owns the mirror kinds). It recomputes
+    those and replaces them; every other feeder's findings — present when
+    ``source=all`` fans out across feeders — is carried forward untouched, so
+    one feeder's pass never clears another's.
+    """
+    result = list(fresh)
+    seen = {(f.get("kind"), str(f.get("subject"))) for f in result}
+    for f in (base.raw.get("capture") or {}).get("findings") or []:
+        if not isinstance(f, dict):
+            continue
+        if f.get("kind") in owned_kinds:
+            continue  # this feeder owns it and has just recomputed it
+        if (f.get("kind"), str(f.get("subject"))) in seen:
+            continue
+        result.append(f)
+    return result
+
+
+class NullSource:
+    """A source that has nothing. ``sync`` against it changes nothing.
+
+    This is what an unconfigured capture feeder resolves to: the verb stays
+    callable and simply reports that there was nothing to reconcile, rather
+    than failing because no connector is wired yet.
+    """
+
+    origin = "null"
+
+    def load(self) -> ProgramData | None:
+        return None
+
+    def verify(self) -> ConnectorReadiness:
+        return _local_readiness(self.origin)
+
+
+class FileSource:
+    """Read the desired program state from a JSON data file.
+
+    A missing file is "nothing to reconcile" (``load`` returns ``None``) — a
+    first sync on a node that has no data file yet must not error. A file
+    that is present but does not parse or validate raises, so ``sync`` can
+    refuse rather than overwrite the current state with a broken one.
+
+    ``require_listed_owners`` mirrors :func:`load_program`'s flag: the
+    self-reconcile source loads leniently (``False``) so a file whose only
+    defect is a drift finding — an owner not yet in ``people`` — can be
+    reconciled and have that drift reported, exactly as the ``drift`` read
+    tolerates it. An explicit upstream source loads strictly.
+    """
+
+    def __init__(self, path: str | Path, *, require_listed_owners: bool = True) -> None:
+        self.path = Path(path)
+        self._require_listed_owners = require_listed_owners
+
+    @property
+    def origin(self) -> str:
+        return f"file:{self.path}"
+
+    def load(self) -> ProgramData | None:
+        if not self.path.exists():
+            return None
+        return load_program(self.path, require_listed_owners=self._require_listed_owners)
+
+    def verify(self) -> ConnectorReadiness:
+        return _local_readiness(self.origin)
+
+
+# ---------------------------------------------------------------------------
+# Live capture feeders — ADR-162 watcher instances behind the seam
+# ---------------------------------------------------------------------------
+
+
+class _LiveTrackerSource:
+    """Shared base for the GitLab/GitHub feeders (ADR-162 instances).
+
+    An instance declares only the vendor-specific bits — the ``system``
+    label, how to build its read-only client, the tracker config it reads —
+    and inherits the rest from the primitive and the capture judgement:
+
+    - the **watcher primitive** (``axiom.infra.watcher``) owns the cursor
+      (``updated_after``), the debounce, and the content-identity dedup;
+    - :mod:`._capture` owns attribution, the proxy-assignee rule, and the
+      findings;
+    - this base wires them into a :class:`ProgramSource`: ``load`` overlays
+      the live tracker state onto the node's current data file (the
+      authoritative structure) and records the findings in a ``capture``
+      block, so ``sync`` diffs the result exactly as it diffs a file.
+
+    The feeder is **read-only**: it ingests, attributes, and detects. The
+    proxy assignee is *recorded* as the intended assignee for a later posting
+    phase; nothing here writes to the tracker.
+    """
+
+    system = "tracker"
+
+    #: Whether a read advances the watcher cursors in the state directory. A
+    #: read-only install (not the program's writer) keeps none, so becoming
+    #: the writer later does not skip what it never wrote.
+    persist_cursors = True
+
+    def __init__(
+        self,
+        data_path: str | Path,
+        *,
+        client: TrackerClient | None = None,
+        state_dir: str | Path | None = None,
+        credential_name: str | None = None,
+        debounce_seconds: int = 0,
+        link_checker: Any | None = None,
+    ) -> None:
+        self.data_path = Path(data_path)
+        self._injected_client = client
+        self._credential_name = credential_name
+        self._debounce = debounce_seconds
+        self._injected_link_checker = link_checker
+        if state_dir is not None:
+            self._state_dir = Path(state_dir)
+        else:
+            # <state_dir>/program/data.json → <state_dir>
+            self._state_dir = self.data_path.parent.parent
+        self._client_cached: TrackerClient | None = client
+        self._client_error = ""
+        self._base: ProgramData | None = None
+
+    # -- base program + tracker config -------------------------------------
+
+    def _load_base(self) -> ProgramData | None:
+        if not self.data_path.exists():
+            return None
+        # Lenient: overlay onto whatever structure is there. sync re-validates
+        # strictly on the way out, so a base whose only defect is drift is
+        # still reconcilable, as the self-reconcile source is.
+        return load_program(self.data_path, require_listed_owners=False)
+
+    def _tracker(self) -> dict[str, Any]:
+        base = self._base or self._load_base()
+        return base.tracker() if base is not None else {}
+
+    @property
+    def origin(self) -> str:
+        return f"{self.system}:{self._origin_suffix()}"
+
+    def _origin_suffix(self) -> str:  # overridden per vendor
+        return "tracker"
+
+    # -- client (injected, else built from the vault credential) -----------
+
+    def _build_client(self) -> TrackerClient | None:  # overridden per vendor
+        raise NotImplementedError
+
+    def _client(self) -> TrackerClient | None:
+        if self._client_cached is not None:
+            return self._client_cached
+        if self._injected_client is not None:
+            self._client_cached = self._injected_client
+            return self._client_cached
+        try:
+            self._client_cached = self._build_client()
+        except Exception as exc:  # noqa: BLE001 — a build failure is "unverified"
+            self._client_error = str(exc)
+            self._client_cached = None
+        return self._client_cached
+
+    # -- the connector-readiness ladder (R9) -------------------------------
+
+    def verify(self) -> ConnectorReadiness:
+        client = self._client()
+        if client is None:
+            return ConnectorReadiness(
+                self.origin,
+                reachable=False,
+                authenticated=False,
+                project_read=False,
+                detail=self._client_error or "no client (credential unavailable)",
+            )
+        if not client.ping():
+            return ConnectorReadiness(self.origin, False, False, False, "host unreachable")
+        who = client.whoami()
+        if not who:
+            return ConnectorReadiness(self.origin, True, False, False, "authentication failed")
+        if not client.project_readable():
+            return ConnectorReadiness(
+                self.origin, True, True, False, f"authenticated as {who}; project not readable"
+            )
+        return ConnectorReadiness(self.origin, True, True, True, f"authenticated as {who}")
+
+    # -- the read -----------------------------------------------------------
+
+    def _mirror_findings(self, base: ProgramData) -> list[dict[str, Any]]:
+        """Overridden by the mirror-check home (GitHub)."""
+        return []
+
+    def load(self) -> ProgramData | None:
+        from axiom.infra.watcher import FileWatcherStore, Watcher, WatchItem
+
+        from . import _capture as cap
+
+        base = self._load_base()
+        if base is None:
+            return None
+        self._base = base
+
+        client = self._client()
+        if client is None:
+            # Verified-first is sync's contract; defend anyway so a direct
+            # caller never gets a silent empty overlay.
+            raise ProgramError(f"{self.origin}: no client ({self._client_error})")
+
+        store = FileWatcherStore(self._state_dir / "program" / "watchers")
+        state = store.load(self.origin)
+
+        def fetch(since: str | None) -> list[WatchItem]:
+            items: list[WatchItem] = []
+            for issue in client.issues(since):
+                items.append(
+                    WatchItem(
+                        identity=f"issue:{issue.ref}",
+                        kind="tracker.issue",
+                        payload={"obj": issue, "updated_at": issue.updated_at},
+                        landed=issue.state in ("closed", "merged"),
+                    )
+                )
+            for mr in client.merge_requests(since):
+                items.append(
+                    WatchItem(
+                        identity=f"mr:{mr.ref}",
+                        kind="scm.merge_request",
+                        payload={"obj": mr, "updated_at": mr.updated_at},
+                        landed=mr.landed,
+                    )
+                )
+            return items
+
+        watcher = Watcher(name=self.origin, fetch=fetch, debounce_seconds=self._debounce)
+        result = watcher.poll(state)
+        if result.polled and self.persist_cursors:
+            store.save(self.origin, result.state)
+
+        issues = [it.payload["obj"] for it in result.items if it.identity.startswith("issue:")]
+        mrs = [it.payload["obj"] for it in result.items if it.identity.startswith("mr:")]
+
+        captured = cap.attribute_and_overlay(base, issues, mrs, system=self.system)
+        overlaid = captured.program
+
+        fresh = list(captured.findings)
+        fresh.extend(self._carry_forward_untracked(base, overlaid, captured.findings))
+        mirror = self._mirror_findings(overlaid)
+        fresh.extend(mirror)
+
+        # Crosslink health (R11): confirm each bound issue and each declared
+        # endpoint still resolves, read-only, honouring connector readiness —
+        # an unreachable checker yields `unverified`, never 'healthy'.
+        health = self._check_links(overlaid)
+        fresh.extend(health.findings)
+
+        owned = (
+            cap.TRACKER_FINDING_KINDS
+            + cap.LINK_FINDING_KINDS
+            + (cap.MIRROR_FINDING_KINDS if mirror or self._owns_mirror() else ())
+        )
+        findings = _finalize_findings(base, fresh, owned)
+
+        captured.raw["capture"] = {
+            "source": self.origin,
+            "system": self.system,
+            "verified": True,
+            "ladder": self.verify().as_dict(),
+            "link_health": health.as_block(),
+            "findings": findings,
+        }
+        return ProgramData(raw=captured.raw)
+
+    def _link_checker(self) -> Any:
+        """The crosslink checker: the injected one (tests), else one built on
+        the (verified, read-only) tracker client."""
+        if self._injected_link_checker is not None:
+            return self._injected_link_checker
+        from ._clients import ClientLinkChecker
+
+        return ClientLinkChecker(self._client())
+
+    def _check_links(self, overlaid: ProgramData) -> Any:
+        from . import _capture as cap
+        from ._source import CANONICAL_ENDPOINT
+
+        canonical = overlaid.endpoints().get(CANONICAL_ENDPOINT)
+        return cap.check_links(overlaid, self._link_checker(), canonical=canonical)
+
+    def _owns_mirror(self) -> bool:
+        """Whether this feeder's pass recomputes the mirror findings (the
+        GitHub source does; the GitLab source never does)."""
+        return False
+
+    @staticmethod
+    def _carry_forward_untracked(
+        base: ProgramData, overlaid: ProgramData, fresh: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Keep a prior ``untracked_issue`` finding standing across a delta.
+
+        A cursor-delta read only re-sees changed issues, so an orphan seen in
+        an earlier cycle would otherwise clear the next quiet cycle. Carry it
+        forward unless the issue is now bound to a schedule item (self-clear)
+        or it is already in this cycle's fresh set."""
+        bound = {
+            str(i.get("issue"))
+            for i in overlaid.schedule
+            if isinstance(i, dict) and i.get("issue") is not None
+        }
+        fresh_subjects = {(f["kind"], str(f["subject"])) for f in fresh}
+        prior = (base.raw.get("capture") or {}).get("findings") or []
+        carried: list[dict[str, Any]] = []
+        for f in prior:
+            if f.get("kind") != "untracked_issue":
+                continue
+            subject = str(f.get("subject"))
+            if subject in bound:
+                continue  # now tracked → self-cleared
+            if ("untracked_issue", subject) in fresh_subjects:
+                continue  # already in this cycle's fresh findings
+            carried.append(f)
+        return carried
+
+
+class GitLabSource(_LiveTrackerSource):
+    """The program tracker on GitLab, read cursor-first (updated_after).
+
+    Reads issues (assignee, state, milestone/due, labels, title) and the
+    merge requests linked to them, maps each issue to the schedule item whose
+    ``issue`` binding matches, and overlays the live facts without clobbering
+    the human-committed fields. Credential from the vault (named in
+    ``program.tracker.credential``); read-only.
+    """
+
+    system = "gitlab"
+
+    def _origin_suffix(self) -> str:
+        tracker = self._tracker()
+        return f"{tracker.get('host', 'unknown')}/{tracker.get('project_id', '?')}"
+
+    def _build_client(self) -> TrackerClient | None:
+        from ._clients import GitLabClient, resolve_vault_token
+
+        tracker = self._tracker()
+        host = tracker.get("host")
+        project_id = tracker.get("project_id")
+        name = self._credential_name or tracker.get("credential")
+        if not host or project_id is None:
+            raise ProgramError("program.tracker must name host and project_id for a gitlab source")
+        token = resolve_vault_token(name or "", self._state_dir)
+        return GitLabClient(host=host, project_id=project_id, token=token)
+
+
+class GitHubSource(_LiveTrackerSource):
+    """The GitHub feeder — same tracker shape as GitLab, plus the mirror check.
+
+    When the program's tracker is on GitHub it overlays issues/PRs as the
+    GitLab source does. It is additionally the **mirror-check home**: it reads
+    the declared mirror pairs (``program.mirrors``), confirms both sides agree
+    by commit identity (a commit seen through both origin and mirror collapses
+    on its SHA — the ADR-162 rule, no double-count), and emits ``mirror_gap``
+    / ``mirror_stale`` / ``mirror_missing`` findings. Mirror state a side
+    cannot confirm is reported unverified, never rounded up to synced.
+    """
+
+    system = "github"
+
+    def __init__(
+        self,
+        data_path: str | Path,
+        *,
+        commit_reader: Callable[[str, str], set[str] | None] | None = None,
+        recent_reader: Callable[[Any], bool | None] | None = None,
+        linked_reader_factory: Callable[[dict[str, Any]], Any] | None = None,
+        now: Callable[[], datetime] | None = None,
+        lineage: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
+        registry: SkillRegistry | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(data_path, **kwargs)
+        self._commit_reader = commit_reader
+        self._recent_reader = recent_reader
+        self._linked_reader_factory = linked_reader_factory
+        self._linked_readers: dict[str, Any] = {}
+        self._now = now or (lambda: datetime.now(UTC))
+        # Repository lineage is RIVET's (ADR-161): asked through the skill
+        # registry, or through an injected callable in tests.
+        self._lineage = lineage
+        self._registry = registry
+
+    def _origin_suffix(self) -> str:
+        tracker = self._tracker()
+        repo = tracker.get("repo")
+        return repo if isinstance(repo, str) and repo else "mirror"
+
+    def _owns_mirror(self) -> bool:
+        return True
+
+    def _build_client(self) -> TrackerClient | None:
+        from ._github_app import build_github_client
+
+        base = self._base or self._load_base()
+        program = base.program if base is not None else {}
+        repo = self._tracker().get("repo") or ""
+        # App-authenticated REST when program.github_app is declared; the gh
+        # CLI otherwise, so a deployment without an App changes nothing.
+        return build_github_client(program, self._state_dir, repo=repo)
+
+    def load(self) -> ProgramData | None:
+        # A github-only mirror checker (no github tracker) still has a job to
+        # do, so it tolerates a tracker on another host: when there is no
+        # github tracker, it overlays nothing and only runs the mirror check.
+        tracker = self._tracker()
+        if tracker.get("kind") != "github":
+            return self._mirror_only_load()
+        data = super().load()
+        if data is None:
+            return None
+        return self._evidence_passes(data)
+
+    # -- the home-tracker passes: cross-links, work repos, evidence --------
+
+    def _evidence_passes(self, data: ProgramData) -> ProgramData:
+        """After the tracker overlay: resolve cross-links to the declared
+        second trackers, roll up work from ``program.work_repos``, then apply
+        (or propose) progress from the evidence. Each pass owns the
+        :data:`~._work.WORK_FINDING_KINDS` and recomputes them."""
+        from . import _work as work
+
+        raw = data.raw
+        capture = raw.setdefault("capture", {})
+        prior = list(capture.get("findings") or [])
+        now = self._now()
+        ts = now.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+        fresh: list[dict[str, Any]] = []
+        fresh.extend(self._crosslink_pass(raw))
+        work_block = self._work_pass(raw, prior, now)
+        if work_block is not None:
+            fresh.extend(work_block["findings"])
+            capture["work"] = {k: v for k, v in work_block.items() if k != "findings"}
+        mode = data.program.get("evidence_updates") or "propose"
+        fresh.extend(work.apply_evidence(raw, mode=mode, ts=ts))
+
+        capture["findings"] = _finalize_findings(
+            ProgramData(raw={"capture": {"findings": prior}}), fresh, work.WORK_FINDING_KINDS
+        )
+        return ProgramData(raw=raw)
+
+    def _linked_reader(self, source: dict[str, Any]) -> Any:
+        key = f"{source.get('host')}/{source.get('project')}"
+        if key in self._linked_readers:
+            return self._linked_readers[key]
+        reader = None
+        try:
+            if self._linked_reader_factory is not None:
+                reader = self._linked_reader_factory(source)
+            elif source.get("kind", "gitlab") == "gitlab":
+                from ._clients import GitLabClient, resolve_vault_token
+
+                token = resolve_vault_token(str(source.get("credential") or ""), self._state_dir)
+                project = source.get("project_id") or str(source.get("project", "")).replace("/", "%2F")
+                reader = GitLabClient(host=str(source["host"]), project_id=project, token=token)
+        except Exception:  # noqa: BLE001 — no reader is "unverified", never a crash
+            reader = None
+        self._linked_readers[key] = reader
+        return reader
+
+    def _crosslink_pass(self, raw: dict[str, Any]) -> list[dict[str, Any]]:
+        """Carry the *state* of each program item's cross-linked item on a
+        declared second tracker. Only the state crosses — never its text."""
+        from . import _work as work
+
+        sources = work.declared_tracker_sources(raw.get("program") or {})
+        findings: list[dict[str, Any]] = []
+        for item in raw.get("schedule", []):
+            if not isinstance(item, dict):
+                continue
+            tracker = item.get("tracker")
+            if not isinstance(tracker, dict):
+                continue
+            url = tracker.get("crosslink")
+            if not isinstance(url, str) or not url:
+                tracker.pop("linked", None)
+                continue
+            prior = tracker.get("linked") if isinstance(tracker.get("linked"), dict) else {}
+            resolved = work.resolve_crosslink(url, sources)
+            if resolved is None:
+                tracker["linked"] = {"url": url, "state": None, "verified": False}
+                findings.append(
+                    {
+                        "kind": "crosslink_unresolved",
+                        "subject": item.get("id"),
+                        "detail": f"cross-link {url} points into no declared tracker source",
+                        "url": url,
+                    }
+                )
+                continue
+            source, ref = resolved
+            reader = self._linked_reader(source)
+            state = None
+            if reader is not None:
+                try:
+                    state = reader.issue_state(ref)
+                except Exception:  # noqa: BLE001
+                    state = None
+            tracker["linked"] = {
+                "system": source.get("kind", "gitlab"),
+                "url": url,
+                "ref": ref,
+                # An unreadable side keeps the last state it showed, marked unverified.
+                "state": state if state is not None else prior.get("state"),
+                "verified": state is not None,
+            }
+        return findings
+
+    def _work_repo_candidates(self, program: dict[str, Any], client: Any) -> list[str | dict[str, Any]]:
+        """``program.work_repos`` expanded: ``owner/name`` strings as given,
+        ``{"org", "include", "exclude", "topic"}`` through the account's
+        repositories (archived ones skipped), each kept with the metadata the
+        listing returned so lineage needs no further read. The tracker repo is
+        excluded — its issues are the program items, not work."""
+        import fnmatch
+
+        entries = program.get("work_repos")
+        if not isinstance(entries, list):
+            return []
+        found: list[str | dict[str, Any]] = []
+        for entry in entries:
+            if isinstance(entry, str) and "/" in entry:
+                found.append(entry)
+            elif isinstance(entry, dict) and isinstance(entry.get("org"), str):
+                include = entry.get("include") or ["*"]
+                exclude = entry.get("exclude") or []
+                topic = entry.get("topic")
+                for repo in client.org_repos(entry["org"]):
+                    full = repo.get("full_name")
+                    if not isinstance(full, str) or repo.get("archived"):
+                        continue
+                    short = full.split("/", 1)[-1]
+                    if not any(fnmatch.fnmatch(short, pat) for pat in include):
+                        continue
+                    if any(fnmatch.fnmatch(short, pat) for pat in exclude):
+                        continue
+                    if topic and topic not in (repo.get("topics") or []):
+                        continue
+                    found.append(repo)
+        tracker_repo = str(self._tracker().get("repo") or "").lower()
+        seen: set[str] = set()
+        out: list[str | dict[str, Any]] = []
+        for candidate in found:
+            name = candidate if isinstance(candidate, str) else str(candidate["full_name"])
+            if name.lower() == tracker_repo or name.lower() in seen:
+                continue
+            seen.add(name.lower())
+            out.append(candidate)
+        return out
+
+    def _ask_lineage(self, params: dict[str, Any]) -> dict[str, Any] | None:
+        """RIVET's ``release.repo_lineage`` through the skill registry.
+
+        The given registry when it carries the skill; else a private registry
+        the release extension binds itself into through its public ``bind``.
+        ``None`` when the release extension is not installed or the skill
+        failed — the caller then keeps today's expansion and says so."""
+        if self._lineage is not None:
+            return self._lineage(params)
+        import logging
+
+        from axiom.infra.skills import SkillContext, SkillRegistry
+
+        registry = self._registry
+        if registry is None or not registry.has(LINEAGE_SKILL):
+            registry = SkillRegistry()
+            try:
+                from importlib import import_module
+
+                import_module("axiom.extensions.builtins.release.skills").bind(registry)
+            except Exception:  # noqa: BLE001 — no RIVET means no lineage, never a crash
+                return None
+        ctx = SkillContext(registry=registry, state_dir=self._state_dir, logger=logging.getLogger(__name__))
+        from axiom.infra.skill_dispatch import invoke_capability
+
+        # Through the chokepoint like every other caller: GUARD, audit and hooks apply.
+        result = invoke_capability(registry, LINEAGE_SKILL, params, ctx, surface="headless")
+        return result.value if result.ok and isinstance(result.value, dict) else None
+
+    def _history_reader(self, client: Any) -> Callable[[str, str], Any] | None:
+        reader = getattr(client, "commit_history", None)
+        if not callable(reader):
+            return None
+
+        def read(host: str, repo: str) -> Any:
+            try:
+                return reader(host, repo)
+            except Exception:  # noqa: BLE001 — unreadable history is no evidence
+                return None
+
+        return read
+
+    def _work_repo_names(
+        self, program: dict[str, Any], client: Any
+    ) -> tuple[list[str], list[dict[str, Any]], str]:
+        """The work repositories that count, the lineage findings, and where
+        the lineage came from. Mirrors and forks are left out (their work is
+        the origin's work, seen twice); anything the lineage could not settle
+        stays in, as it did before lineage existed."""
+        candidates = self._work_repo_candidates(program, client)
+        names = [c if isinstance(c, str) else str(c["full_name"]) for c in candidates]
+        if not candidates:
+            return names, [], "not_needed"
+        host = str(self._tracker().get("host") or "github.com")
+        params: dict[str, Any] = {
+            "repos": [c if isinstance(c, dict) else {"full_name": c} for c in candidates],
+            "declared": [p for p in (program.get("mirrors") or []) if isinstance(p, dict)],
+            "default_host": host,
+        }
+        history = self._history_reader(client)
+        if history is not None:
+            params["_history"] = history
+        verdict = self._ask_lineage(params)
+        if verdict is None:
+            return names, [], "unavailable"
+
+        by_name = {
+            str(r.get("repo", "")).lower(): r for r in verdict.get("repos") or [] if isinstance(r, dict)
+        }
+        kept: list[str] = []
+        findings: list[dict[str, Any]] = []
+        for name in names:
+            row = by_name.get(name.lower()) or {}
+            cls = row.get("classification")
+            if cls in EXCLUDED_LINEAGE:
+                of = row.get("of")
+                findings.append(
+                    {
+                        "kind": "repo_excluded_as_mirror",
+                        "subject": name,
+                        "detail": f"{name} is a {cls}" + (f" of {of}" if of else "")
+                        + "; its work is not counted again",
+                        "classification": cls,
+                        "of": of,
+                        "evidence": list(row.get("evidence") or []),
+                    }
+                )
+                continue
+            kept.append(name)
+            if row.get("same_lineage"):
+                findings.append(
+                    {
+                        "kind": "repo_lineage_ambiguous",
+                        "subject": name,
+                        "detail": f"{name} has the same history as "
+                        + ", ".join(row["same_lineage"])
+                        + "; both are counted until program.mirrors declares which is the origin",
+                        "same_lineage": list(row["same_lineage"]),
+                        "evidence": list(row.get("evidence") or []),
+                    }
+                )
+        return kept, findings, LINEAGE_SKILL
+
+    def _work_pass(
+        self, raw: dict[str, Any], prior: list[dict[str, Any]], now: datetime
+    ) -> dict[str, Any] | None:
+        from axiom.infra.watcher import FileWatcherStore, Watcher, WatchItem
+
+        from . import _work as work
+
+        program = raw.get("program") or {}
+        if not program.get("work_repos"):
+            return None
+        client = self._client()
+        if client is None:
+            raise ProgramError(f"{self.origin}: no client ({self._client_error})")
+        repos, lineage_findings, lineage_from = self._work_repo_names(program, client)
+        store = FileWatcherStore(self._state_dir / "program" / "watchers")
+        observed: list[Any] = []
+        for repo in repos:
+            name = f"github-work:{repo}"
+
+            def fetch(since: str | None, _repo: str = repo) -> list[WatchItem]:
+                return [
+                    WatchItem(
+                        identity=w.key,
+                        kind="scm.work",
+                        payload={"obj": w, "updated_at": w.updated_at},
+                        landed=w.state in ("closed", "merged"),
+                    )
+                    for w in client.work_items(_repo, since)
+                ]
+
+            result = Watcher(name=name, fetch=fetch, debounce_seconds=self._debounce).poll(store.load(name))
+            if result.polled and self.persist_cursors:
+                store.save(name, result.state)
+            observed.extend(item.payload["obj"] for item in result.items)
+
+        tracker = self._tracker()
+        window = program.get("work_window_days")
+        findings = work.roll_up(
+            raw,
+            observed,
+            tracker_repo=str(tracker.get("repo") or ""),
+            tracker_host=str(tracker.get("host") or "github.com"),
+            now=now,
+            window_days=window if isinstance(window, int) and window > 0 else 14,
+            prior_findings=prior,
+        )
+        return {"repos": repos, "lineage": lineage_from, "findings": lineage_findings + findings}
+
+    def _mirror_only_load(self) -> ProgramData | None:
+        import copy
+
+        from . import _capture as cap
+
+        base = self._load_base()
+        if base is None:
+            return None
+        self._base = base
+        fresh = self._mirror_findings(base)
+        findings = _finalize_findings(base, fresh, cap.MIRROR_FINDING_KINDS)
+
+        raw = copy.deepcopy(base.raw)
+        raw["capture"] = {
+            "source": self.origin,
+            "system": self.system,
+            "verified": True,
+            "ladder": None,
+            "findings": findings,
+            "mode": "mirror-only",
+        }
+        return ProgramData(raw=raw)
+
+    def _mirror_findings(self, base: ProgramData) -> list[dict[str, Any]]:
+        from . import _capture as cap
+
+        pairs = cap.declared_mirror_pairs(base)
+        tracker = base.tracker()
+        tracker_repo = None
+        if isinstance(tracker.get("host"), str) and isinstance(tracker.get("repo"), str):
+            tracker_repo = (tracker["host"], tracker["repo"])
+        expect = bool(base.program.get("mirror_expected"))
+        if not pairs and not (expect and tracker_repo):
+            return []
+
+        reader = self._commit_reader or self._default_commit_reader()
+        commits: dict[tuple[str, str], set[str] | None] = {}
+        for pair in pairs:
+            for host, repo in (
+                (pair.origin_host, pair.origin_repo),
+                (pair.mirror_host, pair.mirror_repo),
+            ):
+                if (host, repo) not in commits:
+                    commits[(host, repo)] = reader(host, repo)
+
+        recent: dict[str, bool | None] = {}
+        if self._recent_reader is not None:
+            for pair in pairs:
+                recent[pair.subject] = self._recent_reader(pair)
+
+        return cap.check_mirror(
+            pairs,
+            commits,
+            recent=recent,
+            tracker_repo=tracker_repo,
+            expect_mirror=expect,
+        )
+
+    def _default_commit_reader(self) -> Callable[[str, str], set[str] | None]:
+        """Best-effort reader: use the GitHub client for any host; a host it
+        cannot read returns ``None`` (unverified, never 'synced'). Reading the
+        opposite host of a cross-vendor pair needs that host's own credential,
+        which is deployment wiring beyond this phase — so a deployment injects
+        a reader, or that side is honestly reported unverified."""
+        client = self._client()
+
+        def reader(host: str, repo: str) -> set[str] | None:
+            if client is None:
+                return None
+            try:
+                return client.commits(host, repo)
+            except Exception:  # noqa: BLE001
+                return None
+
+        return reader
+
+
+# ---------------------------------------------------------------------------
+# Source selection (sync: file | gitlab | github | all)
+# ---------------------------------------------------------------------------
+
+#: The source kinds ``program sync`` can select.
+SOURCE_KINDS = ("file", "gitlab", "github", "all")
+
+
+def build_source(
+    kind: str,
+    data_path: str | Path,
+    *,
+    state_dir: str | Path | None = None,
+    require_listed_owners: bool = False,
+    registry: SkillRegistry | None = None,
+) -> ProgramSource:
+    """Build one live or file source by kind.
+
+    ``file`` is the self-reconcile ``FileSource``; ``gitlab`` / ``github`` are
+    the live feeders. ``all`` is handled by the caller (it fans out to every
+    configured live source); this builds a single one. ``registry`` is the
+    caller's skill registry, through which the GitHub feeder asks RIVET for
+    repository lineage.
+    """
+    if kind == "file":
+        return FileSource(data_path, require_listed_owners=require_listed_owners)
+    if kind == "gitlab":
+        return GitLabSource(data_path, state_dir=state_dir)
+    if kind == "github":
+        return GitHubSource(data_path, state_dir=state_dir, registry=registry)
+    raise ValueError(f"unknown source kind {kind!r}; one of {', '.join(SOURCE_KINDS)}")
+
+
+__all__ = [
+    "ProgramSource",
+    "NullSource",
+    "FileSource",
+    "GitLabSource",
+    "GitHubSource",
+    "ConnectorReadiness",
+    "SOURCE_KINDS",
+    "build_source",
+    "ProgramError",
+]

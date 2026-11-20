@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script>
+      // No-flash theme bootstrap: apply the saved/OS theme to <html> before first
+      // paint so the login never flickers from the wrong palette. Choice is stored
+      // under `axiom_theme`; only light|dark are applied (a stored 'system' or any
+      // unknown value falls through to prefers-color-scheme).
+      (function () {
+        var valid = ['light', 'dark'];
+        var t = localStorage.getItem('axiom_theme');
+        if (valid.indexOf(t) >= 0) {
+          document.documentElement.setAttribute('data-theme', t);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Sign in to Axiom" />
+    <title>Sign in · Axiom</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to sign in.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

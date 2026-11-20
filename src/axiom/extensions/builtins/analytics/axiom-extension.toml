@@ -1,0 +1,39 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "analytics"
+version = "0.1.0"
+description = "Deterministic series math (descriptive stats, trend/fit, calculus on samples) — ADR-113 Tiers 1-3"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom  = ">= 0.10"
+
+[[extension.provides]]
+kind        = "tool"
+name        = "analytics"
+entry       = "axiom.extensions.builtins.analytics.skills.compute:run"
+description = "Compute a deterministic statistic/fit/calculus over a numeric series (sum, mean, std, percentile, linregress, polyfit, moving_average, rate_of_change, correlation, derivative, integral, cumsum, interpolate). Returns a provenance-stamped result. Use this instead of computing a number yourself."
+idempotent   = true
+side_effects = "none"
+
+[[extension.provides]]
+kind        = "cmd"
+noun        = "analytics"
+entry       = "axiom.extensions.builtins.analytics.cli:main"
+description = "Deterministic series math over a list/JSON/CSV series."
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "analytics.compute"
+entry = "axiom.extensions.builtins.analytics.skills.compute:run"
+path = "skills/compute"
+description = "Deterministic math over a numeric series (descriptive stats, regression/fit, calculus on samples). Call this instead of computing an average/total/slope/integral yourself; the result is provenance-stamped."
+# END axi-skills-emit-md

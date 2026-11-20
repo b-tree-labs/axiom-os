@@ -1,0 +1,64 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The public retrieval sample's documents: a fictional town library, invented for this file.
+# Nothing here is from a real organisation, and nothing here may be replaced by real content:
+# a site's own question set and documents stay on the site's node (see questions.yaml).
+#
+# Each document: path, title, corpus, optional access_tier/classification (default public,
+# unclassified), and its chunks in order. A chunk is its text, or {text, page} when the page
+# it came from matters to a question's expected_pages.
+- path: /policies/Lending Policy.pdf
+  title: Lending Policy
+  corpus: rag-org
+  chunks:
+  - text: "Section 2 Loan periods. Books are lent for 21 days, films and games for 7 days, and reference works are not lent."
+    page: 3
+  - text: "Section 3 Renewals. A loan may be renewed twice online or at the desk unless another member has reserved the item."
+    page: 4
+  - text: "Section 5 Overdue items. The library charges no late fees; a member with an item overdue by 30 days cannot borrow until it is returned."
+    page: 6
+- path: /policies/Opening Hours.md
+  title: Opening Hours
+  corpus: rag-org
+  chunks:
+  - "The main branch opens Monday to Friday 9:00 to 20:00, Saturday 10:00 to 17:00, and is closed on Sunday."
+  - "The riverside branch opens Tuesday to Saturday 10:00 to 16:00. Both branches close on public holidays."
+- path: /rooms/Room Booking Guide.md
+  title: Room Booking Guide
+  corpus: rag-org
+  chunks:
+  - "Meeting rooms are booked through the members' portal up to 60 days ahead, for at most 4 hours at a time."
+  - "Table 1 Rooms. Rows 1 to 3: Oak room seats 12, Elm room seats 30, Birch studio seats 6."
+  - "Table 1 Rooms, continued. Rows 4 to 5: Cedar hall seats 120, Maple room seats 16."
+- path: /reports/Annual Report 2025.pdf
+  title: Annual Report 2025
+  corpus: rag-org
+  chunks:
+  - text: "In 2025 the library recorded 182,400 visits and 241,900 loans across both branches."
+    page: 2
+  - text: "Loans by quarter: first quarter 58,100; second quarter 61,300; third quarter 63,800; fourth quarter 58,700."
+    page: 9
+- path: /reports/Annual Report 2025 DRAFT.pdf
+  title: Annual Report 2025 (draft)
+  corpus: rag-org
+  chunks:
+  - "DRAFT, figures not final: about 180,000 visits and 240,000 loans in 2025."
+- path: /volunteers/Volunteer Handbook.md
+  title: Volunteer Handbook
+  corpus: rag-org
+  chunks:
+  - "Volunteers help with the reading club, shelving and the homework hour. A volunteer gives at least two hours a week."
+  - "Every volunteer completes the safeguarding module before their first shift; the volunteer coordinator keeps the record."
+- path: /policies/Accessibility Statement.md
+  title: Accessibility Statement
+  corpus: rag-org
+  chunks:
+  - "Both branches have step-free entrances, a hearing loop at the desk, and large-print and audio editions on request."
+- path: /staff/Cash Handling Procedure.md
+  title: Cash Handling Procedure
+  corpus: rag-org
+  access_tier: institutional
+  chunks:
+  - "Staff only. The desk float is counted at opening and closing by two members of staff, and the safe code changes monthly."
