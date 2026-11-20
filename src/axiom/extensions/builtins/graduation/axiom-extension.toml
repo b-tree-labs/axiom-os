@@ -1,0 +1,35 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- passive shadow-mode outcome recorder + status CLI; no runtime MCP tool surface in phase 1
+[extension]
+name = "graduation"
+version = "0.1.0"
+description = "Shadow-mode outcome logging for internal classifiers — evidence accumulates before any rule graduates (phase 1: the LLM tier classifier)"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# `axi graduation` — inspect the shadow outcome log (status).
+[[extension.provides]]
+kind = "cmd"
+noun = "graduation"
+entry = "axiom.extensions.builtins.graduation.cli:main"
+description = "Inspect shadow-mode classifier outcome logs (status)"
+tier = "advanced"
+intent_groups = ["maintain"]
+
+# Skill — the status reader (`graduation.status`). The cmd above is a thin
+# wrapper over this per ADR-056; agent personas reach the same surface.
+[[extension.provides]]
+kind = "skill"
+name = "graduation.status"
+path = "skills/status/"
+entry = "axiom.extensions.builtins.graduation.skills.status:run"
+description = "Report the shadow outcome log: switch, phase, backend, record counts, log path"

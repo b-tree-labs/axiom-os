@@ -1,0 +1,24 @@
+{
+ "files_at": {
+  "20261008T221803Z-0486f9e1": {
+   "identity/node.json": "{\"owner\": \"fixture\"}",
+   "settings.toml": "[a]\nb = 1\n"
+  },
+  "20261008T221803Z-df8af174": {
+   "identity/node.json": "{\"owner\": \"fixture\"}",
+   "memory/ledger.jsonl": "{\"n\":1}\n",
+   "settings.toml": "[a]\nb = 2\n"
+  },
+  "20261008T221803Z-df8af174-2": {
+   "identity/node.json": "{\"owner\": \"fixture\"}",
+   "memory/ledger.jsonl": "{\"n\":1}\n",
+   "settings.toml": "[a]\nb = 2\n"
+  }
+ },
+ "ids": [
+  "20261008T221803Z-0486f9e1",
+  "20261008T221803Z-df8af174",
+  "20261008T221803Z-df8af174-2"
+ ],
+ "note": "ids are in the order taken; the last is the pre-restore snapshot the generator's restore made"
+}

@@ -1,0 +1,54 @@
+# A small logbook for the seal tests (unit L5): a run interval, a check that a lead must
+# co-sign, a note, a check obligation while a run is open, and a [seal] whose boundary is the
+# run. No domain words.
+[logbook]
+id = "seal_log"
+version = "1"
+display = "Seal Log"
+assurance = { posture = "sso" }
+
+[interval.run]
+opens = ["START"]
+closes = ["STOP"]
+
+[[type]]
+id = "START"
+meanings = ["authored"]
+roles = ["member"]
+requires_interval = "none_open"
+fields = [{ id = "note", type = "text" }]
+
+[[type]]
+id = "CHECK"
+meanings = ["performed"]
+roles = ["member"]
+requires_interval = "run"
+cosign = { roles = ["lead"] }
+fields = [{ id = "ok", type = "attest_checkbox", label = "All in order", required = true }]
+
+[[type]]
+id = "NOTE"
+meanings = ["authored"]
+roles = ["member", "lead"]
+fields = [{ id = "text", type = "text", required = true }]
+
+[[type]]
+id = "STOP"
+meanings = ["authored"]
+roles = ["member"]
+requires_interval = "run"
+fields = [{ id = "note", type = "text" }]
+
+[[obligation]]
+id = "check_cadence"
+type = "CHECK"
+every = { default = 30 }
+warn_before = { default = 5 }
+while = "interval.run.open"
+notify = ["member"]
+required = true
+
+[seal]
+by_roles = ["lead"]
+assurance = { posture = "sso", fresh_within = "5m" }
+boundary = "run"
