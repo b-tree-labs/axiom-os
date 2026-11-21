@@ -1,0 +1,35 @@
+{{- with .Values.roles.edgePull }}{{- if .enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $.Release.Name }}-edge-pull
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" "edge-pull") | nindent 4 }}
+  annotations: {axiom.io/role: "edge-pull", axiom.io/priority: "background"}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          priorityClassName: {{ $.Release.Name }}-background
+          securityContext: {runAsUser: {{ $.Values.runAsUser }}, runAsNonRoot: true}
+          containers:
+            - name: edge-pull
+              image: {{ include "axiom-node.image" $ | quote }}
+              args: ["axi", "data", "--json", "edge-pull", {{ required "roles.edgePull.connector" .connector | quote }}]
+              env:
+                - {name: AXIOM_PACKAGES, value: {{ $.Values.packages.pin | quote }}}
+                - {name: AXIOM_PACKAGES_VERSION, value: {{ $.Values.packages.version | quote }}}
+                - {name: AXIOM_NODE_CONFIG, value: /tmp/axiom-node.toml}
+                - {name: AXIOM_NODE_TOML, value: {{ include "axiom-node.nodeToml" (dict "root" $ "cfg" .) | quote }}}
+              {{- if .secretFrom }}
+              envFrom: [{secretRef: {name: {{ .secretFrom }}}}]
+              {{- end }}
+              volumeMounts: [{name: data, mountPath: /data}]
+          volumes:
+            - name: data
+              emptyDir: {}
+{{- end }}{{- end }}

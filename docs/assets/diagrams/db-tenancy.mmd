@@ -1,0 +1,22 @@
+flowchart TD
+  EXT["Extension code<br/>from axiom.infra.db import session_for<br/>session_for(name) yields a scoped Session"]:::core
+  EXT --> PROV["DatabaseProvider (ADR-052 D2)<br/>shared Engine + pool · AXIOM_DB_URL<br/>computes schema name · ensures schema exists"]:::core
+  PROV -->|"search_path = ext, public per connection"| PG
+  PG[("One Postgres per install (ADR-052 D1)<br/>extensions never spin up their own RDBMS")]:::accent
+  PG --> S1[("schema: signals")]:::data
+  PG --> S2[("schema: expman")]:::data
+  PG --> S3[("schema: keplo")]:::data
+  PG --> PUB[("public schema<br/>shared types + platform metadata only")]:::neutral
+
+  EXT --> MENU["Within-extension tenancy — a menu (D4)<br/>single-tenant (default) · row-level tenant_id · schema-per-tenant"]:::neutral
+  EXT --> ALEMBIC["Per-extension Alembic (D3)<br/>version_table_schema = ext · self-contained migrations"]:::neutral
+
+  XREAD["Cross-extension reads (D5)<br/>ride the data platform: bronze → silver → gold<br/>never OLTP joins across schemas"]:::data
+  S1 -->|"one bronze source"| XREAD
+  S2 -->|"one bronze source"| XREAD
+
+  classDef core    fill:#0e7490,color:#ffffff,stroke:#083344,stroke-width:2px;
+  classDef vega    fill:#6d28d9,color:#ffffff,stroke:#2e1065,stroke-width:2px;
+  classDef data    fill:#166534,color:#ffffff,stroke:#052e16,stroke-width:2px;
+  classDef accent  fill:#7c2d12,color:#ffffff,stroke:#431407,stroke-width:2px;
+  classDef neutral fill:#334155,color:#ffffff,stroke:#0f172a,stroke-width:2px;

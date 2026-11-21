@@ -1,0 +1,3 @@
+{"type": "model", "content": "I will look the item up.", "tool_calls": [{"name": "data.describe", "args": {"name": "reactor_power"}}], "usage": {"tokens": 180, "dollars": 0.0006}}
+{"type": "tool_result", "name": "data.describe", "result": {"rows": 12, "unit": "kW"}}
+{"type": "model", "content": "{\"summary\": \"reactor_power has 12 rows in kW\", \"rows\": 12}", "usage": {"tokens": 90, "dollars": 0.0003}}

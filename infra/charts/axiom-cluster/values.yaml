@@ -1,0 +1,177 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The cluster base (ADR-215, layer 2). The application chart (axiom-node)
+# names only what is here: storage classes axiom-fast and axiom-standard,
+# ingress class axiom, a certificate issuer, the CloudNativePG operator, and
+# the secret store axiom. Each component has `install`: true installs it here,
+# false means the platform already provides it (k3s and RKE2 bundle Traefik, a
+# cloud provides block storage), and only the name is bound to it.
+#
+# Layer a size, then (on a cloud) a provider:
+#   -f values-small.yaml            K3D
+#   -f values-medium.yaml           k3s
+#   -f values-large.yaml            RKE2 on VMs
+#   -f values-large.yaml -f values-provider-aws.yaml   (or -gcp, -azure)
+
+# Block storage. Both names always exist; what backs them is the platform's.
+storage:
+  fast:                         # databases: local or SSD-backed, never network file storage
+    provisioner: rancher.io/local-path
+    parameters: {}
+    reclaimPolicy: Retain
+    allowVolumeExpansion: false
+  standard:
+    provisioner: rancher.io/local-path
+    parameters: {}
+    reclaimPolicy: Delete
+    allowVolumeExpansion: false
+  # OpenEBS LocalPV, for a cluster with no local provisioner of its own (RKE2).
+  localpv:
+    install: false
+
+# Ingress class `axiom`, served by Traefik: bundled by k3s and RKE2 (v1.36+),
+# installed here on a cloud. ingress-nginx is not an option: upstream
+# maintenance ended in March 2026.
+ingress:
+  install: false
+  controller: traefik.io/ingress-controller
+  default: false                # also make `axiom` the cluster's default class
+
+# Certificates. The issuer is named axiom-letsencrypt when an ACME email is
+# set, and axiom-selfsigned otherwise (a laptop has no public name).
+certManager:
+  install: true
+  issuer:
+    acmeEmail: ""
+    acmeServer: https://acme-v02.api.letsencrypt.org/directory
+
+# Postgres with TimescaleDB and pgvector runs as a CloudNativePG cluster on
+# every provider (ADR-215): managed services lack TimescaleDB compression.
+cloudnativePg:
+  install: true
+
+# Secrets reach workloads through External Secrets and the store `axiom`.
+# The default backend reads Secrets from one namespace in this cluster, which
+# the node vault (or an operator) writes; a cloud or OpenBao replaces
+# `provider` with its own block.
+externalSecrets:
+  install: true
+  store:
+    namespace: axiom-secrets
+    provider: {}                # empty: the in-cluster namespace backend above
+
+# Object storage over the S3 API (ADR-015, ADR-215). Workloads read the store
+# entry `object-store` (secretFromStore: object-store): AXIOM_S3_ENDPOINT,
+# AXIOM_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY. With install:
+# true this chart runs SeaweedFS, creates the buckets, generates the keys once
+# (kept across upgrades) and writes that entry into the in-cluster store. With
+# install: false the platform provides S3 (AWS S3, Cloud Storage's S3 API, an
+# HPC center's S3 endpoint) and the operator writes the same entry.
+objectStore:
+  install: false
+  buckets: [bronze, backups]
+  region: us-east-1
+
+# GPUs: the NVIDIA device plugin (nodes need the NVIDIA driver and container
+# toolkit) and the runtime class `nvidia` the node chart names. One card can be
+# shared by several workloads with time-slicing: set
+# nvidia-device-plugin.config.map.axiom's `replicas` (1 = no sharing).
+gpu:
+  install: false
+
+# Metrics and alerts: kube-prometheus-stack, with node-exporter on every node
+# and kube-state-metrics (failed jobs, crash loops). Alerts go wherever the
+# site's kube-prometheus-stack.alertmanager.config sends them (for example a
+# webhook on the node that hands them to its notifications).
+monitoring:
+  install: false
+
+# Settings passed to the components (keys are the subcharts' names).
+cert-manager:
+  crds: {enabled: true, keep: true}
+cloudnative-pg:
+  crds: {create: true}
+external-secrets:
+  installCRDs: true
+traefik:
+  ingressClass: {enabled: false}  # this chart owns the class named axiom
+  providers:
+    kubernetesIngress: {ingressClass: axiom}
+localpv-provisioner:
+  hostpathClass: {enabled: false} # this chart owns the class names
+# SeaweedFS, when objectStore.install. Every server keeps its data on a claim
+# of the class axiom-standard (never a host path), so a pod that moves keeps it.
+seaweedfs:
+  global:
+    enableReplication: false
+  master:
+    replicas: 1
+    data: {type: persistentVolumeClaim, size: 1Gi, storageClass: axiom-standard}
+    logs: {type: emptyDir}
+  volume:
+    replicas: 1
+    dataDirs:
+      - {name: data1, type: persistentVolumeClaim, size: 20Gi, storageClass: axiom-standard, maxVolumes: 0}
+    resizeHook: {enabled: false}
+  filer:
+    replicas: 1
+    data: {type: persistentVolumeClaim, size: 5Gi, storageClass: axiom-standard}
+    logs: {type: emptyDir}
+    s3: {enabled: false}
+  s3:
+    enabled: true
+    enableAuth: true
+    logs: {type: emptyDir}
+    # Both identities read their keys from the Secret this chart generates once,
+    # so an upgrade never rolls them (the subchart would otherwise generate the
+    # read-only pair afresh on every render).
+    credentials:
+      admin:
+        existingSecret: axiom-object-store-keys
+        accessKeyKey: admin_access_key_id
+        secretKeyKey: admin_secret_access_key
+      read:
+        existingSecret: axiom-object-store-keys
+        accessKeyKey: read_access_key_id
+        secretKeyKey: read_secret_access_key
+    createBuckets:
+      - {name: bronze}
+      - {name: backups}
+nvidia-device-plugin:
+  runtimeClassName: nvidia
+  gfd: {enabled: false}
+  nfd: {enabled: false}
+  config:
+    default: axiom
+    map:
+      axiom: |-
+        version: v1
+        sharing:
+          timeSlicing:
+            resources:
+              - name: nvidia.com/gpu
+                replicas: 1
+
+kube-prometheus-stack:
+  grafana: {enabled: false}
+  nodeExporter: {enabled: true}
+  kubeStateMetrics: {enabled: true}
+  prometheus:
+    prometheusSpec:
+      retention: 15d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: axiom-standard
+            accessModes: [ReadWriteOnce]
+            resources: {requests: {storage: 20Gi}}
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: axiom-standard
+            accessModes: [ReadWriteOnce]
+            resources: {requests: {storage: 2Gi}}
