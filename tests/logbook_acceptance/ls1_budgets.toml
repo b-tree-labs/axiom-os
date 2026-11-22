@@ -1,0 +1,182 @@
+# LS-1 (#1780): the performance budgets of the Log, the Timeline, the Tail, search and export.
+#
+# One file, read by the scale tests (which record what they measure under each key) and by
+# scripts/ls1_scale_report.py (which writes the nightly job's summary and fails it). A budget is
+# broken when a number is at or over its `limit`; a regression is a number more than `regression`
+# (20%) over its stored `baseline` and more than `noise_ms` over it in absolute terms, so a 3 ms
+# page that becomes 4 ms is not a regression. A `baseline` of 0 means none is stored yet: the
+# report says so and does not fail on it. Raise a baseline by copying the nightly artifact's
+# number here in a pull request that says why.
+#
+# status:
+#   enforced  the scale job measures it, and fails over the limit or on a regression
+#   tracked   measured and published, fails only on a regression (no budget agreed yet)
+#   pending   not measured yet; `needs` names what lands it, and the report lists it
+
+regression = 0.20
+noise_ms = 5.0
+scale_rows = 1000000
+smoke_rows = 10000
+
+# -- the records door (the Log) ---------------------------------------------------------------
+
+[budget.log_first_page]
+what = "first page of a log (200 rows, newest), server side"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.log_older_page]
+what = "an older page of a log, keyset before_seq at the middle"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.log_filtered_page]
+what = "first page with two filters (entry type and signer)"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.log_interval_page]
+what = "first page of one session (the interval filter)"
+limit = 200.0
+baseline = 0.0
+status = "tracked"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.log_search]
+what = "search with two filters and a text term"
+limit = 300.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.node_search]
+what = "the node search narrowed to one log, through its skill"
+limit = 300.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.verify_slice_10k]
+what = "verify a 10,000-entry slice of a signed chain"
+limit = 2000.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+# #2182: the package is written to a file a batch at a time, every file spooled and hashed on the
+# way, so its peak memory does not grow with the log (the scale test fails it over 64 MiB; built
+# whole it was 449 MiB at 100,000 entries). Its manifest comes first and names every other file's
+# hash, so the package's own first byte waits for the whole pass; what streams from the first batch
+# is a view of the selection (GET /{logbook}/exports/stream), and that is the first-bytes budget.
+[budget.export_100k_build]
+what = "write the evidence package of a 100,000-entry log (JSON Lines) to a file, streamed"
+baseline = 0.0
+status = "tracked"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.export_100k_first_bytes]
+what = "export of 100,000 entries streams: first bytes under 1 s, constant memory"
+limit = 1000.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_w3_scale.py"
+
+[budget.archive_period_build]
+what = "archive a sealed period of 100,000 entries: package written entry by entry, constant memory"
+limit = 60000.0
+baseline = 0.0
+status = "pending"
+needs = "the scale job sealing and archiving a 100,000-entry period (unit LD-5, attest.archive)"
+
+# ADR-268 LF-A24: filtering a 100,000-entry log by one declared field (the scale fixture's `area`,
+# a choice matching about a quarter of the entries) returns its first page within the records
+# door's page budget. Measured 39 ms p95 on a loaded development Mac (2026-11-21); the nightly job
+# stores the baseline.
+[budget.field_filter_first_page]
+what = "first page of a 100,000-entry log filtered by one declared field (ADR-268 LF-A24)"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_lf2.py"
+
+# -- the journal (the Timeline and the Tail) ---------------------------------------------------
+
+[budget.timeline_first]
+what = "the Timeline's first page"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+[budget.timeline_older]
+what = "an older Timeline page (cursor at the middle)"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+[budget.timeline_mine]
+what = "a Mine page"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+[budget.timeline_agent]
+what = "an agent's Activity page"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+[budget.timeline_level]
+what = "a page filtered by level and lane"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+[budget.tail_forward]
+what = "the Tail's forward page (after a sequence)"
+limit = 200.0
+baseline = 0.0
+status = "enforced"
+test = "tests/logbook_acceptance/test_ls1_scale.py"
+
+# -- the built page (appkit's journeys) --------------------------------------------------------
+
+[budget.page_first_paint]
+what = "first paint of a log or the Timeline on the built page"
+limit = 1000.0
+baseline = 0.0
+status = "pending"
+needs = "a browser pass against a node seeded with `log seed --scale` (appkit journeys)"
+
+[budget.page_scroll_frame]
+what = "scrolling 10,000 loaded rows: the longest frame"
+limit = 50.0
+baseline = 0.0
+status = "pending"
+needs = "appkit's Timeline scale journey publishing into this report"
+
+[budget.tail_frame_at_50_per_s]
+what = "the Tail at 50 rows a second for 60 s: the longest frame, with the buffer cap holding"
+limit = 50.0
+baseline = 0.0
+status = "pending"
+needs = "a browser pass against a node with a live stream"
+
+# -- memory -------------------------------------------------------------------------------------
+
+[budget.memory_recall_p95]
+what = "memory recall p95 over the golden queries (cross-mem working budget)"
+limit = 500.0
+baseline = 0.0
+status = "pending"
+needs = "the nightly scale job running tests/memory/test_recall_golden_evals.py alone and recording its p95 here"

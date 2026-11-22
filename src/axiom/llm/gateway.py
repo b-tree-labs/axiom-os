@@ -1,0 +1,3351 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+"""LLM Gateway — model-agnostic routing with graceful degradation.
+
+Reads provider configuration from config/models.toml and routes requests
+to the first available provider. If no providers are configured or all
+calls fail, returns a stub response preserving the raw text.
+
+Both the signal agent and publisher agent share this gateway.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import sys
+import time
+from collections.abc import Iterator
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from axiom import REPO_ROOT as _REPO_ROOT
+from axiom.infra.provider_base import ProviderIdentityMixin
+
+
+def _brand_cli() -> str:
+    """The command the operator actually typed.
+
+    These lines said "axi" unconditionally, so a consumer distribution's CLI
+    told the operator to run a command that does not exist on their machine.
+    """
+    try:
+        from axiom.infra.branding import get_branding
+
+        return get_branding().cli_name
+    except Exception:  # noqa: BLE001
+        return "axi"
+
+if TYPE_CHECKING:
+    from axiom.llm.router import RoutingDecision
+
+log = logging.getLogger(__name__)
+
+_RATE_LIMIT_MAX_RETRIES = 3
+_RATE_LIMIT_BACKOFF_BASE = 2.0
+# 5xx + network-error retry budget. Smaller than 429 max — those are
+# legitimate server-side hiccups, not pacing signals, so we don't want
+# to amplify backend distress with long retry chains. Three attempts
+# (initial + 2 retries) with full jitter is the AWS-blessed pattern.
+_TRANSIENT_MAX_RETRIES = 3
+_TRANSIENT_BACKOFF_BASE = 1.0  # seconds; jittered up to this * 2**attempt
+_RETRYABLE_STATUSES = frozenset({502, 503, 504})
+
+_RUNTIME_DIR = _REPO_ROOT / "runtime"
+CONFIG_DIR = _RUNTIME_DIR / "config"
+CONFIG_EXAMPLE_DIR = _RUNTIME_DIR / "config.example"
+
+# Statuses that mean "the request itself is bad" → persistent (don't retry,
+# don't silently fall back: surface it). 429 is rate-limiting (transient);
+# 5xx + network errors are transient. Everything else 4xx is the caller's bug.
+_PERSISTENT_STATUSES = frozenset({400, 401, 403, 404, 405, 413, 415, 422})
+
+
+class LLMGatewayError(RuntimeError):
+    """Base: a configured provider was tried and failed.
+
+    Carries the real upstream ``status`` + ``body`` (or exception detail) so
+    callers and humans see the actual reason instead of a guessed string.
+    Mirrors ``axiom.rag.embeddings.EmbeddingError``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        body: str | None = None,
+        provider: str | None = None,
+    ) -> None:
+        self.status = status
+        self.body = body
+        self.provider = provider
+        self.message = message
+        detail = ""
+        if provider:
+            detail += f" [{provider}]"
+        if status is not None:
+            detail += f" HTTP {status}"
+        if body:
+            detail += f": {body[:300]}"
+        super().__init__(message + detail)
+
+    def client_summary(self) -> str:
+        """A client-safe one-line reason — provider + status + message, but
+        WITHOUT the raw upstream ``body``. The full body (which can echo an
+        upstream's internal hostnames, DSNs, or auth hints) stays in logs and
+        ``str(self)``; this is what may cross the external HTTP boundary."""
+        parts = [self.message]
+        if self.provider:
+            parts.append(f"[{self.provider}]")
+        if self.status is not None:
+            parts.append(f"HTTP {self.status}")
+        return " ".join(parts)
+
+
+def plain_failure(err: Exception, provider: Any) -> str:
+    """One sentence saying a provider did not answer and why. Never the upstream body in full.
+
+    ``No answer: <provider> refused the request (HTTP 403: <its message>).`` A timeout says it timed
+    out, an unreachable host says so, so nobody mistakes the line for an answer.
+    """
+    name = getattr(provider, "name", "") or "the model"
+    host = ""
+    try:
+        from urllib.parse import urlparse
+
+        host = urlparse(getattr(provider, "endpoint", "") or "").hostname or ""
+    except Exception:  # noqa: BLE001
+        host = ""
+    where = f"{name} ({host})" if host and host not in name else name
+    status = getattr(err, "status", None)
+    detail = _upstream_message(getattr(err, "body", None))
+    if status is not None and isinstance(err, PersistentLLMError):
+        reason = f"refused the request (HTTP {status}" + (f": {detail}" if detail else "") + ")"
+    elif status is not None:
+        reason = f"failed (HTTP {status}" + (f": {detail}" if detail else "") + ")"
+    elif "timed out" in str(err).lower() or "timeout" in str(err).lower():
+        reason = "did not answer in time"
+    else:
+        reason = f"could not be reached ({getattr(err, 'message', '') or type(err).__name__})"
+    return f"No answer: {where} {reason}. Nothing was answered in its place."
+
+
+def _upstream_message(body: str | None) -> str:
+    """The ``message`` an OpenAI-shaped error body carries, else a short prefix of the body."""
+    if not body:
+        return ""
+    try:
+        import json as _json
+
+        parsed = _json.loads(body)
+        error = parsed.get("error") if isinstance(parsed, dict) else None
+        message = (error.get("message") if isinstance(error, dict) else error) or parsed.get("detail")
+        if message:
+            return str(message)[:200]
+    except Exception:  # noqa: BLE001 - not JSON: say a little of it
+        pass
+    return body.strip().splitlines()[0][:120] if body.strip() else ""
+
+
+class TransientLLMError(LLMGatewayError):
+    """Retryable failure — network drop, timeout, 429, 5xx. Safe to retry the
+    same provider or fall back to another one."""
+
+
+class PersistentLLMError(LLMGatewayError):
+    """Non-retryable failure — the provider rejected the REQUEST (4xx other
+    than 429: bad auth, bad model, malformed payload). Retrying or silently
+    falling back to another provider hides a real bug; surface it."""
+
+
+class LLMRefusedByPolicy(PersistentLLMError):
+    """The site's agent policy forbids language-model calls on this machine."""
+
+
+
+def _fetch_json(url: str, timeout: float) -> dict:
+    import json as _json
+    import urllib.request
+
+    with urllib.request.urlopen(url, timeout=timeout) as r:  # noqa: S310 — loopback probe
+        return _json.loads(r.read().decode("utf-8"))
+
+
+PROVIDERS_FILENAME = "llm-providers.toml"
+
+
+def default_providers_dir() -> Path:
+    """Where ``llm-providers.toml`` is read from when no directory is given.
+
+    1. The node config directory (``$AXIOM_CONFIG_DIR``, else ``~/.axi/config``)
+       when it holds the file: the operator-durable home every other node config
+       file uses, so a service finds its providers whatever its working directory.
+    2. The project's ``runtime/config`` (a source checkout), when it exists.
+    3. The shipped example.
+
+    Before this, only (2) and (3) were read, and the project root follows the
+    working directory: a service started from ``$HOME`` found no providers.
+    """
+    try:
+        from axiom.infra.config import default_config_dir
+
+        node_dir = default_config_dir()
+        if (node_dir / PROVIDERS_FILENAME).exists():
+            return node_dir
+    except Exception:  # noqa: BLE001 - fall through to the project layout
+        pass
+    return CONFIG_DIR if CONFIG_DIR.exists() else CONFIG_EXAMPLE_DIR
+
+
+def _listed_model_id(endpoint: str) -> str | None:
+    """The model a local OpenAI-compatible (or Ollama-shaped) server lists, or None
+    when nothing there answers with a model list."""
+    try:
+        body = _fetch_json(endpoint.rstrip("/") + "/v1/models", timeout=1.0)
+    except Exception:  # noqa: BLE001 — anything that will not say is not a model server
+        return None
+    for key, field_name in (("data", "id"), ("models", "name"), ("models", "model")):
+        items = body.get(key) if isinstance(body, dict) else None
+        if isinstance(items, list) and items and isinstance(items[0], dict) and items[0].get(field_name):
+            return str(items[0][field_name])
+    return None
+
+
+def _local_model_id(endpoint: str, *, fallback: str) -> str:
+    """The model a local OpenAI-compatible (or Ollama-shaped) server reports."""
+    return _listed_model_id(endpoint) or fallback
+
+
+#: How an OpenAI-compatible server says a request does not fit its context
+#: window. Not a fault in the request: a model with a larger window can take it.
+_CONTEXT_EXCEEDED = ("exceed_context", "context_length_exceeded", "maximum context length",
+                     "context window", "too many tokens")
+
+
+def _too_large_for_provider(err: Exception) -> bool:
+    text = f"{getattr(err, 'body', '') or ''} {err}".lower()
+    return any(marker in text for marker in _CONTEXT_EXCEEDED)
+
+
+#: Marks a response the gateway wrote because the request did not fit the
+#: model's context window. Nothing was answered; a caller can tell this apart
+#: from an answer and from other failures.
+CONTEXT_WINDOW_EXCEEDED = "CONTEXT_WINDOW_EXCEEDED"
+
+#: Marks a response refused because llm-providers.toml could not be loaded (``Gateway.config_problem``).
+PROVIDERS_FILE_DAMAGED = "PROVIDERS_FILE_DAMAGED"
+
+#: Marks a turn refused under ``routing.on_vpn_unavailable = block``: the VPN-gated provider could
+#: not be reached and no other provider was looked at.
+VPN_BLOCKED = "VPN_BLOCKED"
+
+_CHARS_PER_TOKEN_ESTIMATE = 4
+
+
+def _body_int(body: str, key: str) -> int:
+    import re
+
+    match = re.search(rf'"{key}"\s*:\s*(\d+)', body or "")
+    return int(match.group(1)) if match else 0
+
+
+def _context_exceeded_message(
+    provider: LLMProvider,
+    err: Exception | None,
+    *,
+    messages: list[dict[str, Any]] | None = None,
+    system: str = "",
+    tools: list[dict[str, Any]] | None = None,
+) -> str:
+    """Say plainly that the request did not fit, with the sizes, and how to fix it.
+
+    The sizes come from the server's refusal when it states them (llama.cpp
+    reports ``n_ctx`` and ``n_prompt_tokens``), else from the provider's
+    configured window and a character-count estimate. The tool definitions are
+    named separately because they are usually most of the request, and they
+    are the part a small model cannot hold.
+    """
+    body = str(getattr(err, "body", "") or "") if err is not None else ""
+    window = _body_int(body, "n_ctx") or int(getattr(provider, "context_window", 0) or 0)
+    needed = _body_int(body, "n_prompt_tokens")
+    tool_tokens = len(json.dumps(tools, default=str)) // _CHARS_PER_TOKEN_ESTIMATE if tools else 0
+    if not needed:
+        chars = len(system or "") + len(json.dumps(messages or [], default=str))
+        needed = chars // _CHARS_PER_TOKEN_ESTIMATE + tool_tokens
+    model = getattr(provider, "model", "") or getattr(provider, "name", "") or "the model"
+    if window:
+        sized = f"its context window is {window:,} tokens, and this request is about {needed:,} tokens"
+    else:
+        sized = f"this request (about {needed:,} tokens) is larger than its context window"
+    if tool_tokens:
+        sized += f", of which the tool definitions alone are about {tool_tokens:,}"
+    cli = _brand_cli()
+    return (
+        f"{model} cannot answer this: {sized}. Nothing was answered and no tools ran. "
+        "To chat with tools, configure a provider "
+        f"with a larger context window: run `{cli} connect list` to see the presets, "
+        f"then `{cli} connect <preset>`."
+    )
+
+def _classify_http_error(exc: Exception, provider: str | None = None) -> LLMGatewayError:
+    """Turn a ``requests`` exception into a typed gateway error carrying the
+    real upstream status + body.
+
+    Converts the opaque ``HTTPError`` / connection error raised by
+    ``_post_with_rate_limit_retry`` into a self-describing transient/persistent
+    error so callers stop guessing. Classification rule:
+      * no response (connection/timeout) → transient
+      * 4xx in ``_PERSISTENT_STATUSES``  → persistent
+      * 429 / 5xx / anything else        → transient
+    """
+    if isinstance(exc, LLMGatewayError):
+        if provider and exc.provider is None:
+            exc.provider = provider
+        return exc
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    body = None
+    if response is not None:
+        try:
+            body = response.text
+        except Exception:
+            body = None
+    if status is None:
+        return TransientLLMError(
+            str(exc) or exc.__class__.__name__, body=body, provider=provider
+        )
+    if status in _PERSISTENT_STATUSES:
+        return PersistentLLMError(
+            "provider rejected request", status=status, body=body, provider=provider
+        )
+    return TransientLLMError(
+        "provider call failed", status=status, body=body, provider=provider
+    )
+
+
+def _ensure_dotenv():
+    """Load .env from repo root if not already loaded."""
+    env_path = _REPO_ROOT / ".env"
+    if not env_path.exists():
+        return
+    try:
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key, value = key.strip(), value.strip()
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except OSError:
+        pass
+
+
+_ensure_dotenv()
+
+
+def _floor_max_tokens(provider, max_tokens: int) -> int:
+    """``max_tokens_default`` acts as a FLOOR (minimum output budget), never a
+    cap. Reasoning models (gpt-oss, Qwen) spend tokens on ``<think>`` before the
+    answer; without a floor a small caller ``max_tokens`` is consumed entirely
+    by reasoning, leaving the answer empty/truncated. Never reduces a larger
+    caller request. Applied on every upstream path (stream + non-stream)."""
+    floor = getattr(provider, "max_tokens_default", 0) or 0
+    return max(int(max_tokens), int(floor))
+
+
+# OpenAI's reasoning models reject ``max_tokens`` ("Use 'max_completion_tokens' instead", HTTP 400): the gpt-5 and
+# gpt-6 families and the o-series. A model name may carry a gateway prefix such as Portkey's "@slug/".
+_COMPLETION_TOKEN_MODELS = re.compile(r"^(?:@[^/]+/)?(?:gpt-5|gpt-6|o1|o3|o4)(?:$|[.\-:])", re.IGNORECASE)
+
+
+def _openai_token_limit(provider, max_tokens: int) -> dict[str, int]:
+    """The output-budget field for an OpenAI-protocol request (chat/completions).
+
+    ``max_completion_tokens`` for the models above, ``max_tokens`` for everything else, including the
+    OpenAI-compatible servers (Ollama, vLLM, llama.cpp) that only know ``max_tokens``. A provider can name the field
+    explicitly with ``token_limit_param`` in llm-providers.toml. The value is floored as before. Anthropic requests
+    keep ``max_tokens``, which is that API's own field.
+    """
+    param = getattr(provider, "token_limit_param", "") or (
+        "max_completion_tokens" if _COMPLETION_TOKEN_MODELS.match(provider.model or "") else "max_tokens"
+    )
+    return {param: _floor_max_tokens(provider, max_tokens)}
+
+
+def _message_text(content: Any) -> str:
+    """The plain text of a message's content: a string as is, or the text parts of a list of content parts.
+
+    Multimodal messages carry a list (text and image parts); joining that list as if it were a string raised a
+    TypeError on every image request.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(p["text"] for p in content if isinstance(p, dict) and isinstance(p.get("text"), str))
+    return ""
+
+
+def _request_timeout(provider, default: float) -> float:
+    """Seconds a request to *provider* may take: its ``request_timeout_s`` when set, else the call path's default.
+
+    The defaults (60 s for a plain completion, 120 s for the Anthropic tool call and for the gap between streamed
+    chunks, 180 s for the OpenAI tool call) are too short for a local vision model describing a full page, which can
+    take several minutes before it answers. A timeout is retried as a transient error, so a too-short limit also
+    multiplies the wait.
+    """
+    t = getattr(provider, "request_timeout_s", 0) or 0
+    return float(t) if t > 0 else float(default)
+
+
+_THINKING_OFF = ("none", "off")
+
+
+def _effort_kw(reasoning_effort: str | None) -> dict[str, str]:
+    """``reasoning_effort`` as a keyword argument only when one is set, so an unset effort keeps every internal
+    call's shape exactly as it was (callers and tests that replace these methods take positional arguments)."""
+    return {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
+
+
+def _reasoning_fields(provider, reasoning_effort: str | None) -> dict[str, Any]:
+    """Payload fields that set a reasoning model's effort, or {} when nothing is set or the model takes none.
+
+    The effort is the call's ``reasoning_effort`` or else the provider's. How it is sent depends on the server, so a
+    provider declares it with ``reasoning_param``; "" derives it from the model name:
+
+    * ``reasoning_effort``: OpenAI's field. OpenAI's gpt-5, gpt-6 and o-series models take it (and the name rule
+      sends it to them by default); Ollama takes it too, and ``none`` turns a Qwen 3 model's thinking off.
+    * ``chat_template_kwargs``: llama-server and vLLM switch a Qwen-style model's thinking with
+      ``{"enable_thinking": bool}``; ``none`` or ``off`` turns it off, any other effort leaves it on.
+    * ``none``: never send anything (a server that rejects unknown fields).
+
+    A model that takes no effort field gets none: sending an unknown field can fail the request, as ``max_tokens``
+    does for gpt-5.
+    """
+    effort = (reasoning_effort or getattr(provider, "reasoning_effort", "") or "").strip()
+    if not effort:
+        return {}
+    param = getattr(provider, "reasoning_param", "") or (
+        "reasoning_effort" if _COMPLETION_TOKEN_MODELS.match(provider.model or "") else "")
+    if param == "reasoning_effort":
+        return {"reasoning_effort": effort}
+    if param == "chat_template_kwargs":
+        return {"chat_template_kwargs": {"enable_thinking": effort.lower() not in _THINKING_OFF}}
+    return {}
+
+
+# Backward-compat aliases for routing_tier values in llm-providers.toml.
+# Older configs used "restricted" for a private-network model (a VPN-gated
+# server on the site network). Its canonical name is "private", a tier of its
+# own (RS-E5, issue #545): it is not cleared for export-controlled content,
+# which only a provider declared "export_controlled" may receive. Aliases are
+# normalized at LLMProvider construction time so all matching code sees the
+# canonical value. Tags (routing_tags) are independent and preserved as-is.
+_ROUTING_TIER_ALIASES = {
+    "restricted": "private",
+}
+
+
+def _open_vault():
+    """The Axiom vault `axi vault` reads and writes."""
+    from axiom.extensions.builtins.secrets.foreign.store import ForeignCredentialStore
+    from axiom.infra.paths import get_user_state_dir
+
+    return ForeignCredentialStore(get_user_state_dir())
+
+
+def _vault_key_for(name: str) -> str | None:
+    """The key stored in the vault under ``name``, or None. Never raises:
+    an absent or locked vault means "not here", and the next source is tried."""
+    try:
+        with _open_vault().get(name) as secret:
+            value = secret.as_str()
+        return value or None
+    except Exception:  # noqa: BLE001 — absence and unavailability both mean "try the next source"
+        return None
+
+
+def _decode_sse_as_utf8(response: Any) -> None:
+    """Decode a Server-Sent Events body as UTF-8, whatever its header omits.
+
+    A local model server answers ``Content-Type: text/event-stream`` with no
+    charset, and ``requests`` decodes any ``text/*`` body without one as
+    ISO-8859-1. Every em dash a model wrote then reached the user as "â" plus
+    two invisible C1 control characters, which also threw off the terminal's
+    line accounting. SSE is UTF-8 by definition, so the header is not
+    consulted. Never raises: a response object without the attribute is left
+    as it is.
+    """
+    try:
+        response.encoding = "utf-8"
+    except Exception:  # noqa: BLE001 - decoding hint only
+        pass
+
+
+def derived_provider_uid(name: str) -> str:
+    """The uid of a provider whose configuration declares none: a UUID5 of its name.
+
+    Stable across restarts without persisting anything. A provider that is renamed gets a new one; a
+    provider that must keep its identity through a rename declares ``uid`` in llm-providers.toml.
+    """
+    import uuid
+
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"axiom:llm-provider:{name}"))
+
+
+@dataclass
+class LLMProvider(ProviderIdentityMixin):
+    """LLM provider configuration. Inherits three-layer identity from ProviderIdentityMixin."""
+
+    _log_prefix: str = field(default="llm_provider", init=False, repr=False)
+    _fingerprint_fields: tuple = field(
+        default=("endpoint", "model", "routing_tier"), init=False, repr=False
+    )
+    _vault_checked: bool = field(default=False, init=False, repr=False, compare=False)
+    _vault_key: str | None = field(default=None, init=False, repr=False, compare=False)
+
+    name: str  # Display name — human-readable label, shown in UI and logs
+    endpoint: str
+    model: str
+    uid: str = ""  # Stable unique ID from config. Absent: derived from the name, never written back.
+    api_key_env: str = ""
+    #: The vault entry holding this provider's key, when it is not stored
+    #: under the provider's own name. A product that names a provider for its
+    #: people (``BrandingConfig.chat_provider_fn``) names the key the way it
+    #: told them to store it.
+    api_key_vault: str = ""
+    priority: int = 99
+    use_for: list[str] = field(default_factory=lambda: ["fallback"])
+    routing_tier: str = "any"  # "public" | "private" | "export_controlled" | "any" (legacy; still respected)
+    routing_tags: list[str] = field(
+        default_factory=list
+    )  # facility policy tags e.g. ["domain-sensitive", "private_network"]
+    requires_vpn: bool = False  # if True, TCP-check endpoint before calling
+    verify_ssl: bool = True  # set False for private servers with self-signed certs
+    # Tool-calling strategy (axiom.llm.tool_calling): "auto" (native-first, shim
+    # fallback) | "native" (server emits tool_calls) | "shim" (server can't, use
+    # the JSON-action shim). Externalized so it's hot-patchable without a restart.
+    tool_mode: str = "auto"
+    max_tokens_default: int = (
+        0  # 0 = use caller's value; set >0 for reasoning models that need headroom
+    )
+    # Transport: how within-tier mechanics are owned (RATIONALIZE-4).
+    #   "direct"  — Axiom owns within-tier fallback/retry across its own
+    #               provider list (legacy behavior).
+    #   "litellm" — this provider is a whole per-tier LiteLLM router GROUP; the
+    #               individual backends (vLLM, Tejas, cloud) live inside LiteLLM
+    #               and are invisible to Axiom. LiteLLM owns fallback / retry /
+    #               load-balance / wire-translation WITHIN the group, so Axiom
+    #               must NOT fan out across its own provider list in this tier.
+    #               EC isolation stays structural: the EC group's model list
+    #               contains only EC-cleared backends AND routing_tier still
+    #               gates selection above this seam.
+    transport: str = "direct"
+    # Where this provider runs (ADR-168): "local" | "cloud" | "remote-node", or "" to derive it from the
+    # endpoint (see axiom.llm.placement). A federation adoption writes "remote-node"; node_host is the name
+    # a user would recognise when the endpoint is not it.
+    placement: str = ""
+    node_host: str = ""
+    # Optional price per 1k tokens, in USD. Both halves or neither: one alone prices nothing. ``None`` =
+    # not configured, which a cost report must show as unpriced, never as free (a local provider is the
+    # one case priced at zero, and that is derived from its placement).
+    cost_per_1k_input: float | None = None
+    cost_per_1k_output: float | None = None
+    # The model's context window in tokens; 0 = not configured/unknown (a report says "unknown").
+    context_window: int = 0
+    # Output-budget field for OpenAI-protocol requests: "max_tokens" or "max_completion_tokens"; "" = derive it from
+    # the model name (see _openai_token_limit). Anthropic requests always use max_tokens.
+    token_limit_param: str = ""
+    # Seconds one request to this provider may take; 0 = the call path's default (see _request_timeout).
+    request_timeout_s: float = 0
+    # Reasoning effort sent when a call sets none ("" = send none), and how this server takes it: "reasoning_effort",
+    # "chat_template_kwargs" or "none"; "" = derive it from the model name (see _reasoning_fields).
+    reasoning_effort: str = ""
+    reasoning_param: str = ""
+
+    # Identity fields — computed at load time, not set from config
+    config_hash: str = field(default="", init=False)
+    instance_id: str = field(default="", init=False)
+
+    def __post_init__(self) -> None:
+        if self.routing_tier in _ROUTING_TIER_ALIASES:
+            canonical = _ROUTING_TIER_ALIASES[self.routing_tier]
+            log.warning(
+                "LLMProvider '%s' uses deprecated routing_tier=%r — normalized to %r. "
+                "Update llm-providers.toml to use %r directly.",
+                self.name, self.routing_tier, canonical, canonical,
+            )
+            object.__setattr__(self, "routing_tier", canonical)
+
+        # A provider with no declared uid gets one derived from its name: the same on every load and
+        # on every machine, so loading never has to write it back into the operator's file (RS-B7).
+        # Names are unique within a file (the loader refuses a duplicate), so derived uids are too.
+        self._compute_identity(
+            {
+                "uid": self.uid or derived_provider_uid(self.name),
+                "endpoint": self.endpoint,
+                "model": self.model,
+                "routing_tier": self.routing_tier,
+            }
+        )
+
+    @property
+    def is_usable(self) -> bool:
+        """Whether this provider can actually be called.
+
+        A provider is usable if it has an API key **or does not need one**.
+        An empty ``api_key_env`` is how a keyless provider — a local server,
+        a self-hosted endpoint — declares that it needs no credential.
+
+        This lived as a nested helper inside the routing method and was
+        open-coded a second time in the preference path, so callers outside
+        routing could not reach it. `axi status` checked `p.api_key` alone
+        and reported "configured but no API keys set" on a machine whose only
+        provider was local and working — an UNHEALTHY verdict on a healthy
+        system, which is the kind people learn to ignore.
+        """
+        return bool(self.api_key or not (self.api_key_env or self.api_key_vault))
+
+    @property
+    def api_key(self) -> str | None:
+        # 1. Environment variable named by the provider (explicit override).
+        if self.api_key_env:
+            value = os.environ.get(self.api_key_env)
+            if value:
+                return value
+        # 2. The Axiom vault (`axi vault set <provider name>`), which is where
+        #    the platform says a key lives. Resolved by THIS provider's name, so
+        #    an export-controlled provider can never pick up a key stored for a
+        #    public one. Read once per provider: `api_key` is consulted on every
+        #    availability check, and a keychain read each time is slow and can
+        #    prompt.
+        if not self._vault_checked:
+            object.__setattr__(self, "_vault_checked", True)
+            object.__setattr__(
+                self, "_vault_key", _vault_key_for(self.api_key_vault or self.name)
+            )
+        if self._vault_key:
+            return self._vault_key
+        # 3. A credential stored under this provider's name by
+        #    `store_credential(<name>, ...)` (the connections credential files).
+        try:
+            from axiom.infra.connections import get_credential
+
+            return get_credential(self.name)
+        except Exception:
+            return None
+
+
+@dataclass
+class GatewayResponse:
+    """Response from the LLM gateway."""
+
+    text: str
+    provider: str  # Which provider answered, or "stub"
+    model: str = ""
+    success: bool = True
+    error: str | None = None
+
+
+# --- New dataclasses for streaming + tool-use ---
+
+
+@dataclass
+class StreamChunk:
+    """A single streaming delta from the LLM."""
+
+    type: str  # "text", "tool_use_start", "tool_input_delta", "tool_use_end",
+    #            "thinking_start", "thinking_delta", "thinking_end", "usage", "done"
+    text: str = ""
+    tool_name: str = ""
+    tool_id: str = ""
+    tool_input_json: str = ""
+    # Usage fields (emitted with type="usage")
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+
+
+@dataclass
+class ToolUseBlock:
+    """A parsed tool-use block from the LLM response."""
+
+    tool_id: str
+    name: str
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class CompletionResponse:
+    """Structured response with separated text + tool_use blocks."""
+
+    text: str = ""
+    tool_use: list[ToolUseBlock] = field(default_factory=list)
+    provider: str = ""
+    model: str = ""
+    success: bool = True
+    error: str | None = None
+    stop_reason: str = ""
+    # Usage tracking
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    #: Verbs the serving end ran itself to write this answer, as it reported them
+    #: (``x_verbs_called`` on an OpenAI-compatible response). A site node's chat
+    #: endpoint runs its own data verbs and returns their names here; without
+    #: reading them a grounded answer looks like one that called nothing.
+    served_verbs: list[str] = field(default_factory=list)
+    # The model's reasoning, kept apart from its answer: ``reasoning_content``, Ollama's ``reasoning``, or an inline
+    # ``<think>`` block. A surface decides whether a person sees it; it is never part of ``text`` unless the model
+    # gave nothing else.
+    reasoning: str = ""
+    # The model reasoned and gave no answer and no tool call. ``text`` then holds the reasoning (or is empty), as it
+    # always has; this is how a caller can tell that it is not an answer.
+    reasoning_only: bool = False
+
+
+def _openai_cached_tokens(usage: Any) -> int:
+    """Cached prompt tokens in an OpenAI-format ``usage``: ``prompt_tokens_details.cached_tokens``.
+
+    They are part of ``prompt_tokens`` there (Anthropic reports them beside ``input_tokens``).
+    """
+    details = usage.get("prompt_tokens_details") if isinstance(usage, dict) else None
+    return int((details or {}).get("cached_tokens") or 0) if isinstance(details, dict) else 0
+
+
+def _rejects_stream_options(exc: Exception) -> bool:
+    """Whether a server refused the request because it does not know ``stream_options``."""
+    resp = getattr(exc, "response", None)
+    status = getattr(resp, "status_code", None) or getattr(exc, "status", None)
+    body = f"{getattr(resp, 'text', '') or ''} {getattr(exc, 'body', '') or ''} {exc}"
+    return status in (400, 422) and ("stream_options" in body or "include_usage" in body)
+
+
+def _served_verbs(data: Any) -> list[str]:
+    """The ``x_verbs_called`` names on a response body, or none."""
+    raw = data.get("x_verbs_called") if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return []
+    names = [str(v.get("verb") or v.get("name") or "") if isinstance(v, dict) else str(v) for v in raw]
+    return [n for n in names if n]
+
+
+def _resolve_actor_handle() -> str | None:
+    """The current actor's handle, or None when nothing is resolvable.
+
+    Deliberately swallows every failure. ``get_current_actor`` raises
+    ``AuthnUnavailable`` when no principal is bound and ``AXIOM_ACTOR`` is
+    unset, which is the normal state on plenty of hosts. Letting that escape
+    would turn attribution into a new failure mode on the hot path — every
+    completion failing because nobody had bound an identity. A public call from
+    an unattributed process still works and is recorded as unattributed; the
+    export-controlled tier is where that is not good enough.
+    """
+    try:
+        from axiom.governance import get_current_actor
+
+        return get_current_actor().handle
+    except Exception:
+        return None
+
+
+def _format_unattributed_ec_message() -> str:
+    """Why an export-controlled request was refused, and how to fix it."""
+    return (
+        "Refused: an export-controlled request must be attributable to a "
+        "responsible principal, and no actor could be resolved.\n\n"
+        "Bind one with `set_current_actor(...)`, set AXIOM_ACTOR, or pass "
+        "`principal=` to this call."
+    )
+
+
+class _TurnGuard:
+    """The checks every completion passes, streamed or not (RS-E3).
+
+    ``complete_with_tools`` and ``stream_with_tools`` each build one per request and call it at the
+    same points, so a check cannot be added to one path and forgotten in the other:
+
+    1. ``refusal(provider)``, before anything is sent: a controlled request with no attributed
+       principal is refused, and the refusal is audited.
+    2. ``system(prompt)``: the system prompt is hardened for a controlled request.
+    3. ``scan(reply, provider)``, on the model's whole reply: a classified term is logged and the
+       warning to show is returned. The non-streamed path puts it before the reply; the streamed
+       path, whose text is already on screen, puts it after.
+    4. ``record(provider, reply)``: one routing audit record for the turn. The response hash is of
+       the model's reply, before any warning, so both paths record the same hash for the same reply.
+
+    Nothing here waits on the model, so a streamed turn's first token is not delayed: the checks
+    before the call are a principal lookup and a hash, and the scan runs after the last text chunk.
+    """
+
+    def __init__(self, gateway: Gateway, messages: list[dict[str, Any]], routing_tier: str, principal: str | None):
+        import hashlib
+
+        self._audit = gateway._write_routing_audit
+        self.routing_tier = routing_tier
+        self.is_ec = routing_tier == "export_controlled"
+        self.actor = principal or _resolve_actor_handle()
+        user_text = " ".join(
+            c if isinstance(c, str) else str(c)
+            for c in (m.get("content", "") for m in messages if m.get("role") == "user")
+        )
+        self.prompt_hash = hashlib.sha256(user_text.encode()).hexdigest()
+
+    def refusal(self, provider: LLMProvider) -> CompletionResponse | None:
+        """The refusal for an unattributed controlled request, audited; None when the request may go."""
+        if not (self.is_ec and not self.actor):
+            return None
+        self._audit(
+            tier_requested=self.routing_tier,
+            tier_assigned=provider.routing_tier,
+            provider_name=provider.name,
+            provider_tier=provider.routing_tier,
+            blocked=True,
+            block_reason="EC_UNATTRIBUTED",
+            prompt_hash="",
+            response_hash=None,
+            ec_violation=False,
+            is_ec=True,
+            principal=None,
+        )
+        return CompletionResponse(
+            text=_format_unattributed_ec_message(),
+            provider="stub",
+            success=False,
+            error="EC_UNATTRIBUTED",
+        )
+
+    def system(self, prompt: str) -> str:
+        """The system prompt to send: hardened for a controlled request."""
+        return _harden_system_prompt(prompt) if self.is_ec else prompt
+
+    def scan(self, reply: str, provider: LLMProvider) -> str:
+        """The warning to show for this reply, or ``""``. A hit is logged."""
+        if not reply:
+            return ""
+        return _scan_warning(reply, self.routing_tier, provider.name, self.prompt_hash)
+
+    def record(self, provider: LLMProvider, reply: str) -> None:
+        """The routing audit record for a turn the provider answered."""
+        import hashlib
+
+        self._audit(
+            tier_requested=self.routing_tier,
+            tier_assigned=provider.routing_tier,
+            provider_name=provider.name,
+            provider_tier=provider.routing_tier,
+            blocked=False,
+            block_reason=None,
+            prompt_hash=self.prompt_hash,
+            response_hash=hashlib.sha256(reply.encode()).hexdigest() if reply else None,
+            ec_violation=False,
+            is_ec=self.is_ec,
+            principal=self.actor,
+        )
+
+
+def _post_with_rate_limit_retry(requests_mod, url, payload, headers, timeout=60, **kwargs):
+    """POST with adaptive rate limiting + transient-failure resilience.
+
+    Retry policy:
+      - 429 (rate limited): adaptive limiter + exponential backoff,
+        ``_RATE_LIMIT_MAX_RETRIES`` attempts.
+      - 502 / 503 / 504 (transient backend): full-jitter exponential
+        backoff, ``_TRANSIENT_MAX_RETRIES`` attempts.
+      - ConnectionError / Timeout (network): same as 5xx.
+      - 4xx other than 429: no retry — caller bug, won't fix itself.
+      - 2xx / 3xx: returned immediately.
+
+    Full-jitter backoff (sleep = random(0, base * 2**attempt)) prevents
+    thundering-herd resync after upstream returns from a brief outage —
+    the AWS-blessed pattern for production resilience.
+    """
+    # Every provider request passes through here, so this is where a site that
+    # declared no agents (ADR-164 node file) is held to "nothing on this
+    # machine calls a language model". Refused before any byte is sent.
+    from axiom.infra import node_functions as _nf
+
+    try:
+        _nf.check_llm_allowed()
+    except _nf.AgentPolicyRefused as exc:
+        raise LLMRefusedByPolicy(str(exc)) from None
+
+    import random
+
+    from axiom.infra.rate_limiter import get_limiter
+
+    conn_name = _infer_connection_from_url(url)
+    limiter = get_limiter(conn_name) if conn_name else None
+
+    rl_attempt = 0
+    transient_attempt = 0
+
+    while True:
+        if limiter:
+            limiter.wait()
+
+        try:
+            start = time.monotonic()
+            response = requests_mod.post(
+                url, json=payload, headers=headers, timeout=timeout, **kwargs
+            )
+            elapsed = (time.monotonic() - start) * 1000
+        except (
+            requests_mod.exceptions.ConnectionError,
+            requests_mod.exceptions.Timeout,
+        ) as exc:
+            transient_attempt += 1
+            if transient_attempt >= _TRANSIENT_MAX_RETRIES:
+                log.warning(
+                    "Transient network failure from %s (attempt %d/%d): %s",
+                    url, transient_attempt, _TRANSIENT_MAX_RETRIES, exc,
+                )
+                raise
+            wait = random.uniform(0, _TRANSIENT_BACKOFF_BASE * (2 ** (transient_attempt - 1)))
+            log.warning(
+                "Transient network failure from %s (attempt %d/%d), retrying in %.2fs: %s",
+                url, transient_attempt, _TRANSIENT_MAX_RETRIES, wait, exc,
+            )
+            time.sleep(wait)
+            continue
+
+        # Update limiter with response headers (learns the actual limits)
+        if limiter:
+            limiter.update(response)
+
+        if response.status_code == 429:
+            # Record throttle event
+            try:
+                from axiom.infra.connections import record_usage
+
+                if conn_name:
+                    record_usage(conn_name, elapsed, throttled=True)
+            except Exception:
+                pass
+            rl_attempt += 1
+            if rl_attempt >= _RATE_LIMIT_MAX_RETRIES:
+                response.raise_for_status()
+                return response
+            wait = _RATE_LIMIT_BACKOFF_BASE * (2 ** (rl_attempt - 1))
+            log.warning("Rate limited (429) from %s, retrying in %.1fs", url, wait)
+            time.sleep(wait)
+            continue
+
+        if response.status_code in _RETRYABLE_STATUSES:
+            transient_attempt += 1
+            if transient_attempt >= _TRANSIENT_MAX_RETRIES:
+                log.warning(
+                    "Transient %d from %s after %d attempts, giving up",
+                    response.status_code, url, transient_attempt,
+                )
+                response.raise_for_status()
+                return response
+            wait = random.uniform(
+                0, _TRANSIENT_BACKOFF_BASE * (2 ** (transient_attempt - 1))
+            )
+            log.warning(
+                "Transient %d from %s (attempt %d/%d), retrying in %.2fs",
+                response.status_code, url, transient_attempt,
+                _TRANSIENT_MAX_RETRIES, wait,
+            )
+            time.sleep(wait)
+            continue
+
+        # 2xx/3xx — success.  4xx other than 429 — caller bug, surface immediately.
+        response.raise_for_status()
+        try:
+            from axiom.infra.connections import record_usage
+
+            if conn_name:
+                record_usage(conn_name, elapsed)
+        except Exception:
+            pass
+        return response
+
+
+def _infer_connection_from_url(url: str) -> str:
+    """Best-effort map from URL to connection name for usage tracking."""
+    if "anthropic" in url:
+        return "anthropic"
+    if "openai" in url:
+        return "openai"
+    if "github" in url:
+        return "github"
+    if "gitlab" in url:
+        return "gitlab"
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# §14.2 auto_strategy name → factory registry. Mirrors the four built-in
+# strategies in axiom.agents.strategy.builtin; keys match the names users
+# write in `[gateway].auto_strategy`. Lazy-imported on demand to avoid a
+# heavy import at gateway-module load time.
+# ---------------------------------------------------------------------------
+
+
+def _make_strategy_factories():
+    from axiom.agents.strategy import builtin as _b
+    return {
+        "legacy-router": _b.legacy_router,
+        "cost-conservative": _b.cost_conservative,
+        "quality-first": _b.quality_first,
+        "cohort-pinned": _b.cohort_pinned,
+    }
+
+
+class _LazyStrategyFactoryMap:
+    """Dict-like wrapper that defers strategy imports to first use."""
+
+    def __init__(self):
+        self._cache: dict[str, Any] | None = None
+
+    def _ensure(self) -> dict[str, Any]:
+        if self._cache is None:
+            self._cache = _make_strategy_factories()
+        return self._cache
+
+    def get(self, key: str, default=None):
+        return self._ensure().get(key, default)
+
+
+_STRATEGY_FACTORIES = _LazyStrategyFactoryMap()
+
+
+def _records_the_answer(method):
+    """After a call, ``last_selected`` names the provider that answered, or None when none did.
+
+    Selection records the provider it chose; a call that then fails, is refused, or is answered by
+    another provider must not leave the reply stamp naming the chosen one (RS-B7, P0.4-A3).
+    """
+    import functools
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        resp = method(self, *args, **kwargs)
+        if not getattr(resp, "success", False):
+            # A provider that replied with a refusal about itself (too small for the request) is
+            # still the one the reply is from; a stub, a refusal before any call, or a failure is not.
+            chosen = self.last_selected
+            if chosen is None or getattr(resp, "provider", "") != chosen.name:
+                self.last_selected = None
+        return resp
+
+    return wrapper
+
+
+class Gateway:
+    """Model-agnostic LLM gateway with automatic fallback."""
+
+    def __init__(self, config_dir: Path | None = None):
+        if config_dir is None:
+            config_dir = default_providers_dir()
+        self.config_dir = config_dir
+        self.providers: list[LLMProvider] = []
+        self._provider_override: str | None = None
+        self._model_override: str | None = None
+        self._ec_audit_enabled: bool = False
+        # [gateway] block scalars from llm-providers.toml (excludes providers).
+        # See spec-model-routing §14.2: default_routing, auto_strategy.
+        self._gateway_config: dict[str, Any] = {}
+        #: Providers the gateway found by probing rather than reading from config (a server on
+        #: localhost:8080). Nobody chose them, so a default the platform does choose (the bound
+        #: node's model, for one) may set them aside.
+        self.auto_discovered: set[str] = set()
+        #: The plain sentence for the last call that got no answer (see :func:`plain_failure`).
+        self.last_failure: str | None = None
+        #: Why the providers file could not be loaded, in one sentence with one fix, or None. While
+        #: it is set no provider is used, none is discovered, and every call returns this sentence:
+        #: a damaged configuration must stop, never fall through to a stub or a model nobody chose.
+        self.config_problem: str | None = None
+        self._load_config()
+
+    # ------------------------------------------------------------------
+    # Tracing (ADR-071 seam)
+    #
+    # The gateway is the only place every provider call passes through, so it
+    # is where a trace belongs. Before this, tracing was wired into the
+    # research loop, the eval harness and classroom — but not here, so an
+    # ordinary chat turn produced nothing and a Langfuse instance would have
+    # shown no traffic from the surface that matters.
+    #
+    # Two rules, both tested: it costs nothing unless configured (the factory
+    # defaults to the null provider), and it can never cost a caller their
+    # answer — every call below swallows.
+    # ------------------------------------------------------------------
+
+    @property
+    def _tracer(self) -> Any:
+        tr = getattr(self, "_tracer_impl", None)
+        if tr is None:
+            try:
+                from axiom.infra.tracing.env import load_trace_config_from_env
+                from axiom.infra.tracing.factory import get_trace_provider
+
+                tr = get_trace_provider(load_trace_config_from_env())
+            except Exception as exc:  # noqa: BLE001 - never let tracing setup break a call
+                # Never break a call, but never go dark silently either: a node with
+                # Langfuse keys and no host used to lose every trace without a word (#1236).
+                log.warning("tracing disabled: the configured trace provider failed to build: %s", exc)
+                from axiom.infra.tracing.null_provider import NullTraceProvider
+
+                tr = NullTraceProvider()
+            self._tracer_impl = tr
+        return tr
+
+    def set_tracer(self, tracer: Any) -> None:
+        """Override the trace provider (tests, and a host that owns its own)."""
+        self._tracer_impl = tracer
+
+    def _trace_call(self, task: str, *, tier_hint: str | None, prompt: str) -> str:
+        """Open a trace for one gateway call. Returns "" if tracing is off or failed."""
+        try:
+            return (
+                self._tracer.start_trace(
+                    f"llm.{task}",
+                    task=task,
+                    tier_hint=tier_hint or "",
+                    prompt_chars=len(prompt or ""),
+                )
+                or ""
+            )
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _trace_generation(
+        self,
+        trace_id: str,
+        *,
+        model: str,
+        prompt: str,
+        output: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        provider: str = "",
+        error: str | None = None,
+    ) -> None:
+        """Record the generation on an open trace. No id means tracing is off."""
+        if not trace_id:
+            return
+        try:
+            self._tracer.log_generation(
+                trace_id,
+                model=model,
+                prompt=prompt,
+                output=output,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                provider=provider,
+                error=error or "",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    # ------------------------------------------------------------------
+    # Provider / model overrides (wired from --provider / --model flags)
+    # ------------------------------------------------------------------
+
+    def add_provider(self, provider: LLMProvider, *, first: bool = False) -> None:
+        """Offer one more provider, after the configured ones or ahead of them.
+
+        ``first`` places it ahead of every configured provider by priority;
+        an explicit ``--provider`` or a ``routing.prefer_provider`` setting
+        still wins, because those are the person's own choice. A name already
+        configured is left alone: the person's configuration is the authority.
+        """
+        if any(p.name == provider.name for p in self.providers):
+            return
+        if first and self.providers:
+            provider.priority = min(p.priority for p in self.providers) - 1
+        self.providers.append(provider)
+        self.providers.sort(key=lambda p: p.priority)
+
+    def set_provider_override(self, provider_name: str, *, content_tier: str = "any") -> None:
+        """Pin all requests to a specific named provider.
+
+        ``content_tier`` is the tier of what the caller's session already holds. When it is controlled
+        (``export_controlled``) and the target's tier does not admit it, the switch is refused with
+        :class:`~axiom.llm.tier_policy.ProviderNotAdmitted` and nothing is stored (issue #1136). The
+        refusal is audited. Selection re-checks every request, so a caller that sets the override
+        without this check still cannot send controlled content to a provider that may not have it.
+        """
+        if content_tier != "any" and any(p.name == provider_name for p in self.providers):
+            from axiom.llm.tier_policy import ProviderNotAdmitted, decide_switch
+
+            decision = decide_switch(self.providers, provider_name, content_tier)
+            if not decision.allowed:
+                try:
+                    from axiom.infra.routing_audit import log_routing_decision
+
+                    log_routing_decision(
+                        tier=content_tier,
+                        classifier="provider-switch",
+                        provider=provider_name,
+                        reason=f"switch refused: {decision.reason}",
+                    )
+                except Exception:  # noqa: BLE001 - the audit is best-effort; the refusal stands
+                    pass
+                raise ProviderNotAdmitted(decision)
+        self._provider_override = provider_name
+
+    def set_model_override(self, model_name: str) -> None:
+        """Override the model name on whichever provider is selected."""
+        self._model_override = model_name
+
+    # ------------------------------------------------------------------
+    # §14 auto-routing dispatch (spec-model-routing)
+    # ------------------------------------------------------------------
+
+    def _resolve_via_strategy(
+        self,
+        task: str,
+        *,
+        routing_tier: str = "any",
+        required_tags: set[str] | None = None,
+        tier_hint: str | None = None,
+    ) -> LLMProvider | None:
+        """Resolve a provider via ModelStrategy per §14.2.
+
+        Maps gateway state to a ModelContext + ProviderSpec list, dispatches
+        to the configured `auto_strategy`, then looks up the chosen provider
+        by name in self.providers. Returns None when no strategy is wired or
+        the strategy name is unknown — caller falls back to legacy
+        `_select_provider`.
+
+        Raises ModelStrategyUnsatisfiable upward when the strategy itself
+        runs but exhausts every candidate; caller handles the fallback.
+        """
+        from axiom.agents.strategy.types import (
+            CohortModelPolicy,
+            ModelContext,
+            ModelRole,
+            ProviderSpec,
+            UserModelPolicy,
+        )
+        from axiom.llm.tier_policy import admits as tier_admits
+        from axiom.vega.federation.policy import ClassificationStamp
+
+        strategy_name = self._gateway_config.get("auto_strategy", "cost-conservative")
+        factory = _STRATEGY_FACTORIES.get(strategy_name)
+        if factory is None:
+            log.warning(
+                "Unknown auto_strategy %r; falling back to legacy selection",
+                strategy_name,
+            )
+            return None
+
+        # Build the candidate ProviderSpec list from currently-loaded
+        # providers. Filter by api_key presence to mirror legacy hygiene.
+        #
+        # Clearance for controlled content comes only from the declared ``routing_tier``. The strategy
+        # admits its ``private`` network tier for controlled work, and ``requires_vpn`` maps a provider
+        # to that tier for reachability, so a provider not declared ``export_controlled`` is left out
+        # of a controlled request's candidates: the VPN alone never clears it (P0.3).
+        controlled = routing_tier == "export_controlled"
+        specs: list[ProviderSpec] = []
+        for p in self.providers:
+            if not p.api_key:
+                continue
+            if controlled and not tier_admits(p.routing_tier, routing_tier):
+                continue
+            tier = "private" if p.requires_vpn else (
+                "private" if p.routing_tier == "export_controlled" else "public"
+            )
+            specs.append(
+                ProviderSpec(
+                    name=p.name,
+                    tier=tier,
+                    model=p.model,
+                    estimated_cost_per_1k_tokens_usd=0.0,
+                )
+            )
+        if not specs:
+            return None
+
+        # Network reachability: respect tier without doing live VPN probes
+        # here (legacy path already does its own probe). Strategy survivors
+        # are pruned by tier anyway.
+        reachable = frozenset({"public", "private"})
+
+        ctx = ModelContext(
+            classification=ClassificationStamp.unclassified()
+            if routing_tier != "export_controlled"
+            else ClassificationStamp(level="cui"),
+            budget_remaining_usd=10.0,
+            network_reachable=reachable,
+            user_policy=UserModelPolicy(),
+            cohort_policy=CohortModelPolicy(),
+            available_providers={},
+            tier_hint=tier_hint,
+        )
+
+        strategy = factory(providers=specs)
+        choice = strategy.resolve(ModelRole.EXECUTOR, ctx)
+        for p in self.providers:
+            if p.name == choice.provider and tier_admits(p.routing_tier, routing_tier):
+                return self._apply_model_override(p)
+        return None
+
+    # ------------------------------------------------------------------
+    # Routing-aware provider selection
+    # ------------------------------------------------------------------
+
+    #: The provider the most recent selection chose (ADR-168). ``active_provider`` is only the first usable
+    #: provider in the list: it ignores an override and the request's tier, so a display built from it can
+    #: name a model that never answered. A stamp reads this. None before any selection and after a refusal.
+    last_selected: LLMProvider | None = None
+    #: Set by ``_load_config`` when the providers file cannot be loaded (see ``_config_damaged``).
+    config_problem: str | None = None
+
+    def _select_provider(
+        self,
+        task: str,
+        routing_tier: str = "any",
+        required_tags: set[str] | None = None,
+        prefer: str | None = None,
+    ) -> LLMProvider | None:
+        """Select a provider (see :meth:`_select_provider_impl`) and record what was chosen."""
+        chosen = self._select_provider_impl(task, routing_tier, required_tags, prefer)
+        self.last_selected = chosen
+        return chosen
+
+    def preview_provider(self, routing_tier: str = "any") -> LLMProvider | None:
+        """Predict the provider the next call would use, with no side effect and no network.
+
+        For an always-visible indicator: it honors an admitted override, otherwise the first usable provider
+        (in priority order) the tier admits. It does not probe VPN reachability and it does not record a
+        selection. It is a prediction; the reply's stamp (``last_selected``) is the truth.
+        """
+        from axiom.llm.tier_policy import admits
+
+        if self._provider_override:
+            for p in self.providers:
+                if p.name == self._provider_override and admits(p.routing_tier, routing_tier):
+                    return p
+        for p in self.providers:
+            if (p.api_key or not p.api_key_env) and admits(p.routing_tier, routing_tier):
+                return p
+        return None
+
+    def _select_provider_impl(
+        self,
+        task: str,
+        routing_tier: str = "any",
+        required_tags: set[str] | None = None,
+        prefer: str | None = None,
+    ) -> LLMProvider | None:
+        """Select the best available provider for a task + routing tier + tags.
+
+        Priority order:
+          1. --provider CLI override (if set, use that provider regardless of tier/tags)
+          2. prefer_provider chain (from settings) — tries each in order, skips VPN
+             providers whose endpoint is unreachable
+          3. Candidates matching routing_tier AND required_tags (if any), filtered
+             by task + api_key, sorted by priority
+          4. Relax constraints as last resort
+
+        Args:
+            routing_tier:  "public" | "export_controlled" | "any" (legacy binary)
+            required_tags: Facility-policy tags that must ALL appear in the
+                           provider's routing_tags list.  Empty set = no filter.
+                           Example: {"restricted"} routes only to providers tagged "restricted".
+        """
+        # Override: respected, EXCEPT that it can never downgrade an export-controlled request
+        # (issue #1136). It used to be honored "unconditionally", before any tier logic, so any caller
+        # that set it directly could send controlled content to a provider that may not have it. An
+        # override that does not admit the request falls through to the tier-safe selection below,
+        # which returns a cleared provider or None (the caller then fails closed).
+        if self._provider_override:
+            for p in self.providers:
+                # is_usable, not api_key: a keyless local provider (empty api_key_env) needs no key, and
+                # prefer= and preview_provider() already accept it, so pinning one must work too.
+                if p.name == self._provider_override and p.is_usable:
+                    from axiom.llm.tier_policy import admits
+
+                    if admits(p.routing_tier, routing_tier):
+                        return self._apply_model_override(p)
+                    log.warning(
+                        "provider override %r ignored for a %s request: its tier is %s",
+                        p.name, routing_tier, p.routing_tier,
+                    )
+                    break
+            else:
+                print(
+                    f"Warning: provider '{self._provider_override}' not found, or its API key is not set.",
+                    file=sys.stderr,
+                )
+
+        # Per-request explicit provider (e.g. the request's model field maps to
+        # a configured provider name) WINS over the ambient settings default —
+        # an explicit per-call choice should beat a standing preference. Still
+        # tier-gated: never relax an EC request to a non-EC provider.
+        if prefer:
+            for p in self.providers:
+                if p.name != prefer or not p.is_usable:
+                    continue
+                if routing_tier == "export_controlled" and p.routing_tier != "export_controlled":
+                    break  # EC may not be downgraded; fall through to safe selection
+                return self._apply_model_override(p)
+
+        # Check if user has a preferred provider chain
+        try:
+            from axiom.extensions.builtins.settings.store import SettingsStore
+
+            settings = SettingsStore()
+            prefer_setting = settings.get("routing.prefer_provider", [])
+
+            # Normalize: accept list or comma-separated string
+            if isinstance(prefer_setting, str):
+                chain = [n.strip() for n in prefer_setting.split(",") if n.strip()]
+            else:
+                chain = list(prefer_setting) if prefer_setting else []
+
+            if chain:
+                condition = settings.get("routing.prefer_when", "reachable")
+                for pref_name in chain:
+                    for p in self.providers:
+                        if p.name != pref_name or not p.api_key:
+                            continue
+                        # Never route EC content to a non-EC provider via the
+                        # prefer chain — tier must match exactly for EC requests.
+                        if (
+                            routing_tier == "export_controlled"
+                            and p.routing_tier != "export_controlled"
+                        ):
+                            continue
+                        if condition == "always":
+                            return self._apply_model_override(p)
+                        elif condition == "reachable":
+                            if p.requires_vpn:
+                                if self._check_vpn(p):
+                                    return self._apply_model_override(p)
+                            else:
+                                return self._apply_model_override(p)
+        except Exception:
+            pass
+
+        def _tier_match(p: LLMProvider) -> bool:
+            if routing_tier == "any":
+                return True
+            if routing_tier == "export_controlled":
+                # EC requests must go to an explicitly EC-cleared provider.
+                # A provider tagged "any" is NOT EC-cleared — it means
+                # "no restriction on my side" which only applies to public content.
+                return p.routing_tier == "export_controlled"
+            # public or other tiers: accept exact match or "any"
+            return p.routing_tier in (routing_tier, "any")
+
+        def _tags_match(p: LLMProvider) -> bool:
+            if not required_tags:
+                return True
+            provider_tags = set(p.routing_tags)
+            return required_tags.issubset(provider_tags)
+
+        def _usable(p: LLMProvider) -> bool:
+            return p.is_usable
+
+        candidates = [
+            p
+            for p in self.providers
+            if (task in p.use_for or "fallback" in p.use_for)
+            and _tier_match(p)
+            and _tags_match(p)
+            and _usable(p)
+        ]
+        if not candidates:
+            # Relax tag constraint, keep tier
+            candidates = [p for p in self.providers if _tier_match(p) and _usable(p)]
+        if not candidates and routing_tier != "export_controlled":
+            # Relax tier as last resort — but NEVER for export_controlled.
+            # Sending EC content to a public cloud provider is a compliance
+            # violation; return None so the caller can surface a clear message.
+            candidates = [p for p in self.providers if _usable(p)]
+
+        # Tier-checked preference: honor a requested provider only if it is
+        # already a tier-allowed candidate, so a flip can never escape the
+        # classified tier / EC fail-closed. Unknown/disallowed -> ignored.
+        if prefer:
+            for c in candidates:
+                if c.name == prefer:
+                    return self._apply_model_override(c)
+
+        candidates.sort(key=lambda p: p.priority)
+        return self._apply_model_override(candidates[0]) if candidates else None
+
+    def _apply_model_override(self, provider: LLMProvider) -> LLMProvider:
+        """Return a copy of the provider with model_override applied, if set."""
+        if self._model_override and provider.model != self._model_override:
+            from dataclasses import replace
+
+            return replace(provider, model=self._model_override)
+        return provider
+
+    def _check_vpn(self, provider: LLMProvider) -> bool:
+        """Quick TCP reachability check for VPN-gated providers (1s timeout)."""
+        import socket
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(provider.endpoint)
+            host = parsed.hostname or ""
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            with socket.create_connection((host, port), timeout=1.0):
+                return True
+        except OSError:
+            return False
+
+    def _load_config(self):
+        """Load LLM provider config from llm-providers.toml (previously models.toml)."""
+        # Support both names during migration; prefer llm-providers.toml
+        providers_path = self.config_dir / "llm-providers.toml"
+        if not providers_path.exists():
+            providers_path = self.config_dir / "models.toml"
+        if not providers_path.exists():
+            # No config file — still try local LLM discovery
+            self._discover_local_llm()
+            return
+        models_path = providers_path
+
+        try:
+            from axiom.infra.toml_compat import tomllib
+
+            with open(models_path, "rb") as f:
+                config = tomllib.load(f)
+            gateway_config = config.get("gateway", {})
+            if not isinstance(gateway_config, dict):
+                raise ValueError("[gateway] must be a table")
+            providers = gateway_config.get("providers", [])
+            if not isinstance(providers, list) or not all(isinstance(p, dict) for p in providers):
+                raise ValueError("[[gateway.providers]] must be a list of tables")
+        except Exception as e:  # noqa: BLE001 - every way a file cannot be read is the same stop
+            self._config_damaged(models_path, e)
+            return
+
+        try:
+            # Stash non-provider gateway scalars for §14 auto-routing dispatch.
+            self._gateway_config = {
+                k: v for k, v in gateway_config.items() if k != "providers"
+            }
+
+            seen_names: set[str] = set()
+            seen_uids: dict[str, str] = {}  # uid → display name of first occurrence
+            for p in providers:
+                pname = p.get("name", "")
+                if not pname:
+                    log.error(
+                        "Provider entry missing required 'name' field — skipped. "
+                        "Every provider must have a unique, stable 'name' in llm-providers.toml."
+                    )
+                    continue
+                if pname in seen_names:
+                    log.error(
+                        "Duplicate provider name '%s' in llm-providers.toml — second entry skipped. "
+                        "Provider names must be unique within a config file.",
+                        pname,
+                    )
+                    continue
+                puid = p.get("uid", "")
+                if puid and puid in seen_uids:
+                    log.error(
+                        "Duplicate provider uid '%s' in llm-providers.toml — '%s' skipped "
+                        "(uid already used by '%s'). Assign a unique uid to resolve the conflict.",
+                        puid,
+                        pname,
+                        seen_uids[puid],
+                    )
+                    continue
+                seen_names.add(pname)
+                if puid:
+                    seen_uids[puid] = pname
+                self.providers.append(
+                    LLMProvider(
+                        name=pname,
+                        uid=p.get("uid", ""),
+                        endpoint=p.get("endpoint", ""),
+                        model=p.get("model", ""),
+                        api_key_env=p.get("api_key_env", ""),
+                        priority=p.get("priority", 99),
+                        use_for=p.get("use_for", ["fallback"]),
+                        routing_tier=p.get("routing_tier", "any"),
+                        routing_tags=p.get("routing_tags", []),
+                        requires_vpn=p.get("requires_vpn", False),
+                        verify_ssl=p.get("verify_ssl", True),
+                        tool_mode=p.get("tool_mode", "auto"),
+                        max_tokens_default=p.get("max_tokens_default", 0),
+                        transport=p.get("transport", "direct"),
+                        placement=p.get("placement", ""),
+                        node_host=p.get("node_host", ""),
+                        cost_per_1k_input=p.get("cost_per_1k_input"),
+                        cost_per_1k_output=p.get("cost_per_1k_output"),
+                        context_window=int(p.get("context_window", 0) or 0),
+                        token_limit_param=p.get("token_limit_param", ""),
+                        request_timeout_s=float(p.get("request_timeout_s", 0) or 0),
+                        reasoning_effort=str(p.get("reasoning_effort", "") or ""),
+                        reasoning_param=str(p.get("reasoning_param", "") or ""),
+                    )
+                )
+
+            # Sort by priority
+            self.providers.sort(key=lambda p: p.priority)
+
+            # Log the loaded provider identities for the session audit record
+            for provider in self.providers:
+                log.info(
+                    "Provider loaded: %s (uid=%s, config_hash=%s, instance=%s)",
+                    provider.name,
+                    provider.uid[:8],
+                    provider.config_hash,
+                    provider.instance_id,
+                )
+
+            # Activate EC audit mode if any EC providers are configured
+            ec_count = sum(1 for p in self.providers if p.routing_tier == "export_controlled")
+            try:
+                from axiom.infra.audit_log import AuditLog
+
+                audit = AuditLog.get()
+                if ec_count > 0:
+                    try:
+                        audit.set_mode("ec")
+                        self._ec_audit_enabled = True
+                    except ValueError:
+                        # Said as it is (#1710 item 2): nothing blocks these requests, and the
+                        # audit log stays in standard mode, which writes no routing record.
+                        log.warning(
+                            "EC providers configured but AXIOM_AUDIT_HMAC_KEY is not set: "
+                            "export-controlled requests are served, and no audit record of them "
+                            f"is written. Fix: run '{_brand_cli()} setup audit-key'."
+                        )
+                        self._ec_audit_enabled = False
+                else:
+                    self._ec_audit_enabled = False
+                audit.write_config_load(
+                    config_file=str(models_path),
+                    providers=[p.identity for p in self.providers],
+                    ec_providers_count=ec_count,
+                )
+            except Exception as exc:
+                log.warning("audit_log config_load write failed: %s", exc)
+
+        except Exception as e:  # noqa: BLE001 - a provider entry that cannot be built is damage too
+            self._config_damaged(models_path, e)
+            return
+
+        # Auto-discover a local LLM server (bundled llamafile via K3D) only when no provider is
+        # configured. With providers configured, whatever listens on localhost:8080 on a shared
+        # machine is nobody's choice: registered, it answered silently when the configured
+        # provider failed, and a provider's failure must be the answer's error, said plainly.
+        if not self.providers:
+            self._discover_local_llm()
+
+    def _config_damaged(self, path: Path, exc: Exception) -> None:
+        """Stop on a providers file that cannot be loaded: one sentence, one fix, no providers."""
+        reason = " ".join(str(exc).split()) or type(exc).__name__
+        self.providers = []
+        self.config_problem = (
+            f"The model provider file {path} cannot be loaded ({reason}). "
+            f"Fix: correct it by hand, or move it aside with `mv '{path}' '{path}.bad'` to start "
+            "with no providers."
+        )
+        log.error("%s", self.config_problem)
+
+    def _discover_local_llm(self) -> None:
+        """Probe for a local LLM server on the default port.
+
+        If an OpenAI-compatible server is running at localhost:8080 and no
+        other providers are configured, register it as a fallback provider.
+        This enables zero-config LLM access from the embedded local model
+        deployed by `axi config` / `axi infra`.
+
+        It is registered only when ``/v1/models`` lists a model, and under the
+        model the server names. Something else holding the port (a k3d load
+        balancer, a web app) is not a model server and is never registered.
+
+        Never while the providers file is damaged: a model found by probing would answer in place
+        of the configuration the operator wrote, which is the silent fallback RS-B7 forbids.
+        """
+        if self.config_problem:
+            return
+        # Don't add if we already have a provider for this endpoint
+        if any("localhost:8080" in (p.endpoint or "") for p in self.providers):
+            return
+
+        import socket
+
+        try:
+            with socket.create_connection(("localhost", 8080), timeout=0.5):
+                reachable = True
+        except OSError:
+            reachable = False
+
+        # An open port is not a model server. On a node whose k3d load balancer
+        # holds :8080 with nothing behind it, registering it made every chat fail
+        # with "Remote end closed connection without response". Only a server
+        # that lists a model is registered.
+        model_id = _listed_model_id("http://localhost:8080") if reachable else None
+        if reachable and model_id is None:
+            log.warning(
+                "localhost:8080 accepts connections but lists no model at /v1/models; "
+                "not registering it as an LLM provider. Declare providers in "
+                "llm-providers.toml (looked in %s).", self.config_dir,
+            )
+        if model_id:
+            self.providers.append(
+                LLMProvider(
+                    name="axiom-local",
+                    uid=f"axiom-local-{model_id}",
+                    endpoint="http://localhost:8080",
+                    model=model_id,
+                    api_key_env="",  # no key needed
+                    priority=50,
+                    use_for=["fallback", "diagnosis", "classification"],
+                    routing_tier="public",
+                    routing_tags=[],
+                    requires_vpn=False,
+                    verify_ssl=False,
+                    max_tokens_default=2048,
+                )
+            )
+            # Re-sort by priority
+            self.providers.sort(key=lambda p: p.priority)
+            if not hasattr(self, "auto_discovered"):
+                self.auto_discovered = set()
+            self.auto_discovered.add("axiom-local")
+            log.info("Auto-discovered local LLM server at localhost:8080")
+
+    @property
+    def available(self) -> bool:
+        """Whether any usable providers are configured.
+
+        A provider is usable if it has an API key OR if it's a local
+        server (no key required, identified by empty api_key_env).
+        """
+        return any(p.api_key or not p.api_key_env for p in self.providers)
+
+    @property
+    def active_provider(self) -> LLMProvider | None:
+        """Return the first usable provider, or None."""
+        for p in self.providers:
+            if p.api_key or not p.api_key_env:
+                return p
+        return None
+
+    # ------------------------------------------------------------------
+    # Original complete() — unchanged for backward compatibility
+    # ------------------------------------------------------------------
+
+    @_records_the_answer
+    def complete(
+        self,
+        prompt: str,
+        system: str = "",
+        task: str = "extraction",
+        max_tokens: int = 2000,
+        tier_hint: str | None = None,
+    ) -> GatewayResponse:
+        """Send a completion request to the resolved provider.
+
+        Routing per spec-model-routing §14:
+        - When `[gateway].default_routing == "auto"` and no provider
+          override is set, resolve via ModelStrategy (`auto_strategy`).
+        - Otherwise (or as fallback) use the legacy `_select_provider`
+          path, which honors `--provider` overrides and the
+          `routing.prefer_provider` chain.
+
+        `tier_hint` (simple|standard|smart|smartest) is threaded into the
+        ModelContext per §14.3 and may bias survivor selection in future
+        strategies; ignored by today's built-ins.
+        """
+        provider = self._select_with_routing(task, tier_hint=tier_hint)
+        if provider is None and self.config_problem:
+            return GatewayResponse(
+                text=self.config_problem, provider="", success=False, error=PROVIDERS_FILE_DAMAGED
+            )
+        if provider is None:
+            names = ", ".join(p.name for p in self.providers) or "(none configured)"
+            return GatewayResponse(
+                text="LLM extraction unavailable — raw text preserved in signal.",
+                provider="stub",
+                success=False,
+                error=f"No usable LLM provider for task={task!r}. Configured: {names}.",
+            )
+        candidates = self._ordered_candidates(provider)
+        trace_id = self._trace_call(task, tier_hint=tier_hint, prompt=prompt)
+        try:
+            resp = self._attempt_providers(
+                candidates,
+                lambda p: self._call_provider(p, prompt, system, max_tokens),
+            )
+            self._trace_generation(
+                trace_id,
+                model=getattr(resp, "model", "") or "",
+                prompt=prompt,
+                output=getattr(resp, "text", "") or "",
+                provider=getattr(resp, "provider", "") or "",
+                error=getattr(resp, "error", None),
+            )
+            return resp
+        except LLMGatewayError as e:
+            self._trace_generation(
+                trace_id, model="", prompt=prompt, output="", error=str(e)
+            )
+            # Real, self-describing reason (status+body, which providers). Keep
+            # the graceful-degradation contract (caller relies on the stub +
+            # preserved raw text) but make the failure self-explanatory.
+            print(f"Warning: {e}", file=sys.stderr)
+            return GatewayResponse(
+                text="LLM extraction unavailable — raw text preserved in signal.",
+                provider="stub",
+                success=False,
+                error=str(e),
+            )
+
+    def _select_with_routing(
+        self,
+        task: str,
+        *,
+        routing_tier: str = "any",
+        required_tags: set[str] | None = None,
+        tier_hint: str | None = None,
+    ) -> LLMProvider | None:
+        """Dispatch between auto-strategy and legacy `_select_provider`.
+
+        Provider override (set_provider_override) is honored in both paths
+        via `_select_provider` step 1, so it always wins.
+        """
+        from axiom.agents.strategy.strategy import ModelStrategyUnsatisfiable
+
+        mode = self._gateway_config.get("default_routing", "pinned")
+        if mode == "auto" and not self._provider_override:
+            try:
+                picked = self._resolve_via_strategy(
+                    task,
+                    routing_tier=routing_tier,
+                    required_tags=required_tags,
+                    tier_hint=tier_hint,
+                )
+                if picked is not None:
+                    return picked
+            except ModelStrategyUnsatisfiable as exc:
+                log.warning(
+                    "auto-strategy unsatisfiable (%s); falling back to legacy selection",
+                    exc,
+                )
+            # Strategy returned None or raised — fall through to legacy.
+
+        return self._select_provider(
+            task, routing_tier=routing_tier, required_tags=required_tags
+        )
+
+    def _ordered_candidates(
+        self,
+        primary: LLMProvider,
+        *,
+        routing_tier: str = "any",
+    ) -> list[LLMProvider]:
+        """Ordered fallback list: the resolved provider first, then every other
+        usable provider compatible with ``routing_tier`` in priority order.
+
+        EC requests never widen to non-EC providers (compliance) — they fall
+        back only among other export_controlled providers.
+
+        RATIONALIZE-4: when ``primary`` is a LiteLLM router group
+        (``transport == "litellm"``) the within-tier mechanics — fallback,
+        retry, load-balance — belong to LiteLLM, not Axiom. We return ONLY the
+        group so the gateway makes a single call to the group endpoint and lets
+        LiteLLM fan out across the group's members. Axiom keeps the policy seam
+        above this (tier/tag selection + EC-never-relaxes); it just stops
+        double-doing the transport's job.
+        """
+        if primary.transport == "litellm":
+            return [primary]
+
+        ordered = [primary]
+        seen = {primary.name}
+        for p in self.providers:
+            if p.name in seen:
+                continue
+            if not (p.api_key or not p.api_key_env):
+                continue
+            if routing_tier == "export_controlled" and p.routing_tier != "export_controlled":
+                continue
+            ordered.append(p)
+            seen.add(p.name)
+        return ordered
+
+    def _attempt_providers(
+        self,
+        providers: list[LLMProvider],
+        call,
+    ):
+        """Try each provider in order, capturing the REAL failure reason per
+        provider. Returns the first success.
+
+        Behavior (mirrors embeddings.py error semantics):
+          * PersistentLLMError (4xx — bad auth/model/payload): do NOT silently
+            fall back. Re-raise immediately so the real reason surfaces.
+          * TransientLLMError / other (network/timeout/429/5xx): record the
+            real status+body and try the next provider.
+          * All providers exhausted → raise TransientLLMError naming WHICH
+            providers failed and WHY (no generic "LLM unavailable").
+
+        ``call`` is ``(provider) -> response``. Raises on total failure; the
+        caller decides whether to convert to a graceful stub or propagate.
+        """
+        failures: list[LLMGatewayError] = []
+        for provider in providers:
+            try:
+                resp = call(provider)
+                # The provider that answered, which after a fallback is not the one selected.
+                self.last_selected = provider
+                return resp
+            except PersistentLLMError as exc:
+                exc.provider = exc.provider or provider.name
+                log.warning(
+                    "Provider %s rejected request (persistent, HTTP %s): %s",
+                    provider.name, exc.status, (exc.body or "")[:200],
+                )
+                raise
+            except Exception as exc:  # noqa: BLE001 — classify everything else
+                err = _classify_http_error(exc, provider=provider.name)
+                if isinstance(err, PersistentLLMError):
+                    log.warning(
+                        "Provider %s rejected request (persistent, HTTP %s): %s",
+                        provider.name, err.status, (err.body or "")[:200],
+                    )
+                    raise err from exc
+                failures.append(err)
+                log.warning(
+                    "Provider %s failed transiently (%s) — trying next provider",
+                    provider.name, err,
+                )
+        # Every provider failed transiently — name each one and why.
+        reasons = "; ".join(str(f) for f in failures) or "no providers attempted"
+        names = ", ".join(p.name for p in providers) or "(none)"
+        raise TransientLLMError(
+            f"all LLM providers failed (tried: {names}) — {reasons}",
+            provider="all",
+        )
+
+    def _call_provider(
+        self,
+        provider: LLMProvider,
+        prompt: str,
+        system: str,
+        max_tokens: int,
+    ) -> GatewayResponse:
+        """Call a specific provider using the OpenAI chat completions format."""
+        if provider.endpoint.startswith("claude-code"):
+            ok, text = self._run_claude_code(prompt, system)
+            return GatewayResponse(
+                text=text if ok else "",
+                provider=provider.name,
+                success=ok,
+                error=None if ok else text,
+            )
+
+        try:
+            import requests
+        except ImportError:
+            raise RuntimeError("requests library required for LLM calls")
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        headers = {"Content-Type": "application/json"}
+        if provider.api_key:
+            headers["Authorization"] = f"Bearer {provider.api_key}"
+
+        # Handle Anthropic's different API format
+        if "anthropic" in provider.endpoint.lower():
+            headers = {
+                "x-api-key": provider.api_key or "",
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": provider.model,
+                "max_tokens": _floor_max_tokens(provider, max_tokens),
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if system:
+                payload["system"] = system
+
+            url = provider.endpoint.rstrip("/") + "/messages"
+            response = _post_with_rate_limit_retry(requests, url, payload, headers, timeout=_request_timeout(provider, 60), verify=provider.verify_ssl)
+            data = response.json()
+            text = data.get("content", [{}])[0].get("text", "")
+        else:
+            # Standard OpenAI-compatible format
+            payload = {
+                "model": provider.model,
+                "messages": messages,
+                **_openai_token_limit(provider, max_tokens),
+                **_reasoning_fields(provider, None),
+            }
+
+            url = provider.endpoint.rstrip("/") + "/chat/completions"
+            response = _post_with_rate_limit_retry(requests, url, payload, headers, timeout=_request_timeout(provider, 60), verify=provider.verify_ssl)
+            data = response.json()
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        return GatewayResponse(
+            text=text,
+            provider=provider.name,
+            model=provider.model,
+            success=True,
+        )
+
+    # ------------------------------------------------------------------
+    # New: Native tool-use (non-streaming)
+    # ------------------------------------------------------------------
+
+    def _write_routing_audit(self, **fields: Any) -> None:
+        """Write one routing audit record, best-effort.
+
+        Audit failures must never fail a completion, so this swallows. Shared by
+        the success path and the refusal paths so a new field cannot be added to
+        one and forgotten in the other.
+        """
+        try:
+            from axiom.infra.audit_log import AuditLog
+            from axiom.infra.trace import current_session
+
+            AuditLog.get().write_routing(session_id=current_session(), **fields)
+        except Exception:
+            pass
+
+    @_records_the_answer
+    def complete_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        system: str = "",
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int = 4096,
+        task: str = "chat",
+        routing_tier: str = "any",
+        routing_tags: set[str] | None = None,
+        routing_decision: RoutingDecision | None = None,
+        prefer: str | None = None,
+        principal: str | None = None,
+        reasoning_effort: str | None = None,
+    ) -> CompletionResponse:
+        """Send a completion request with native tool-use support.
+
+        Args:
+            messages: Conversation history in API format (list of role/content dicts).
+            system: System prompt.
+            tools: Tool definitions in OpenAI function-calling format.
+            max_tokens: Maximum tokens to generate.
+            task: Task type for provider selection.
+            routing_tier:  "public" | "export_controlled" | "any"
+            routing_tags:  Optional set of facility-policy tags that the selected
+                           provider must carry (e.g. {"restricted"}, {"internal_compute"}).
+                           None = no tag filter.
+            routing_decision:
+                Optional ``RoutingDecision`` produced by the upstream
+                router. When provided and a request is blocked, the
+                user-visible error surfaces the matched keyword(s) and
+                classifier stage so the user immediately knows *why*
+                routing fired and *which* classifier decided —
+                without needing to ``axi log routing``.
+
+        Returns:
+            CompletionResponse with text and tool_use blocks separated.
+        """
+        self.last_failure: str | None = None
+        guard = _TurnGuard(self, messages, routing_tier, principal)
+
+        provider = self._select_provider(task, routing_tier, routing_tags, prefer=prefer)
+        if provider is None and self.config_problem:
+            return CompletionResponse(
+                text=self.config_problem, provider="", success=False, error=PROVIDERS_FILE_DAMAGED
+            )
+        if provider is None:
+            if routing_tier == "export_controlled":
+                return CompletionResponse(
+                    text=_format_ec_block_message(routing_decision),
+                    provider="stub",
+                    success=False,
+                    error="EC_PROVIDER_NOT_CONFIGURED",
+                )
+            names = ", ".join(p.name for p in self.providers) or "(none configured)"
+            return CompletionResponse(
+                text="LLM unavailable — no providers configured.",
+                provider="stub",
+                success=False,
+                error=(
+                    f"No usable LLM provider for task={task!r}, tier={routing_tier!r}. "
+                    f"Configured: {names}."
+                ),
+            )
+
+        if provider.requires_vpn:
+            import time as _time
+
+            vpn_start = _time.monotonic()
+            vpn_ok = self._check_vpn(provider)
+            vpn_ms = int((_time.monotonic() - vpn_start) * 1000)
+            try:
+                from axiom.infra.audit_log import AuditLog
+
+                AuditLog.get().write_vpn(
+                    routing_event_id=str(__import__("uuid").uuid4()),
+                    provider_name=provider.name,
+                    vpn_reachable=vpn_ok,
+                    check_duration_ms=vpn_ms,
+                )
+            except Exception:
+                pass
+            if not vpn_ok:
+                return self._handle_vpn_unavailable(provider, task, routing_tier)
+
+        # The last gate before anything leaves the process. Deliberately *after* provider selection and
+        # the VPN check: those refusals carry the messages an operator most often needs ("no EC provider
+        # configured", "VPN down"), and putting attribution ahead of them would bury the common cause
+        # behind a rarer one. Nothing is leaked by checking later: selection is local, and no controlled
+        # content is sent unattributed either way.
+        refused = guard.refusal(provider)
+        if refused is not None:
+            return refused
+
+        try:
+            response = self._call_provider_with_tools(
+                provider, messages, guard.system(system), tools, max_tokens, **_effort_kw(reasoning_effort)
+            )
+            reply = response.text
+            # The reasoning too: a surface may show it to a person.
+            warning = guard.scan("\n\n".join(t for t in (reply, response.reasoning) if t), provider)
+            if warning:
+                response = replace(response, text=warning + "\n\n" + reply)
+            guard.record(provider, reply)
+            return response
+        except Exception as e:
+            # Capture the REAL upstream reason (status + body) instead of a
+            # generic "provider call failed". Persistent (4xx) vs transient
+            # (network/429/5xx) is recorded in the error type + message so the
+            # caller and logs see why, not a guess.
+            err = _classify_http_error(e, provider=provider.name)
+            kind = "persistent" if isinstance(err, PersistentLLMError) else "transient"
+            print(f"Warning: provider {provider.name} failed ({kind}): {err}", file=sys.stderr)
+            if _too_large_for_provider(err):
+                return CompletionResponse(
+                    text=_context_exceeded_message(
+                        provider, err, messages=messages, system=system, tools=tools
+                    ),
+                    provider=provider.name,
+                    model=provider.model,
+                    success=False,
+                    error=CONTEXT_WINDOW_EXCEEDED,
+                )
+            # Said as the answer, in words: a refusal or a timeout is the reply, never a
+            # placeholder that a reader could take for one.
+            self.last_failure = plain_failure(err, provider)
+            return CompletionResponse(
+                text=self.last_failure,
+                provider="stub",
+                success=False,
+                error=str(err),
+            )
+
+    # ---------------------------------------------------------------------------
+    # Security helpers — system prompt hardening + response scanning
+    # ---------------------------------------------------------------------------
+
+    def _handle_vpn_unavailable(
+        self, vpn_provider: LLMProvider, task: str, routing_tier: str
+    ) -> CompletionResponse:
+        """Handle VPN model unreachable — clear guidance on reconnecting."""
+        from axiom.extensions.builtins.settings.store import SettingsStore
+
+        try:
+            policy = str(SettingsStore().get("routing.on_vpn_unavailable", "warn") or "warn")
+        except Exception:
+            policy = "warn"
+        # Selection recorded the VPN provider; it did not answer. Nothing below answers either.
+        self.last_selected = None
+
+        # Pull VPN-specific guidance from the connection registry
+        vpn_name = ""
+        connect_guide = ""
+        try:
+            from axiom.infra.connections import get_registry
+
+            conn = get_registry().get(vpn_provider.name)
+            if conn:
+                vpn_name = conn.vpn_name
+                connect_guide = conn.vpn_connect_guide
+        except Exception:
+            pass
+
+        # Build clear, concise message
+        provider_label = vpn_name or vpn_provider.name
+        lines = [
+            f"Cannot reach {provider_label} — VPN not connected.",
+            "",
+        ]
+        if connect_guide:
+            lines.append(f"  To connect: {connect_guide}")
+        else:
+            lines.append("  Connect to your facility VPN and retry.")
+        lines.append("")
+        lines.append("  Your query was classified as export-controlled and requires")
+        lines.append(f"  the private endpoint ({vpn_provider.name}) which is VPN-gated.")
+        lines.append("")
+        lines.append("  Options:")
+        lines.append("    1. Connect to VPN and retry")
+        lines.append("    2. Rephrase as a general (non-EC) question")
+        lines.append("    3. Use --mode public to force public routing (no EC data)")
+
+        msg = "\n".join(lines)
+
+        if policy in ("block", "fail"):  # "fail" is the older name of "block"
+            # No other provider is looked at: the operator chose to stop here.
+            return CompletionResponse(
+                text=f"{msg}\n\n  Blocked by routing.on_vpn_unavailable = block.",
+                provider="stub",
+                success=False,
+                error=VPN_BLOCKED,
+            )
+
+        # "warn" and "silent": look for a public provider to name in the error. Looking is not
+        # answering, so the look is not recorded as the selection.
+        fallback = self._select_provider_impl(task, "public")
+        if fallback is None:
+            return CompletionResponse(
+                text=msg,
+                provider="stub",
+                success=False,
+                error="VPN not connected, no public provider available.",
+            )
+
+        if policy != "silent":
+            print(msg, file=sys.stderr)
+        return CompletionResponse(
+            text=msg,
+            provider="stub",
+            success=False,
+            error="VPN not connected.",
+        )
+
+    def _call_provider_with_tools(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+        *,
+        reasoning_effort: str | None = None,
+    ) -> CompletionResponse:
+        """Call a provider with native tool-use params and normalize the response."""
+        try:
+            import requests  # noqa: F401
+        except ImportError:
+            raise RuntimeError("requests library required for LLM calls")
+
+        if provider.endpoint.startswith("claude-code"):
+            return self._call_claude_code_with_tools(provider, messages, system)
+
+        is_anthropic = "anthropic" in provider.endpoint.lower()
+
+        if is_anthropic:
+            return self._call_anthropic_with_tools(provider, messages, system, tools, max_tokens)
+        else:
+            return self._call_openai_with_tools(provider, messages, system, tools, max_tokens,
+                                                **_effort_kw(reasoning_effort))
+
+    def _run_claude_code(self, prompt: str, system: str) -> tuple[bool, str]:
+        """Run native Claude Code headless (``claude -p``) as the backend.
+
+        Rides the user's existing Claude Code login — no API key. The
+        subprocess env drops ``ANTHROPIC_API_KEY``/``ANTHROPIC_AUTH_TOKEN``
+        so auth is the subscription login, and ``ANTHROPIC_BASE_URL`` so a
+        Claude Code that has been repointed at this very ingress cannot
+        loop back into it. This node's own MCP tools are allowed, which is
+        what makes memory recall work from any client riding this
+        provider.
+
+        Returns ``(ok, text)`` — text is the reply on success, the error
+        on failure.
+        """
+        import os as _os
+        import shutil as _shutil
+        import subprocess
+
+        binary = _shutil.which("claude")
+        if not binary:
+            return False, (
+                "claude-code provider: `claude` binary not found on PATH — "
+                "install Claude Code or remove this provider"
+            )
+        cmd = [binary, "-p", prompt, "--output-format", "json",
+               "--allowedTools", "mcp__axiom-memory__*,mcp__axiom__*"]
+        if system:
+            cmd += ["--append-system-prompt", system]
+        env = {
+            k: v for k, v in _os.environ.items()
+            if k not in (
+                "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
+                "ANTHROPIC_BASE_URL",
+            )
+        }
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=180,
+                env=env, cwd=_os.path.expanduser("~"),
+            )
+        except subprocess.TimeoutExpired:
+            return False, "claude-code provider: headless call timed out (180s)"
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()[-500:]
+            return False, f"claude-code provider: exit {proc.returncode}: {detail}"
+        try:
+            payload = json.loads(proc.stdout.strip().splitlines()[-1])
+            return True, str(payload.get("result", ""))
+        except (json.JSONDecodeError, IndexError) as exc:
+            return False, f"claude-code provider: unparseable output ({exc})"
+
+    def _call_claude_code_with_tools(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+    ) -> CompletionResponse:
+        """Tool-call path for the claude-code backend.
+
+        Client tool schemas are NOT forwarded — headless Claude Code runs
+        its own tools (including this node's MCP servers) and returns
+        prose. Clients that sent tools get a plain assistant message,
+        which every OpenAI-protocol client accepts as an end-of-turn.
+        """
+        parts: list[str] = []
+        for m in messages:
+            content = m.get("content")
+            if isinstance(content, list):
+                content = " ".join(
+                    c.get("text", "") for c in content if isinstance(c, dict)
+                )
+            if content:
+                parts.append(f"{m.get('role', 'user')}: {content}")
+        ok, text = self._run_claude_code("\n\n".join(parts), system)
+        return CompletionResponse(
+            text=text if ok else "",
+            provider=provider.name,
+            model=provider.model,
+            success=ok,
+            error=None if ok else text,
+            stop_reason="end_turn" if ok else "error",
+        )
+
+    def _call_anthropic_with_tools(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+    ) -> CompletionResponse:
+        import requests
+
+        headers = {
+            "x-api-key": provider.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+
+        # Convert messages to Anthropic format
+        api_messages = _messages_to_anthropic_format(messages)
+
+        payload: dict[str, Any] = {
+            "model": provider.model,
+            "max_tokens": _floor_max_tokens(provider, max_tokens),
+            "messages": api_messages,
+        }
+        if system:
+            payload["system"] = system
+        if tools:
+            payload["tools"] = _tools_to_anthropic_format(tools)
+
+        url = provider.endpoint.rstrip("/") + "/messages"
+
+        try:
+            response = _post_with_rate_limit_retry(requests, url, payload, headers, timeout=_request_timeout(provider, 120))
+        except Exception as e:
+            # Fall back to no-tools call if tools param rejected. Never when the
+            # request was too large: stripping the tools then makes it fit, and
+            # the model answers a question about the person's data with no way
+            # to read it, in a voice that cites tools it never called.
+            if tools and not _too_large_for_provider(_classify_http_error(e, provider=provider.name)):
+                payload.pop("tools", None)
+                try:
+                    response = _post_with_rate_limit_retry(
+                        requests, url, payload, headers, timeout=_request_timeout(provider, 120)
+                    )
+                except Exception:
+                    raise e
+            else:
+                raise
+
+        data = response.json()
+        text_parts = []
+        tool_blocks = []
+
+        for block in data.get("content", []):
+            if block.get("type") == "text":
+                text_parts.append(block.get("text", ""))
+            elif block.get("type") == "tool_use":
+                tool_blocks.append(
+                    ToolUseBlock(
+                        tool_id=block.get("id", ""),
+                        name=block.get("name", ""),
+                        input=block.get("input", {}),
+                    )
+                )
+
+        usage = data.get("usage", {})
+        return CompletionResponse(
+            text="\n".join(text_parts),
+            tool_use=tool_blocks,
+            provider=provider.name,
+            model=provider.model,
+            success=True,
+            stop_reason=data.get("stop_reason", ""),
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            # The Messages API names it cache_read_input_tokens (P0.6-A1).
+            cache_read_tokens=usage.get("cache_read_input_tokens", 0) or 0,
+        )
+
+    def _call_openai_with_tools(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+        *,
+        reasoning_effort: str | None = None,
+    ) -> CompletionResponse:
+        import requests
+
+        headers = {"Content-Type": "application/json"}
+        if provider.api_key:
+            headers["Authorization"] = f"Bearer {provider.api_key}"
+
+        api_messages = list(messages)
+        if system and not any(m.get("role") == "system" for m in api_messages):
+            api_messages.insert(0, {"role": "system", "content": system})
+
+        payload: dict[str, Any] = {
+            "model": provider.model,
+            "messages": api_messages,
+            **_openai_token_limit(provider, max_tokens),
+            **_reasoning_fields(provider, reasoning_effort),
+        }
+        if tools:
+            payload["tools"] = tools
+
+        url = provider.endpoint.rstrip("/") + "/chat/completions"
+        ssl_verify = provider.verify_ssl
+
+        try:
+            response = _post_with_rate_limit_retry(
+                requests, url, payload, headers, timeout=_request_timeout(provider, 180), verify=ssl_verify
+            )
+        except Exception as e:
+            # Fall back to no-tools call if tools param rejected. Never when the
+            # request was too large: see _call_anthropic_with_tools.
+            if tools and not _too_large_for_provider(_classify_http_error(e, provider=provider.name)):
+                payload.pop("tools", None)
+                try:
+                    response = _post_with_rate_limit_retry(
+                        requests, url, payload, headers, timeout=_request_timeout(provider, 180), verify=ssl_verify
+                    )
+                except Exception:
+                    raise e
+            else:
+                raise
+
+        data = response.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        text = message.get("content", "") or ""
+        # Ollama names the separate field ``reasoning``; vLLM, llama-server and LiteLLM ``reasoning_content``.
+        field_reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+        answer_given = bool(text.strip())
+
+        # The other convention: some servers put the chain-of-thought inline at
+        # the head of `content`, wrapped in <think>, instead of in a separate
+        # field. Left there it becomes the answer, gets stored as a
+        # conversation message and replayed — so the next round reads the
+        # model's own unfinished thinking as history. Observed on a real node:
+        # the model reasoned its way to the right tool, the reasoning was
+        # captured as the reply, no tool call was made, and it then told the
+        # user the tool did not exist.
+        inline_reasoning = ""
+        if "<think>" in text.lower():
+            from axiom.llm.reasoning import split_inline_reasoning
+
+            answer, inline_reasoning = split_inline_reasoning(text)
+            answer_given = bool(answer)
+            if answer:
+                text = answer
+            elif choice.get("finish_reason", "") == "length":
+                text = (
+                    "[Response truncated during reasoning — increase max_tokens]"
+                    f"\n\n{inline_reasoning}"
+                )
+            else:
+                # All thinking, no answer: say so rather than promoting the
+                # fragment, which is what made it argue with itself.
+                text = inline_reasoning
+
+        # Qwen3 / reasoning models: answer is in `content`, chain-of-thought in
+        # `reasoning_content`.  If content is empty the response was cut before
+        # the model finished reasoning — surface the reasoning so the user isn't
+        # left with a blank response.
+        if not text.strip() and message.get("reasoning_content"):
+            reasoning = message["reasoning_content"]
+            finish = choice.get("finish_reason", "")
+            if finish == "length":
+                text = f"[Response truncated during reasoning — increase max_tokens]\n\n{reasoning}"
+            else:
+                text = reasoning
+
+        tool_blocks = []
+
+        for tc in message.get("tool_calls", []):
+            func = tc.get("function", {})
+            try:
+                args = json.loads(func.get("arguments", "{}"))
+            except json.JSONDecodeError:
+                args = {}
+            tool_blocks.append(
+                ToolUseBlock(
+                    tool_id=tc.get("id", ""),
+                    name=func.get("name", ""),
+                    input=args,
+                )
+            )
+
+        usage = data.get("usage", {})
+        reasoning = "\n\n".join(r for r in (field_reasoning, inline_reasoning) if r)
+        return CompletionResponse(
+            text=text,
+            tool_use=tool_blocks,
+            provider=provider.name,
+            model=provider.model,
+            success=True,
+            stop_reason=choice.get("finish_reason", ""),
+            input_tokens=usage.get("prompt_tokens", 0),
+            output_tokens=usage.get("completion_tokens", 0),
+            cache_read_tokens=_openai_cached_tokens(usage),
+            served_verbs=_served_verbs(data),
+            reasoning=reasoning,
+            reasoning_only=bool(reasoning) and not answer_given and not tool_blocks,
+        )
+
+    # ------------------------------------------------------------------
+    # New: Streaming with tool-use
+    # ------------------------------------------------------------------
+
+    def stream_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        system: str = "",
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int = 4096,
+        task: str = "chat",
+        routing_tier: str = "any",
+        prefer: str | None = None,
+        principal: str | None = None,
+        reasoning_effort: str | None = None,
+    ) -> Iterator[StreamChunk]:
+        """Stream a completion with native tool-use support.
+
+        Yields StreamChunk objects as tokens arrive via SSE. A provider that fails before it has
+        streamed anything hands over to the next candidate.
+
+        The same checks as ``complete_with_tools`` apply, through the same ``_TurnGuard`` (RS-E3):
+        an unattributed controlled request is refused before anything is sent, the system prompt is
+        hardened for a controlled request, the whole reply is scanned once its last text chunk has
+        arrived (a warning follows the text, before ``done``), and one routing audit record is
+        written for the provider that answered.
+        """
+        guard = _TurnGuard(self, messages, routing_tier, principal)
+        primary = self._select_provider(task, routing_tier, prefer=prefer)
+        if primary is None:
+            text = self.config_problem or "LLM unavailable — no providers configured."
+            yield StreamChunk(type="text", text=text)
+            yield StreamChunk(type="done")
+            return
+        # Nothing has answered yet. The provider that streams the reply is recorded when it does, so a
+        # fallback is stamped as itself and a turn nobody answered names no one (P0.4-A3).
+        self.last_selected = None
+
+        # Trace the streamed turn. The generator is wrapped rather than the
+        # call, because a stream's output and its token usage only exist once
+        # the last chunk has arrived — usage rides a StreamChunk(type="usage").
+        _last_user = ""
+        for _m in reversed(messages or []):
+            if _m.get("role") == "user":
+                _c = _m.get("content")
+                _last_user = _c if isinstance(_c, str) else str(_c)
+                break
+
+        # Try each candidate in order, as complete() does. A provider that
+        # fails BEFORE it has streamed anything hands over to the next: it was
+        # unreachable, timed out, or cannot take a request this large. One that
+        # fails after text has reached the person does not, because half an
+        # answer from one model cannot be finished by another. A request refused
+        # for any other reason (auth, a bad model name) surfaces at once: that
+        # is a configuration fault, and moving on would hide it.
+        failures: list[str] = []
+        too_large: list[tuple[LLMProvider, LLMGatewayError]] = []
+        candidates = self._ordered_candidates(primary, routing_tier=routing_tier)
+        for provider in candidates:
+            if provider.requires_vpn and not self._check_vpn(provider):
+                if provider is primary and len(candidates) == 1:
+                    result = self._handle_vpn_unavailable(provider, task, routing_tier)
+                    yield StreamChunk(type="text", text=result.text)
+                    yield StreamChunk(type="done")
+                    return
+                failures.append(f"{provider.name}: needs the VPN")
+                continue
+
+            refused = guard.refusal(provider)
+            if refused is not None:
+                yield StreamChunk(type="text", text=refused.text)
+                yield StreamChunk(type="done")
+                return
+            sent_system = guard.system(system)
+
+            if provider.endpoint.startswith("claude-code"):
+                # Headless Claude Code has no incremental token stream — run it
+                # to completion and emit the reply as one chunk so streaming
+                # clients (Responses SSE) still get a well-formed sequence.
+                resp = self._call_claude_code_with_tools(provider, messages, sent_system)
+                if not resp.success:
+                    yield StreamChunk(type="text", text=f"claude-code backend failed: {resp.error}")
+                    yield StreamChunk(type="done")
+                    return
+                self.last_selected = provider
+                warning = guard.scan(resp.text, provider)
+                yield StreamChunk(type="text", text=f"{warning}\n\n{resp.text}" if warning else resp.text)
+                guard.record(provider, resp.text)
+                yield StreamChunk(type="done")
+                return
+
+            _tid = self._trace_call(task, tier_hint=routing_tier, prompt=_last_user)
+            _text: list[str] = []
+            _tin = _tout = 0
+            _checked = False
+            try:
+                for _chunk in self._stream_provider(provider, messages, sent_system, tools, max_tokens,
+                                                    **_effort_kw(reasoning_effort)):
+                    if _chunk.type == "text":
+                        if not _text:
+                            self.last_selected = provider
+                        _text.append(_chunk.text)
+                    elif _chunk.type == "usage":
+                        _tin, _tout = _chunk.input_tokens, _chunk.output_tokens
+                    elif _chunk.type == "done" and not _checked:
+                        # The reply is complete: scan it whole and record the turn before the
+                        # consumer is told the stream is over.
+                        _checked = True
+                        yield from self._finish_streamed_turn(guard, provider, "".join(_text))
+                    yield _chunk
+                self.last_selected = provider
+                if not _checked:
+                    yield from self._finish_streamed_turn(guard, provider, "".join(_text))
+                self._trace_generation(
+                    _tid,
+                    model=getattr(provider, "model", "") or "",
+                    prompt=_last_user,
+                    output="".join(_text),
+                    input_tokens=_tin,
+                    output_tokens=_tout,
+                    provider=getattr(provider, "name", "") or "",
+                )
+                return
+            except Exception as e:
+                self._trace_generation(
+                    _tid,
+                    model=getattr(provider, "model", "") or "",
+                    prompt=_last_user,
+                    output="".join(_text),
+                    input_tokens=_tin,
+                    output_tokens=_tout,
+                    provider=getattr(provider, "name", "") or "",
+                    error=str(e),
+                )
+                err = e if isinstance(e, LLMGatewayError) else _classify_http_error(e, provider=provider.name)
+                kind = "persistent" if isinstance(err, PersistentLLMError) else "transient"
+                print(
+                    f"Warning: streaming from {provider.name} failed ({kind}): {err}",
+                    file=sys.stderr,
+                )
+                can_move_on = not _text and (
+                    not isinstance(err, PersistentLLMError) or _too_large_for_provider(err)
+                )
+                if can_move_on:
+                    failures.append(f"{provider.name}: {err.client_summary()}")
+                    if _too_large_for_provider(err):
+                        too_large.append((provider, err))
+                    continue
+                # Surface the real reason in the stream so the user isn't left
+                # with a bare "unavailable" — but use the client-safe summary
+                # (provider + status + message, no raw upstream body). The full
+                # body went to stderr above; echoing it to the HTTP client risks
+                # leaking an upstream's internal hostnames / DSNs / auth hints
+                # (SRV-033).
+                yield StreamChunk(type="text", text=f"LLM stream failed: {err.client_summary()}")
+                yield StreamChunk(type="done")
+                return
+
+        if too_large and len(too_large) == len(failures):
+            # Every model that was tried is too small for this request. That is
+            # not an outage: say what does not fit and how to get one that does.
+            provider, err = too_large[0]
+            self.last_selected = provider  # the reply is about this model, as the non-streamed one is
+            yield StreamChunk(
+                type="text",
+                text=_context_exceeded_message(
+                    provider, err, messages=messages, system=system, tools=tools
+                ),
+            )
+            yield StreamChunk(type="done")
+            return
+        reasons = "; ".join(failures) or "no provider could be tried"
+        yield StreamChunk(type="text", text=f"LLM stream failed: every provider was tried — {reasons}")
+        yield StreamChunk(type="done")
+
+    @staticmethod
+    def _finish_streamed_turn(guard: _TurnGuard, provider: LLMProvider, reply: str) -> Iterator[StreamChunk]:
+        """Scan a streamed reply and record the turn; yield the scan's warning when there is one."""
+        warning = guard.scan(reply, provider)
+        if warning:
+            yield StreamChunk(type="text", text=f"\n\n{warning}")
+        guard.record(provider, reply)
+
+    def _stream_provider(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+        *,
+        reasoning_effort: str | None = None,
+    ) -> Iterator[StreamChunk]:
+        """SSE stream from a provider, yielding StreamChunk objects."""
+        try:
+            import requests  # noqa: F401
+        except ImportError:
+            raise RuntimeError("requests library required for LLM calls")
+
+        is_anthropic = "anthropic" in provider.endpoint.lower()
+
+        if is_anthropic:
+            yield from self._stream_anthropic(provider, messages, system, tools, max_tokens)
+        else:
+            yield from self._stream_openai(provider, messages, system, tools, max_tokens,
+                                           **_effort_kw(reasoning_effort))
+
+    def _stream_anthropic(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+    ) -> Iterator[StreamChunk]:
+        import requests
+
+        headers = {
+            "x-api-key": provider.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+
+        api_messages = _messages_to_anthropic_format(messages)
+        payload: dict[str, Any] = {
+            "model": provider.model,
+            "max_tokens": _floor_max_tokens(provider, max_tokens),
+            "messages": api_messages,
+            "stream": True,
+        }
+        if system:
+            payload["system"] = system
+        if tools:
+            payload["tools"] = _tools_to_anthropic_format(tools)
+
+        url = provider.endpoint.rstrip("/") + "/messages"
+        response = _post_with_rate_limit_retry(
+            requests, url, payload, headers, timeout=_request_timeout(provider, 120), stream=True, verify=provider.verify_ssl,
+        )
+
+        current_tool_id = ""
+        current_tool_name = ""
+        tool_input_buf = ""
+        in_thinking = False
+        #: Usage already emitted for this message, so the cumulative message_delta is not counted twice.
+        reported = {"input": 0, "output": 0, "cached": 0}
+
+        _decode_sse_as_utf8(response)
+        for line in response.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data: "):
+                continue
+            data_str = line[6:]
+            if data_str.strip() == "[DONE]":
+                break
+
+            try:
+                event = json.loads(data_str)
+            except json.JSONDecodeError:
+                continue
+
+            etype = event.get("type", "")
+
+            if etype == "content_block_start":
+                block = event.get("content_block", {})
+                if block.get("type") == "tool_use":
+                    current_tool_id = block.get("id", "")
+                    current_tool_name = block.get("name", "")
+                    tool_input_buf = ""
+                    yield StreamChunk(
+                        type="tool_use_start",
+                        tool_id=current_tool_id,
+                        tool_name=current_tool_name,
+                    )
+                elif block.get("type") == "thinking":
+                    in_thinking = True
+                    yield StreamChunk(type="thinking_start")
+
+            elif etype == "content_block_delta":
+                delta = event.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    yield StreamChunk(type="text", text=delta.get("text", ""))
+                elif delta.get("type") == "input_json_delta":
+                    partial = delta.get("partial_json", "")
+                    tool_input_buf += partial
+                    yield StreamChunk(
+                        type="tool_input_delta",
+                        tool_id=current_tool_id,
+                        tool_input_json=partial,
+                    )
+                elif delta.get("type") == "thinking_delta":
+                    yield StreamChunk(
+                        type="thinking_delta",
+                        text=delta.get("thinking", ""),
+                    )
+
+            elif etype == "content_block_stop":
+                if in_thinking:
+                    in_thinking = False
+                    yield StreamChunk(type="thinking_end")
+                elif current_tool_name:
+                    yield StreamChunk(
+                        type="tool_use_end",
+                        tool_id=current_tool_id,
+                        tool_name=current_tool_name,
+                        tool_input_json=tool_input_buf,
+                    )
+                    current_tool_id = ""
+                    current_tool_name = ""
+                    tool_input_buf = ""
+
+            elif etype == "message_delta":
+                # message_delta usage is cumulative for the message, so only what message_start has
+                # not already reported is emitted: chat sums usage chunks (P0.6-A1).
+                usage = event.get("usage", {})
+                if usage:
+                    totals = {
+                        "input": int(usage.get("input_tokens") or 0),
+                        "output": int(usage.get("output_tokens") or 0),
+                        "cached": int(usage.get("cache_read_input_tokens") or 0),
+                    }
+                    yield StreamChunk(
+                        type="usage",
+                        input_tokens=max(0, totals["input"] - reported["input"]),
+                        output_tokens=max(0, totals["output"] - reported["output"]),
+                        cache_read_tokens=max(0, totals["cached"] - reported["cached"]),
+                    )
+                    reported = {k: max(reported[k], totals[k]) for k in reported}
+
+            elif etype == "message_start":
+                # The input side of the usage, and the cached tokens, arrive here first.
+                msg = event.get("message", {})
+                usage = msg.get("usage", {})
+                if usage.get("input_tokens") or usage.get("cache_read_input_tokens"):
+                    reported = {
+                        "input": int(usage.get("input_tokens") or 0),
+                        "output": 0,
+                        "cached": int(usage.get("cache_read_input_tokens") or 0),
+                    }
+                    yield StreamChunk(
+                        type="usage",
+                        input_tokens=reported["input"],
+                        cache_read_tokens=reported["cached"],
+                    )
+
+            elif etype == "message_stop":
+                break
+
+        yield StreamChunk(type="done")
+
+    def _stream_openai(
+        self,
+        provider: LLMProvider,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+        *,
+        reasoning_effort: str | None = None,
+    ) -> Iterator[StreamChunk]:
+        import requests
+
+        headers = {"Content-Type": "application/json"}
+        if provider.api_key:
+            headers["Authorization"] = f"Bearer {provider.api_key}"
+
+        api_messages = list(messages)
+        if system and not any(m.get("role") == "system" for m in api_messages):
+            api_messages.insert(0, {"role": "system", "content": system})
+
+        payload: dict[str, Any] = {
+            "model": provider.model,
+            "messages": api_messages,
+            **_openai_token_limit(provider, max_tokens),
+            **_reasoning_fields(provider, reasoning_effort),
+            "stream": True,
+            # Without this an OpenAI-format stream reports no usage at all (P0.6-A2).
+            "stream_options": {"include_usage": True},
+        }
+        if tools:
+            payload["tools"] = tools
+
+        url = provider.endpoint.rstrip("/") + "/chat/completions"
+        try:
+            response = _post_with_rate_limit_retry(
+                requests, url, payload, headers, timeout=_request_timeout(provider, 120), stream=True,
+                verify=provider.verify_ssl,
+            )
+        except Exception as exc:  # noqa: BLE001 - only the one refusal is retried; the rest re-raise
+            if not _rejects_stream_options(exc):
+                raise
+            # An OpenAI-compatible server that does not know the field: ask again without it. The
+            # turn then records no usage, as before.
+            payload.pop("stream_options", None)
+            response = _post_with_rate_limit_retry(
+                requests, url, payload, headers, timeout=_request_timeout(provider, 120), stream=True,
+                verify=provider.verify_ssl,
+            )
+
+        # Track tool call state across deltas
+        tool_calls_buf: dict[int, dict[str, str]] = {}  # index -> {id, name, args}
+        in_thinking = False
+        finished = False  # finish_reason seen; read on to [DONE] for the usage chunk
+        from axiom.llm.reasoning import InlineReasoningStream
+        _inline_reasoning = InlineReasoningStream()
+
+        _decode_sse_as_utf8(response)
+        for line in response.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data: "):
+                continue
+            data_str = line[6:]
+            if data_str.strip() == "[DONE]":
+                break
+
+            try:
+                event = json.loads(data_str)
+            except json.JSONDecodeError:
+                continue
+
+            # With include_usage the last chunk before [DONE] carries the whole request's usage and
+            # an empty choices list; every other chunk has usage null.
+            usage = event.get("usage")
+            if isinstance(usage, dict) and usage:
+                yield StreamChunk(
+                    type="usage",
+                    input_tokens=int(usage.get("prompt_tokens") or 0),
+                    output_tokens=int(usage.get("completion_tokens") or 0),
+                    cache_read_tokens=_openai_cached_tokens(usage),
+                )
+
+            choices = event.get("choices", [])
+            if not choices or finished:
+                continue
+
+            delta = choices[0].get("delta", {})
+
+            # Reasoning (gpt-oss / OpenAI-compat reasoning models) -> thinking,
+            # so clients show activity during the reasoning phase instead of dead
+            # air through prefill + reasoning.
+            # Ollama names the field ``reasoning``.
+            reasoning_delta = delta.get("reasoning_content") or delta.get("reasoning")
+            if reasoning_delta:
+                if not in_thinking:
+                    in_thinking = True
+                    yield StreamChunk(type="thinking_start")
+                yield StreamChunk(type="thinking_delta", text=reasoning_delta)
+
+            # Text content. Some servers put the chain-of-thought inline here
+            # wrapped in <think> rather than in `reasoning_content`; streamed
+            # raw it becomes answer text, is stored as a message and replayed,
+            # and the model spends the next round reading its own unfinished
+            # thinking. The separator carries state because a tag arrives split
+            # across chunk boundaries.
+            if delta.get("content"):
+                visible, hidden = _inline_reasoning.feed(delta["content"])
+                if hidden:
+                    if not in_thinking:
+                        in_thinking = True
+                        yield StreamChunk(type="thinking_start")
+                    yield StreamChunk(type="thinking_delta", text=hidden)
+                if visible:
+                    if in_thinking:
+                        in_thinking = False
+                        yield StreamChunk(type="thinking_end")
+                    yield StreamChunk(type="text", text=visible)
+
+            # Tool calls
+            for tc_delta in delta.get("tool_calls", []):
+                idx = tc_delta.get("index", 0)
+                if idx not in tool_calls_buf:
+                    tool_calls_buf[idx] = {"id": "", "name": "", "args": ""}
+
+                buf = tool_calls_buf[idx]
+
+                if tc_delta.get("id"):
+                    buf["id"] = tc_delta["id"]
+                func = tc_delta.get("function", {})
+                if func.get("name"):
+                    buf["name"] = func["name"]
+                    yield StreamChunk(
+                        type="tool_use_start",
+                        tool_id=buf["id"],
+                        tool_name=buf["name"],
+                    )
+                if func.get("arguments"):
+                    buf["args"] += func["arguments"]
+                    yield StreamChunk(
+                        type="tool_input_delta",
+                        tool_id=buf["id"],
+                        tool_input_json=func["arguments"],
+                    )
+
+            # Check for finish
+            finish = choices[0].get("finish_reason")
+            if finish:
+                # Release whatever the tag lookahead was holding. A response
+                # ending in "<" is an answer, not a truncated tag, and dropping
+                # the tail would silently shorten it.
+                tail_text, tail_think = _inline_reasoning.flush()
+                if tail_think:
+                    if not in_thinking:
+                        in_thinking = True
+                        yield StreamChunk(type="thinking_start")
+                    yield StreamChunk(type="thinking_delta", text=tail_think)
+                if tail_text:
+                    if in_thinking:
+                        in_thinking = False
+                        yield StreamChunk(type="thinking_end")
+                    yield StreamChunk(type="text", text=tail_text)
+                if in_thinking:
+                    in_thinking = False
+                    yield StreamChunk(type="thinking_end")
+                for idx, buf in tool_calls_buf.items():
+                    if buf["name"]:
+                        yield StreamChunk(
+                            type="tool_use_end",
+                            tool_id=buf["id"],
+                            tool_name=buf["name"],
+                            tool_input_json=buf["args"],
+                        )
+                finished = True
+
+        yield StreamChunk(type="done")
+
+
+# ------------------------------------------------------------------
+# Security helpers — module-level, called from Gateway methods
+# ------------------------------------------------------------------
+
+
+# Map RoutingDecision.classifier → numbered stage label for user-visible
+# messages. The bare ``classifier`` token is kept stable for audit logs +
+# downstream tooling; the stage label below is purely a presentation
+# affordance so users can correlate "stage-1-keyword" in the error message
+# with the layered pipeline documented in router.py.
+_CLASSIFIER_STAGE_LABELS = {
+    "session": "stage-0-session",
+    "keyword": "stage-1-keyword",
+    "ollama":  "stage-2-ollama",
+    "fallback": "stage-3-fallback",
+}
+
+# How many matched terms to render verbatim before truncating to
+# "(+N more)". Bounds the message length and avoids leaking long
+# term lists into the user surface.
+_EC_BLOCK_TERMS_PREVIEW = 3
+
+
+def _classifier_stage_label(classifier: str) -> str:
+    """Return the user-facing stage label for a classifier token."""
+    return _CLASSIFIER_STAGE_LABELS.get(classifier, classifier)
+
+
+def _format_ec_block_message(decision: RoutingDecision | None = None) -> str:
+    """Build the user-visible message shown when an EC routing decision
+    cannot be served (no EC provider configured, etc.).
+
+    When ``decision`` is provided, the message surfaces:
+
+      * the matched keyword(s) (``decision.matched_terms``)
+      * the classifier name as a stage label (``decision.classifier``)
+
+    so the user immediately knows *why* the request was blocked and
+    *which stage* of the pipeline made the call — no follow-up
+    ``axi log routing`` round-trip required for the common case.
+
+    The message is intentionally domain-agnostic: it mentions
+    "private endpoint" / "export-controlled content" without naming
+    any specific consumer, facility, or domain (per the axiom
+    domain-agnostic rule).
+    """
+    # Header — what happened, in one line
+    if decision is not None:
+        stage = _classifier_stage_label(decision.classifier)
+        if decision.matched_terms:
+            preview = ", ".join(
+                f"'{t}'" for t in decision.matched_terms[:_EC_BLOCK_TERMS_PREVIEW]
+            )
+            extra = len(decision.matched_terms) - _EC_BLOCK_TERMS_PREVIEW
+            tail = f" (+{extra} more)" if extra > 0 else ""
+            header = (
+                f"[EXPORT_CONTROLLED] Routed to private endpoint: "
+                f"matched {preview}{tail} via {stage} classifier."
+            )
+        else:
+            # ollama / fallback / session — no keyword to surface, but the
+            # stage label still tells the user which classifier decided.
+            header = (
+                f"[EXPORT_CONTROLLED] Routed to private endpoint: "
+                f"classified by {stage} classifier."
+            )
+    else:
+        header = (
+            "[EXPORT_CONTROLLED] Routed to private endpoint: "
+            "this query was classified as export-controlled content."
+        )
+
+    body = [
+        header,
+        "",
+        "No export-controlled LLM is configured, so the request cannot be",
+        "sent to a public cloud provider (Anthropic, OpenAI, etc.).",
+        "",
+        "For details:    axi log routing",
+        "To allowlist:   edit runtime/config/routing_allowlist.txt",
+        "",
+        "If your deployment legitimately needs to handle export-controlled",
+        "content, configure a private-network LLM with",
+        '  routing_tier = "export_controlled"   in llm-providers.toml',
+        '  ("private" and the legacy "restricted" are not cleared for it)',
+        "",
+        "Contact your administrator or see:  axi connect --help",
+    ]
+    return "\n".join(body)
+
+
+def _harden_system_prompt(original: str) -> str:
+    """Prepend the non-negotiable EC security preamble to the system prompt.
+
+    Preamble is loaded from the PromptRegistry (id: "ec_hardened_preamble").
+    Falls back to a hardcoded default if the registry is unavailable.
+    """
+    try:
+        from axiom.infra.prompt_registry import get_registry
+
+        preamble = get_registry().resolve("ec_hardened_preamble").content
+    except Exception:
+        preamble = (
+            "[SECURITY POLICY — NON-NEGOTIABLE]\n"
+            "You are operating in an export-controlled (EC) session. "
+            "Do not reproduce or transmit controlled technical data.\n"
+            "[END SECURITY POLICY]\n"
+        )
+    return preamble + "\n\n" + original
+
+
+def _scan_warning(text: str, routing_tier: str, provider_name: str, prompt_hash: str) -> str:
+    """Scan a reply for classified terms. On a hit, log it and return the warning to show; else ``""``.
+
+    The scan never withholds text: it warns the person and logs the event for review. Both paths call
+    this on the model's whole reply, so a hit is logged the same way whether the reply was streamed.
+    """
+    try:
+        import hashlib as _hashlib
+
+        from axiom.infra.security_log import SecurityLog
+        from axiom.infra.trace import current_session
+        from axiom.llm.router import QueryRouter
+
+        router = QueryRouter.__new__(QueryRouter)
+        router._terms = None
+        router._allowlist = None
+        router._ollama = None  # type: ignore[assignment]
+        matched = router._keyword_check(text)
+        if not matched:
+            return ""
+        response_hash = _hashlib.sha256(text.encode()).hexdigest()
+        SecurityLog.get().response_scan_hit(
+            session_id=current_session(),
+            provider_name=provider_name,
+            routing_tier=routing_tier,
+            matched_terms=matched,
+            prompt_hash=prompt_hash,
+            response_hash=response_hash,
+            warning_prepended=True,
+        )
+        tier_label = "public" if routing_tier != "export_controlled" else "EC"
+        return (
+            f"[SECURITY WARNING — Response scan detected {len(matched)} classified "
+            f"term(s) in this {tier_label} LLM response: "
+            f"{', '.join(matched[:3])}{'…' if len(matched) > 3 else ''}. "
+            f"This event has been logged and flagged for review.]"
+        )
+    except Exception:
+        return ""
+
+
+def _scan_response(
+    response: CompletionResponse,
+    routing_tier: str,
+    provider_name: str,
+    prompt_hash: str,
+) -> CompletionResponse:
+    """Scan a whole response, its reasoning too, for classified terms; on a hit the warning is prepended to its text."""
+    scanned = "\n\n".join(t for t in (response.text, response.reasoning) if t)
+    warning = _scan_warning(scanned, routing_tier, provider_name, prompt_hash)
+    if not warning:
+        return response
+    return replace(response, text=warning + "\n\n" + response.text)
+
+
+# ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+
+
+def _messages_to_anthropic_format(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert OpenAI-style messages to Anthropic messages format.
+
+    Handles:
+    - Strips system messages (Anthropic uses top-level system param)
+    - Converts assistant messages with tool_calls → content blocks with tool_use
+    - Converts role:"tool" messages → role:"user" with tool_result content blocks
+    - Merges consecutive same-role messages (Anthropic requires alternating roles)
+    """
+    result: list[dict[str, Any]] = []
+
+    for msg in messages:
+        role = msg.get("role", "")
+
+        # Skip system messages
+        if role == "system":
+            continue
+
+        # Assistant with tool_calls → Anthropic content blocks
+        if role == "assistant" and msg.get("tool_calls"):
+            content_blocks: list[dict[str, Any]] = []
+            text = msg.get("content", "")
+            if text:
+                content_blocks.append({"type": "text", "text": text})
+            for tc in msg["tool_calls"]:
+                func = tc.get("function", {})
+                try:
+                    input_data = json.loads(func.get("arguments", "{}"))
+                except (json.JSONDecodeError, TypeError):
+                    input_data = {}
+                content_blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": tc.get("id", ""),
+                        "name": func.get("name", ""),
+                        "input": input_data,
+                    }
+                )
+            result.append({"role": "assistant", "content": content_blocks})
+            continue
+
+        # Tool result → Anthropic user message with tool_result block
+        if role == "tool":
+            tool_result_block = {
+                "type": "tool_result",
+                "tool_use_id": msg.get("tool_call_id", ""),
+                "content": msg.get("content", ""),
+            }
+            # Merge with previous user message if it's also tool results
+            if (
+                result
+                and result[-1]["role"] == "user"
+                and isinstance(result[-1].get("content"), list)
+            ):
+                result[-1]["content"].append(tool_result_block)
+            else:
+                result.append({"role": "user", "content": [tool_result_block]})
+            continue
+
+        # Regular user/assistant message
+        result.append({"role": role, "content": msg.get("content", "")})
+
+    return result
+
+
+def _tools_to_anthropic_format(
+    tools: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert OpenAI function-calling tool defs to Anthropic format.
+
+    OpenAI: {"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}
+    Anthropic: {"name": ..., "description": ..., "input_schema": ...}
+    """
+    result = []
+    for t in tools:
+        func = t.get("function", t)
+        result.append(
+            {
+                "name": func.get("name", ""),
+                "description": func.get("description", ""),
+                "input_schema": func.get("parameters", {"type": "object", "properties": {}}),
+            }
+        )
+    return result
+
+
+def _parse_sse_line(line: str) -> dict[str, Any] | None:
+    """Parse a single SSE data line into a JSON dict, or None."""
+    if not line or not line.startswith("data: "):
+        return None
+    data_str = line[6:]
+    if data_str.strip() == "[DONE]":
+        return None
+    try:
+        return json.loads(data_str)
+    except json.JSONDecodeError:
+        return None

@@ -1,0 +1,22 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "field_log"
+version = "0.1.0"
+description = "A field log: a season, actions with observed values and a co-signer, observations, a weekly cadence"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+[[extension.provides]]
+kind = "logbook"
+id = "field_log"
+file = "logbook/field_log.toml"
+display = "Field Log"
+description = "A field log in neutral words, with two keys declared but not yet enforced"

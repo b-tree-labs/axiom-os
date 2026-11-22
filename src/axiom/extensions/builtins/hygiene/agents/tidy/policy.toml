@@ -1,0 +1,86 @@
+# TIDY Actions storage + hygiene policy
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Default mode is agency inside a bounded safe envelope (modeled on RIVET's
+# real agency, not a powerless reporter). Destructive work in policy happens
+# on the scheduled tick and `axi hygiene artifacts` unless the operator sets
+# hygiene.storage_enabled = false, hygiene.storage_watch_only = true, or
+# passes --dry-run. MCP and the weekly digest stay dry-run.
+
+[mode]
+# Kill switch. False (or AXIOM_HYGIENE_STORAGE_ENABLED=false) stops all deletes.
+enabled_setting = "hygiene.storage_enabled"
+# Opt-out dry-run. False is the default; True reports without deleting.
+watch_only_setting = "hygiene.storage_watch_only"
+
+[storage]
+included_shared_gb = 2.0
+included_gb_hours = 1440.0
+warn_pct = 70
+escalate_pct = 85
+cache_cap_gb = 10.0
+cache_warn_pct = 80
+keep_main_dist = 2
+keep_latest_tag_dist = true
+always_keep_prefixes = ["memory-benchmarks"]
+
+# Per-class retention (days). Env AXIOM_RETENTION_<CLASS>_DAYS and
+# settings hygiene.retention.* override these. Benchmarks are kept.
+# GitHub workflow retention-days (vars.AXIOM_*_RETENTION_DAYS) is the
+# hard ceiling; raise it if RIVET must keep an artifact past the class default.
+[retention]
+main_dist_days = 3
+pr_dist_days = 3
+logs_days = 14
+coverage_days = 14
+release_dist_days = 14
+# log_keep_days is an alias of logs_days for older docs.
+log_keep_days = 14
+max_items_per_run = 200
+max_gib_per_run = 2.0
+aggressive_max_items_per_run = 500
+aggressive_max_gib_per_run = 4.0
+max_runs_per_hour = 4
+
+# Hard never-touch list. TIDY will not delete these even at 85%.
+[never_touch]
+main_caches = true
+open_pr_caches = true
+latest_tag_dists = true
+in_flight_main_dists = true
+memory_benchmarks = true
+packages = true
+
+# Tier 0 — auto, in policy, immediately.
+[tier0]
+artifacts_inside_policy = true
+merged_or_closed_pr_caches = true
+labels = true
+stale_draft_notice = true
+stale_draft_notice_days = 7
+alerts_via_herald = true
+audit_every_action = true
+weekly_digest = true
+
+# Tier 1 — auto after the notice period expires with no activity.
+[tier1]
+close_bot_or_tidy_owned_stale_drafts = true
+mark_merged_or_closed_notifications_read = true
+
+# Tier 2 — needs a person (Needs you / approval-gate write). Never auto.
+[tier2]
+billing_plan_or_spend_limit_changes = true
+deletes_outside_policy = true
+closing_humans_prs = true
+package_deletion = true
+main_or_open_pr_caches = true
+latest_tag_or_in_flight_main_dists = true
+force_push_or_admin_bypass = true
+llm_proposed_actions = true
+
+[proactive]
+# At 70% of the included cap, reclaim in-policy (normal caps) and alert.
+reclaim_at_pct = 70
+# At 85%, use aggressive caps (still never-touch) and raise Needs you if still over.
+aggressive_at_pct = 85

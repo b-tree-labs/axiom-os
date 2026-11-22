@@ -1,0 +1,106 @@
+# RIVET config for the rivet-land action. Copy to .axiom/release-lander.toml.
+#
+# mode stays "warn". The package only runs warn or propose; a mode named
+# merge is turned back into warn. Landing is raci.auto_allowed containing
+# "merge", together with the action's act input being true.
+#
+# A pull request may merge when it is green, not a draft, touches no protected
+# path, and has no pending human review request and no human changes-requested
+# review. A protected path, a draft, a conflict, and checks that are not
+# passing are held.
+#
+# claims.foreign_labels are holds. A label naming another agent's claim is that
+# agent's to clear. do-not-merge is the human hold: the lander skips that pull
+# request, and it must carry a comment that starts with "Hold:":
+#
+#   Hold: <why this pull request stays unmerged>
+#   Releases: <who or what removes the hold>
+#   Review-by: YYYY-MM-DD          (optional; default 7 days after the comment)
+#
+# Reminders. One sticky comment per held pull request (the marker), the
+# rivet:waiting label, and on the schedule one issue "RIVET: needs <owner>".
+# The owner is the action's `owner` input; [reminders] assignee is only the
+# fallback. Before an escalation, a check named in rerun_check_names is rerun
+# once. A required check whose latest conclusion is CANCELLED is rerun once per
+# head SHA (rerun_cancelled, on by default), before the pull request is treated
+# as failing.
+#
+# RELEASE_FIX_WEBHOOK_URL and RELEASE_FIX_WEBHOOK_KEY are optional env on the
+# calling step. Unset, the fixer handoff stays off and green pull requests land.
+
+mode = "warn"
+selector = "testmon"
+self_landers = ["your-github-login"]
+# "replace": [human_paths] below is the whole protected set. Omit for the
+# package's built-in categories.
+human_paths_mode = "replace"
+
+# Tier 1: a routed model repairs lint, config and failing-test blockers the
+# mechanical rules cannot. Needs axiom-os-lm with the llm provider and the
+# action's openrouter-api-key input; without a key it stays off.
+fix_provider = "llm"
+
+[fixer]
+enabled = true
+max_attempts = 2        # then the blocker goes to the owner (tier 2)
+max_turns = 16
+routing_tier = "public" # "export_controlled" for code that must stay on cleared providers
+
+[fixer.commands]
+lint = "pre-commit run --files {paths}"
+test = "python -m pytest -q {tests}"
+
+[claims]
+label = "rivet:claimed"
+claim_ttl_s = 3600
+foreign_labels = ["do-not-merge"]
+
+[reminders]
+# assignee = "your-github-login"   # the action's `owner` input wins
+# issue_title = "RIVET: needs your-github-login"
+# sticky_marker = "<!-- rivet-needs-owner -->"
+waiting_label = "rivet:waiting"
+remind_after_hours = 24
+urgent_remind_after_hours = 4
+urgent_labels = ["prod", "production", "billing", "security"]
+urgent_words = ["prod", "production", "billing", "security"]
+# Checks whose failure may clear on a rerun, matched by substring of the name.
+rerun_check_names = []
+rerun_cancelled = true
+# A batching gate fails a pull request because older open pull requests change the
+# same code. When checks matched here (substring of the name) are the only failing
+# checks, RIVET reads the gate's failure annotation for the pull request numbers it
+# names, says which of them can land and which are stuck, asks the owner only when
+# one is stuck, and reruns the gate when one closes, becomes a draft or conflicts.
+# `/rivet exempt <reason>` adds batch_exempt_label, records the reason and reruns
+# the gate. RIVET never adds that label by itself. Set [] to turn this off.
+batching_check_names = ["batching"]
+batch_exempt_label = "batch-exempt"
+check_name = "RIVET"
+
+[raci]
+approval_ttl_hours = 72
+# --act refuses to run with an empty roster. This name is the ledger approver,
+# not a GitHub review posted as that person.
+approvers = ["your-github-login"]
+# Live land path. The review hold runs before any merge. Remove "merge" to
+# make the repo report-only whatever the act input says.
+auto_allowed = ["merge", "rerun", "update_branch", "repair"]
+
+[human_paths]
+# Regexes; a match holds the pull request for a human.
+pricing = [
+  '^(?!docs/)(.*/)?(pricing|billing|stripe)(/|$)',
+  '^(?!docs/)(.*/)?[^/]*(pricing|billing|stripe)[^/]*\.(py|jsx?|tsx?)$',
+]
+security = [
+  '^(?!docs/)(.*/)?(security|auth|secrets?)(/|$)',
+  '^(?!docs/)(.*/)?(auth|secrets?|credentials?)(\.[^/]+)?$',
+]
+data = [
+  '(^|/)migrations?(/|$)',
+  '\.sql$',
+]
+deploy = [
+  '(^|/)\.github/workflows/[^/]*(deploy|release|promote|terraform)[^/]*$',
+]

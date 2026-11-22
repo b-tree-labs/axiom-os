@@ -1,0 +1,114 @@
+name: Agent unit
+description: One self-contained unit a coding agent can build from this ticket alone.
+title: "<ID>: <what ships>"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a field cannot be filled in, the unit is not ready to start. The agent reads this
+        issue and everything it lists, so name repo paths and no private links.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: "One sentence a user would recognise."
+    validations:
+      required: true
+  - type: textarea
+    id: rail
+    attributes:
+      label: Rail and size
+      description: "SOLO or PAIR, and S or M. PAIR means the unit changes the signed record or who may sign, so a short design note is reviewed before code."
+    validations:
+      required: true
+  - type: textarea
+    id: needs
+    attributes:
+      label: Needs and unlocks
+      description: "Which units must be merged first, and which this one opens. A unit starts only on merged work."
+    validations:
+      required: true
+  - type: textarea
+    id: repos
+    attributes:
+      label: Repos
+      description: "Which repositories change, in merge order. One PR per repo."
+    validations:
+      required: true
+  - type: textarea
+    id: read
+    attributes:
+      label: Read first
+      description: "Exact repo paths: PRD section, spec section, ADRs. No private links."
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design
+      description: "Repo path of the snapshot for each screen, and docs/design/buttons.md in axiom-appkit for buttons and tokens."
+    validations:
+      required: true
+  - type: textarea
+    id: reuse
+    attributes:
+      label: Reuse
+      description: "Existing services and components that must be used, and what must not be built."
+    validations:
+      required: true
+  - type: textarea
+    id: surfaces
+    attributes:
+      label: Surfaces
+      description: "One row each for chat, MCP, CLI, API and web: what it does, or why it does nothing. Software proposes and a person signs: chat and MCP never sign."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance test
+      description: "The failing test already in the repo. Done means it passes with no expected-failure mark."
+    validations:
+      required: true
+  - type: textarea
+    id: refuse
+    attributes:
+      label: Must refuse
+      description: "What the code must refuse. Each refusal gets a test."
+    validations:
+      required: true
+  - type: textarea
+    id: test_first
+    attributes:
+      label: Test first
+      description: "The order of work. Each behaviour starts as a failing test."
+    validations:
+      required: true
+  - type: textarea
+    id: guards
+    attributes:
+      label: Guards
+      description: "Naming guards, the pre-push hook, and for appkit the provenance header and design contract tests."
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Owner checks
+      description: "A short by-hand script on the running app, in each surface."
+    validations:
+      required: true
+  - type: textarea
+    id: stop
+    attributes:
+      label: Stop and ask
+      description: "Conditions where the agent stops and asks the owner, instead of deciding."
+    validations:
+      required: true
+  - type: textarea
+    id: out
+    attributes:
+      label: Out of scope
+      description: "What the agent must leave alone."
+    validations:
+      required: true

@@ -1,0 +1,71 @@
+# The field log: a season of work out in the open, in neutral words. A farm, a lab or a crew
+# would rename the season, the types and the roles to its own; the shape stays.
+#
+# One key below is declared on purpose although the loader does not enforce it yet:
+# `partition` in [logbook]. `axi log validate` lists it under "declared, not yet enforced",
+# so the file doubles as a to-do list. The guide (docs/guides/write-a-logbook-extension.md)
+# says what it will do.
+
+[logbook]
+id = "field_log"
+version = "1"
+display = "Field Log"
+assurance = { posture = "attested" }
+# Not yet enforced: one chain per field. Today every entry of a site is on one chain.
+partition = "field"
+
+# A season is opened by one signed entry and closed by another.
+[interval.season]
+opens = ["SEASON_OPEN"]
+closes = ["SEASON_CLOSE"]
+
+[[type]]
+id = "SEASON_OPEN"
+meanings = ["authored"]
+roles = ["owner"]
+requires_interval = "none_open"
+
+[[type]]
+id = "ACTION"
+meanings = ["performed"]
+roles = ["performer", "owner"]
+requires_interval = "season"
+fields = [
+  # Observed: only the person who signs may enter these; software never fills them.
+  { id = "product", type = "text", observe = true, required = true },
+  { id = "rate", type = "quantity", unit = "L/ha", observe = true, required = true },
+  { id = "area", type = "quantity", unit = "ha", observe = true, required = true },
+  { id = "note", type = "text" },
+]
+# A second person, an advisor, co-signs every action.
+cosign = { roles = ["advisor"], assurance = { posture = "attested" } }
+
+[[type]]
+id = "OBSERVATION"
+meanings = ["observed"]
+roles = ["performer", "owner", "advisor"]
+requires_interval = "season"
+fields = [{ id = "text", type = "text", required = true }]
+
+[[type]]
+id = "SEASON_CLOSE"
+meanings = ["authored"]
+roles = ["owner"]
+requires_interval = "season"
+
+# While a season is open, an OBSERVATION is due once a week (10080 minutes).
+[[obligation]]
+id = "weekly_observation"
+type = "OBSERVATION"
+every = { default = 10080 }
+while = "interval.season.open"
+notify = ["owner"]
+required = false
+
+# A packet a reviewer reads: `axi log field-log export --form certifier_packet`. The template is
+# filled with the selected entries, the chain head and the verification result; a site may
+# override its header and file name.
+[[export]]
+id = "certifier_packet"
+template = "templates/certifier_packet.txt"
+site_overrides = ["header", "filename"]
