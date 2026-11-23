@@ -1,0 +1,49 @@
+{{- /*
+The offline package source (packages.wheelhouse): the pinned packages as wheels,
+served inside the cluster from an image the offline bundle built and loaded.
+A role's first boot, and every new blue/green slot, installs from here, so it
+stays up for the life of the release. Kubernetes sizes only: Compose (micro)
+does not render it.
+*/ -}}
+{{- $wh := default dict .Values.packages.wheelhouse }}
+{{- if $wh.enabled }}
+{{- $full := printf "%s-wheelhouse" .Release.Name }}
+{{- $port := default 8080 $wh.port }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $full }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" "wheelhouse") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "axiom-node.labels" (dict "root" $ "role" "wheelhouse") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "axiom-node.labels" (dict "root" $ "role" "wheelhouse") | nindent 8 }}
+    spec:
+      priorityClassName: {{ .Release.Name }}-background
+      securityContext: {runAsUser: {{ .Values.runAsUser }}, runAsNonRoot: true}
+      containers:
+        - name: wheelhouse
+          image: {{ required "packages.wheelhouse.image (the offline bundle's wheelhouse image)" $wh.image | quote }}
+          # Loaded from the bundle, and in no registry: never pulled.
+          imagePullPolicy: Never
+          ports: [{containerPort: {{ $port }}}]
+          readinessProbe:
+            httpGet: {path: /, port: {{ $port }}}
+            periodSeconds: 5
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}
+  labels: {{- include "axiom-node.labels" (dict "root" $ "role" "wheelhouse") | nindent 4 }}
+spec:
+  selector: {{- include "axiom-node.labels" (dict "root" $ "role" "wheelhouse") | nindent 4 }}
+  ports: [{port: {{ $port }}, targetPort: {{ $port }}}]
+{{- end }}

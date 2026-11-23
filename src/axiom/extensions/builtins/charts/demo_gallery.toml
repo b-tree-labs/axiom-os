@@ -1,0 +1,121 @@
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The demo gallery: one chart of every kind, drawn from sample data shipped with the platform.
+# It is also the worked example of a chart-kinds config: a site copies it, points `sources` at
+# its own gold and names its own channels.
+
+[kinds_group]
+site = "sample"
+label = "Sample data"
+group = "Chart kinds"
+kind = "demo"
+sample = true
+replay = "2026-01-14"
+delay_hours = 0
+frames = 48
+open_frame = 30
+week = ["2026-01-08", "2026-01-14"]
+span = ["2026-01-01", "2026-01-14"]
+
+[sources.day]
+sample = "1"
+[sources.history]
+sample = "1"
+
+[kinds.line]
+title = "Temperatures over the day"
+channels = [
+  { ref = "sample:temp_a", label = "Temperature A", unit = "°C" },
+  { ref = "sample:temp_b", label = "Temperature B", unit = "°C" },
+]
+[kinds.area]
+title = "Level, measured and modelled"
+channels = [
+  { ref = "sample:level", label = "Level", unit = "%" },
+  { ref = "sample:level_model", label = "Level model", unit = "%", role = "simulated", counterpart_of = "Level", sigma = "sample:level_sigma" },
+]
+[kinds.step]
+title = "Positions over the day"
+channels = [
+  { ref = "sample:position_a", label = "Position A", unit = "cm" },
+  { ref = "sample:position_b", label = "Position B", unit = "cm" },
+]
+[kinds.sparkline]
+title = "Flow at a glance"
+channel = { ref = "sample:flow", label = "Flow", unit = "L/min" }
+[kinds.kpi]
+title = "Now"
+channels = [
+  { ref = "sample:level", label = "Level", unit = "%" },
+  { ref = "sample:flow", label = "Flow", unit = "L/min" },
+]
+[kinds.gauge]
+title = "Level against its limit"
+channel = { ref = "sample:level", label = "Level", unit = "%" }
+max = 120
+limit = { value = 105 }
+[kinds.bullet]
+title = "Hours at level this week"
+channel = "sample:level"
+at_least = 60
+label = "Hours at level"
+target = { value = 40 }
+ranges = [20, 35]
+[kinds.progress]
+title = "Hours at level against plan"
+rows = [
+  { label = "Hours at level", channel = "sample:level", at_least = 60, plan = 120 },
+  { label = "Hours at full flow", channel = "sample:flow", at_least = 250, plan = 100 },
+]
+[kinds.state]
+title = "Off, changing or at level"
+channel = "sample:level"
+states = [ { name = "Off", below = 1 }, { name = "Changing", below = 60 }, { name = "At level" } ]
+[kinds.pie]
+title = "Share of the day in each state"
+[kinds.donut]
+title = "Quality verdicts"
+channels = ["sample:temp_a", "sample:temp_b"]
+[kinds.scatter]
+title = "Temperature against level"
+x = { ref = "sample:level", label = "Level", unit = "%" }
+y = { ref = "sample:temp_a", label = "Temperature A", unit = "°C" }
+x_at_least = 1
+[kinds.histogram]
+title = "Temperature A while at level"
+channel = { ref = "sample:temp_a", label = "Temperature A", unit = "°C" }
+step_s = 60
+where = { ref = "sample:level", at_least = 60 }
+[kinds.box]
+title = "Temperature spread per day"
+channels = [{ ref = "sample:temp_a", label = "A", unit = "°C" }]
+where = { ref = "sample:level", at_least = 60 }
+[kinds.heatmap]
+title = "Level by hour and day"
+channel = { ref = "sample:level", label = "Level", unit = "%" }
+[kinds.bar]
+title = "Hours at level per day"
+channel = "sample:level"
+at_least = 60
+label = "Hours at level"
+[kinds.flame]
+title = "Where a request spends its time"
+sample = true
+[kinds.mesh3d]
+title = "A ring in four quadrants"
+sample = true
+[kinds.surface]
+title = "Level by hour and day, in relief"
+channel = { ref = "sample:level", label = "Level", unit = "%" }
+[kinds.scatter3d]
+title = "Level, flow and temperature together"
+channels = [
+  { ref = "sample:level", label = "Level", unit = "%" },
+  { ref = "sample:flow", label = "Flow", unit = "L/min" },
+  { ref = "sample:temp_a", label = "Temperature A", unit = "°C" },
+]
+x_at_least = 1
+[kinds.volume]
+title = "A field in 3D"
+sample = true

@@ -1,0 +1,249 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# What the offline install bundle holds (python -m axiom.infra.deploy.offline_bundle).
+# One bundle is built per release and per architecture, for the sizes below
+# (ADR-215). micro is Compose and is not covered.
+#
+# Every entry is a pin. tests/infra/test_the_offline_bundle_holds_every_image_the_chart_names.py
+# renders both charts at each size and fails when the rendered output names an
+# image that is not listed here, so a chart change that adds or moves an image
+# has to change this file in the same pull request.
+schema = 1
+sizes = ["small", "medium"]
+
+# ADR-109: keyless, bound to the release workflow at the release's own tag.
+# {version} is the bundle's version, read from the manifest the signature covers.
+[signing]
+issuer = "https://token.actions.githubusercontent.com"
+identity = "https://github.com/b-tree-labs/axiom-os-private/.github/workflows/publish.yml@refs/tags/v{version}"
+
+# The Python packages a role installs on first boot (the chart's packages.pin)
+# are resolved inside this image, for the bundle's architecture, into wheels.
+[python]
+image = "ghcr.io/b-tree-labs/axiom-runtime:0.5.0"
+wheelhouse_image = "axiom-wheelhouse"          # tagged with the chart's packages.version
+
+# A group is bundled unless default = false. `chat` is off by default: the model
+# server image is not published by any workflow yet, and the two images are
+# several gigabytes. Build with `--group chat` to add it.
+[groups]
+node = {default = true, about = "the node's own roles"}
+base = {default = true, about = "the cluster base (infra/charts/axiom-cluster)"}
+k3d = {default = true, about = "K3D itself, for the small size"}
+monitoring = {default = true, about = "metrics and alerts, on at medium"}
+chat = {default = false, about = "the chat UI and the model server"}
+
+# ---- binaries and files fetched by URL; sha256 is of the downloaded file ----
+
+[[download]]
+name = "helm"
+version = "v3.16.4"                            # the version node-chart.yml proves the charts with
+dest = "tools/helm"
+url = "https://get.helm.sh/helm-v3.16.4-linux-{arch}.tar.gz"
+member = "linux-{arch}/helm"
+mode = "0755"
+sizes = ["small", "medium"]
+[download.sha256]
+amd64 = "fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179"
+arm64 = "d3f8f15b3d9ec8c8678fbf3280c3e5902efabe5912e2f9fcf29107efbc8ead69"
+
+[[download]]
+name = "cosign"
+version = "v3.1.4"
+dest = "tools/cosign"
+url = "https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-{arch}"
+mode = "0755"
+sizes = ["small", "medium"]
+[download.sha256]
+amd64 = "424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa"
+arm64 = "ade83b7aac62e131cacfe96d958948b2150cc9efec46a570a2649b8e27dedad2"
+
+[[download]]
+name = "k3d"
+version = "v5.8.3"                             # the version node-chart.yml proves the charts with
+dest = "tools/k3d"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.8.3/k3d-linux-{arch}"
+mode = "0755"
+sizes = ["small"]
+[download.sha256]
+amd64 = "dbaa79a76ace7f4ca230a1ff41dc7d8a5036a8ad0309e9c54f9bf3836dbe853e"
+arm64 = "0b8110f2229631af7402fb828259330985918b08fefd38b7f1b788a1c8687216"
+
+# k3s: the release K3D v5.8.3 runs by default, so small and medium run the same
+# Kubernetes and the same system images.
+[[download]]
+name = "k3s"
+version = "v1.31.5+k3s1"
+dest = "tools/k3s"
+mode = "0755"
+sizes = ["medium"]
+[download.url]
+amd64 = "https://github.com/k3s-io/k3s/releases/download/v1.31.5%2Bk3s1/k3s"
+arm64 = "https://github.com/k3s-io/k3s/releases/download/v1.31.5%2Bk3s1/k3s-arm64"
+[download.sha256]
+amd64 = "399b87b432ce55013fa81adad572a8e4ecf56e0df97369cf02d4b8a41f039091"
+arm64 = "b719566c43ab1379fe2a7ce477e02bc1c79ea106bdaa7223fa9f6e19a735b477"
+
+[[download]]
+name = "k3s-install"
+version = "v1.31.5+k3s1"
+dest = "base/k3s-install.sh"
+url = "https://raw.githubusercontent.com/k3s-io/k3s/v1.31.5%2Bk3s1/install.sh"
+mode = "0755"
+sizes = ["medium"]
+[download.sha256]
+amd64 = "f60c3d8940dfc896f7d83aaf57726c91cf21afc4bca40036472df108d9700b4b"
+arm64 = "f60c3d8940dfc896f7d83aaf57726c91cf21afc4bca40036472df108d9700b4b"
+
+# The system images k3s starts with (pause, CoreDNS, local-path, Traefik,
+# metrics-server, the Helm controller, the service load balancer). k3s imports
+# this file from its images directory at start; a K3D node gets it as a mount.
+[[download]]
+name = "k3s-airgap-images"
+version = "v1.31.5+k3s1"
+dest = "base/k3s-airgap-images-{arch}.tar.zst"
+url = "https://github.com/k3s-io/k3s/releases/download/v1.31.5%2Bk3s1/k3s-airgap-images-{arch}.tar.zst"
+mode = "0644"
+sizes = ["small", "medium"]
+[download.sha256]
+amd64 = "94f127423c8dd3fe5834559d2c88f1afde7681ce36f139c82b5e46d0c2b33ba3"
+arm64 = "f848ede8c5e945312412efb46e1e02bf2bcbf5c190afcf7eb599c9ce11ede587"
+
+# ---- images, saved as one archive each ----
+
+# node: what infra/charts/axiom-node renders.
+[[image]]
+ref = "ghcr.io/b-tree-labs/axiom-runtime:0.5.0"
+group = "node"
+sizes = ["small", "medium"]
+# Built here when the registry has no image for the bundle's architecture.
+build = "infra/images/axiom-runtime"
+
+[[image]]
+ref = "nginx:1.27.3-alpine"
+group = "node"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "timescale/timescaledb:2.28.2-pg16"
+group = "node"
+sizes = ["small", "medium"]
+
+# Built by the bundle builder from the runtime image and the wheelhouse; the
+# tag is the chart's packages.version.
+[[image]]
+ref = "axiom-wheelhouse:0.70.6"
+group = "node"
+sizes = ["small", "medium"]
+wheelhouse = true
+
+[[image]]
+ref = "ghcr.io/open-webui/open-webui:v0.10.2"
+group = "chat"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "ghcr.io/b-tree-labs/axiom-llm-server:0.1.0"
+group = "chat"
+sizes = ["small", "medium"]
+build = "infra/llm-server"
+
+# k3d: the node image and K3D's two helpers.
+[[image]]
+ref = "rancher/k3s:v1.31.5-k3s1"
+group = "k3d"
+sizes = ["small"]
+
+[[image]]
+ref = "ghcr.io/k3d-io/k3d-tools:5.8.3"
+group = "k3d"
+sizes = ["small"]
+
+[[image]]
+ref = "ghcr.io/k3d-io/k3d-proxy:5.8.3"
+group = "k3d"
+sizes = ["small"]
+
+# base: what infra/charts/axiom-cluster renders at small and medium.
+[[image]]
+ref = "quay.io/jetstack/cert-manager-controller:v1.21.3"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "quay.io/jetstack/cert-manager-cainjector:v1.21.3"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "quay.io/jetstack/cert-manager-webhook:v1.21.3"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "quay.io/jetstack/cert-manager-startupapicheck:v1.21.3"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "quay.io/jetstack/cert-manager-acmesolver:v1.21.3"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "ghcr.io/cloudnative-pg/cloudnative-pg:1.30.1"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "ghcr.io/external-secrets/external-secrets:v2.14.0"
+group = "base"
+sizes = ["small", "medium"]
+
+[[image]]
+ref = "chrislusf/seaweedfs:4.51"
+group = "base"
+sizes = ["small", "medium"]
+
+# monitoring: kube-prometheus-stack, installed by the cluster base at medium.
+[[image]]
+ref = "quay.io/prometheus-operator/prometheus-operator:v0.94.2"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "quay.io/prometheus-operator/prometheus-config-reloader:v0.94.2"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "quay.io/prometheus/prometheus:v3.15.1-distroless"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "quay.io/prometheus/alertmanager:v0.34.1"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "quay.io/prometheus/node-exporter:v1.12.1-distroless"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0"
+group = "monitoring"
+sizes = ["medium"]
+
+[[image]]
+ref = "ghcr.io/jkroepke/kube-webhook-certgen:1.11.0"
+group = "monitoring"
+sizes = ["medium"]
+
+# Named in the rendered output and never pulled by what the charts install.
+[[referenced_not_bundled]]
+ref = "quay.io/thanos/thanos:v0.42.5"
+reason = "the operator's default for a Thanos sidecar; the cluster base configures none"

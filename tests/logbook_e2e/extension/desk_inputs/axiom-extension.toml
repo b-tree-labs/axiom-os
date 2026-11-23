@@ -1,0 +1,15 @@
+# A fictional extension for the end-to-end suite (#1799): it declares the suite's log and the
+# site inputs that log reaches for, registered once per process when the node first reads a log.
+[extension]
+name = "desk_inputs"
+version = "0.0.0"
+description = "The end-to-end suite's desk log and its site inputs"
+
+[[extension.provides]]
+kind = "logbook"
+file = "../../logbooks/e2e_log.toml"
+
+[[extension.provides]]
+kind = "logbook_inputs"
+path = "inputs.py"
+entry = "inputs:register"

@@ -1,0 +1,27 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+#
+# The log events the platform's own code marks for the event bus (ADR-265: a log-to-bus
+# forwarder). A record marked with an event type that is not listed here is blocked at the
+# forwarder's gate. A site adds its own in runtime/config/bus_event_registry.toml (the older
+# name signal_event_registry.toml is still read for one release); its file adds to this one.
+#
+# Add an entry here with the call site that emits it. tests/infra/test_log_to_bus_forwarder.py
+# fails when a marked call site has no entry.
+
+[[events]]
+event_type = "security.chunk_injection_detected"
+justification = "A retrieved chunk matched a prompt-injection pattern; the security log writes it and the bus carries it to whatever reacts."
+
+[[events]]
+event_type = "security.response_scan_hit"
+justification = "A model response matched a classified keyword."
+
+[[events]]
+event_type = "security.ec_leakage_suspected"
+justification = "Export-controlled content appeared in a public response. Records that are themselves export-controlled never reach the bus."
+
+[[events]]
+event_type = "logs.size_warning"
+justification = "An audit log file passed its size threshold; the log steward writes it."

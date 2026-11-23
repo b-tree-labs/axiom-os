@@ -1,0 +1,30 @@
+{{- /*
+The certificate issuer. A custom resource of cert-manager's, so it is applied
+as a post-install hook: after the operator and its webhook are up (install and
+upgrade run with --wait).
+*/ -}}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  {{- if .Values.certManager.issuer.acmeEmail }}
+  name: axiom-letsencrypt
+  {{- else }}
+  name: axiom-selfsigned
+  {{- end }}
+  labels: {app.kubernetes.io/part-of: axiom-cluster}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  {{- if .Values.certManager.issuer.acmeEmail }}
+  acme:
+    email: {{ .Values.certManager.issuer.acmeEmail }}
+    server: {{ .Values.certManager.issuer.acmeServer }}
+    privateKeySecretRef: {name: axiom-letsencrypt-account}
+    solvers:
+      - http01:
+          ingress: {ingressClassName: axiom}
+  {{- else }}
+  selfSigned: {}
+  {{- end }}

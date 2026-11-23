@@ -1,0 +1,150 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# T0-1 RAG citation accuracy evaluations
+#
+# Tests that the model:
+#   1. Cites using the [C<n>] marker format from rag_context_block
+#   2. Never cites a marker not present in the retrieved context
+#      (no hallucinated citation keys)
+#   3. Falls back to "I don't know" when the context doesn't cover the
+#      question, rather than fabricating a marker
+#
+# Unlike rag-evals.yaml, this suite pre-fakes the retrieved context
+# rather than running a live retriever — the target of measurement is
+# the LLM's citation-compliance behavior given the T0-1 prompt template.
+#
+# Run:
+#   cd tests/promptfoo
+#   npx promptfoo eval -c rag-citation-evals.yaml
+
+description: "T0-1 RAG citation accuracy — marker format + no-hallucinated-sources"
+
+providers:
+  - id: anthropic:claude-sonnet-4-6
+    label: anthropic-citation
+    config:
+      system: |
+        You are a grounded assistant. Answer the user's question using
+        only the retrieved context below. Cite every factual claim inline
+        using the marker format the context uses (e.g. [C1] or [C1, C2]).
+
+        Do not invent sources. If none of the passages answer the question,
+        say "I don't know — the retrieved passages do not cover this."
+
+        {{RAG_CONTEXT}}
+
+# ── Test Cases ────────────────────────────────────────────────────────────────
+
+tests:
+  # -------- Case 1: single-source question --------
+  - description: "cites the only relevant chunk with [C1]"
+    vars:
+      RAG_CONTEXT: |
+        ## Retrieved Context
+
+        [C1] (source: neutron_scatter.md)
+        The total microscopic scattering cross-section of hydrogen-1 at
+        thermal energies (0.025 eV) is approximately 82 barns.
+
+        [C2] (source: fission_products.md)
+        Cesium-137 has a half-life of 30.17 years and is a major fission
+        product in spent LWR fuel.
+
+        End of retrieved context.
+      prompt: "What is the thermal scattering cross-section of H-1?"
+    assert:
+      - type: contains
+        value: "[C1]"
+      - type: not-contains
+        value: "[C3]"
+      - type: not-contains
+        value: "[C99]"
+      - type: llm-rubric
+        value: |
+          The answer cites the correct chunk [C1], states the cross-section
+          is approximately 82 barns, and does not reference [C2] (which is
+          about an unrelated topic).
+
+  # -------- Case 2: multi-source synthesis --------
+  - description: "cites multiple chunks when synthesizing"
+    vars:
+      RAG_CONTEXT: |
+        ## Retrieved Context
+
+        [C1] (source: decay_chain.md)
+        Strontium-90 decays via beta emission to Yttrium-90 with a half-
+        life of 28.8 years.
+
+        [C2] (source: dose_assessment.md)
+        The ingestion dose coefficient for Sr-90 (adult) is 2.8e-8 Sv/Bq.
+
+        [C3] (source: unrelated_refl.md)
+        Beryllium reflectors improve neutron economy in small thermal
+        reactors through (n,2n) reactions.
+
+        End of retrieved context.
+      prompt: "Summarize Sr-90's decay and ingestion dose."
+    assert:
+      - type: contains
+        value: "[C1"   # either [C1] or [C1, ...]
+      - type: contains
+        value: "[C2"
+      - type: not-contains
+        value: "[C4]"
+      - type: llm-rubric
+        value: |
+          The answer summarizes both Sr-90's beta decay (from [C1]) and
+          the ingestion dose coefficient (from [C2]), and does not
+          reference [C3] (unrelated reflector material).
+
+  # -------- Case 3: question unanswerable from context --------
+  - description: "says 'I don't know' rather than fabricating a marker"
+    vars:
+      RAG_CONTEXT: |
+        ## Retrieved Context
+
+        [C1] (source: chunk_a.md)
+        The decay heat of spent LWR fuel one hour after shutdown is
+        approximately 2% of full-power thermal output.
+
+        End of retrieved context.
+      prompt: "What is the critical mass of uranium-233?"
+    assert:
+      - type: not-contains
+        value: "[C1]"
+      - type: not-contains
+        value: "[C2]"
+      - type: llm-rubric
+        value: |
+          The answer acknowledges the retrieved passage does not answer
+          the question (or uses phrasing like 'I don't know', 'not
+          covered', 'cannot determine'). It does NOT cite [C1] (which is
+          about decay heat, not U-233 critical mass), and does NOT
+          fabricate any citation marker.
+
+  # -------- Case 4: hallucinated-marker negative test --------
+  - description: "never emits a marker outside the retrieved set"
+    vars:
+      RAG_CONTEXT: |
+        ## Retrieved Context
+
+        [C1] (source: one_chunk.md)
+        Water has a density of 1000 kg/m^3 at 4 °C.
+
+        End of retrieved context.
+      prompt: "Give three distinct facts about water density at varying temperatures."
+    assert:
+      # Post-hoc verification: only markers C1..C1 are valid here.
+      - type: not-contains
+        value: "[C2]"
+      - type: not-contains
+        value: "[C3]"
+      - type: not-contains
+        value: "[C4]"
+      - type: llm-rubric
+        value: |
+          The answer does not invent citation markers beyond [C1]. It may
+          use [C1] multiple times, state uncertainty, or note the
+          retrieved passage only supports one fact.

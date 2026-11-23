@@ -1,0 +1,31 @@
+# The reviews log: a reviewer signs, as they go, that they reviewed a range of another log's
+# records (#1817, ADR-274). It carries no trade. Copy the extension and rename what you need.
+#
+# A reviewer is given a time-boxed read grant for the one log they review:
+#
+#   axi log role grant @reviewer:site reviewer --log <reviewed log> --until 2027-03-31
+#
+# While the grant is live they read that log and nothing else, and sign a REVIEW naming it. When
+# it expires, or `axi grant revoke <id>` ends it, every read answers as if it never existed. The
+# site reads coverage with GET /api/v1/attest/<reviewed log>/reviews/coverage.
+
+[logbook]
+id = "reviews_log"
+version = "1"
+display = "Reviews"
+# The site's people read the reviews; a reviewer's grant names the reviewed log, not this one.
+readers = ["member", "lead"]
+assurance = { posture = "attested" }
+
+[[type]]
+id = "REVIEW"
+meanings = ["reviewed"]
+# Held only through a live reviewer grant for the log the review names; no site role is it.
+roles = ["reviewer"]
+confirm = { modalities_any = ["screen", "cli"] }
+fields = [
+  { id = "logbook", type = "text", label = "Log reviewed", required = true },
+  { id = "from_seq", type = "number", label = "From entry" },
+  { id = "to_seq", type = "number", label = "To entry" },
+  { id = "finding", type = "text", label = "Finding", required = true },
+]

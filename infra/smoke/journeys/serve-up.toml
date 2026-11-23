@@ -1,0 +1,21 @@
+# The node is up and says so: readiness, liveness, and the page shell.
+[journey]
+name = "serve-up"
+base_url = "http://127.0.0.1:8770"
+timeout_s = 10
+
+[[step]]
+name = "readiness answers ready"
+path = "/readyz"
+expect = { status = 200, body_contains = ['"ready":true'] }
+
+[[step]]
+name = "liveness answers ok and can write"
+path = "/healthz"
+expect = { status = 200, content_type = "application/json", body_contains = ['"status":"ok"'] }
+
+[[step]]
+name = "the page shell is served"
+path = "/"
+headers = { Accept = "text/html" }
+expect = { status = 200, max_latency_ms = 5000 }
