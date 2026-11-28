@@ -1,0 +1,21 @@
+{
+  "note": "RFC 8032 section 7.1 TEST 1 and TEST 2 keys. Public test vectors; never use for a real node.",
+  "nodes": [
+    {
+      "name": "node-a",
+      "secret_key_hex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+      "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "node_id": "21fe31dfa154a261"
+    },
+    {
+      "name": "node-b",
+      "secret_key_hex": "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
+      "public_key_hex": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+      "node_id": "39f713d0a644253f"
+    }
+  ],
+  "pinned": {
+    "node-a": "21fe31dfa154a261",
+    "node-b": "39f713d0a644253f"
+  }
+}

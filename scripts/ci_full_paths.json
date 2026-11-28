@@ -1,0 +1,19 @@
+{
+  "label": "ci:full",
+  "description": "run the main CI path on this pull request",
+  "patterns": [
+    ".github/**",
+    "scripts/testmon_*",
+    "scripts/ci_*",
+    "src/axiom/extensions/builtins/release/**",
+    "tests/conftest.py",
+    "**/conftest.py",
+    "pyproject.toml",
+    "**/pyproject.toml",
+    "**/*.lock",
+    "**/package-lock.json",
+    "**/requirements*.txt",
+    "tests/test_*hygiene*",
+    "tests/test_ci_*"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+ "sha": "63a071485a884bab02590f0ac9ebdafad286407b",
+ "message": "fix(audit): one signature chain per node across restarts and writers, a fixed log directory, and a real setup audit-key (closes #2470) (#2474)",
+ "author": "benjaminbooth",
+ "parents": [
+  "661241c902343aae1b8d9f8f685154bf8705ddc2"
+ ],
+ "files": [
+  "src/axiom/extensions/builtins/hygiene/log_steward.py",
+  "src/axiom/extensions/builtins/setup/audit_key.py",
+  "src/axiom/extensions/builtins/setup/cli.py",
+  "src/axiom/infra/audit_log.py",
+  "src/axiom/infra/state.py",
+  "src/axiom/llm/routing_health.py",
+  "tests/infra/test_the_audit_chain_survives_restarts_and_several_writers.py"
+ ]
+}

@@ -1,0 +1,64 @@
+# The log the field-filter acceptance rows run against (ADR-268, PRD attestation 6c). Fictional
+# and domain-free: rounds and spot checks in named areas, each about an asset, with a measured
+# pressure, a count, a checkbox, a note, one observed value and a due time (phase 2).
+[logbook]
+id = "filter_log"
+version = "1"
+display = "Filter Log"
+signed = true
+handle = "filters"
+readers = ["operator"]
+
+[[type]]
+id = "ROUND"
+meanings = ["performed"]
+roles = ["operator"]
+fields = [
+  { id = "area", type = "choice", label = "Area", choices = ["North", "South", "East"] },
+  { id = "asset_id", type = "text", label = "Asset" },
+  { id = "pressure", type = "quantity", unit = "bar", label = "Pressure", convert = [{ from = "kPa", to = "bar", factor = "0.01" }] },
+  { id = "checked", type = "attest_checkbox", label = "Checked" },
+  { id = "note", type = "text", label = "Note" },
+  { id = "count", type = "number", label = "Count" },
+  { id = "seen", type = "text", label = "Seen", observe = true },
+  { id = "due", type = "datetime", label = "Due" },
+]
+
+[[type]]
+id = "SPOT"
+meanings = ["observed"]
+roles = ["operator"]
+fields = [
+  { id = "area", type = "choice", label = "Area", choices = ["North", "South"] },
+  { id = "pressure", type = "quantity", unit = "bar", label = "Pressure", convert = [{ from = "kPa", to = "bar", factor = "0.01" }] },
+  { id = "note", type = "text", label = "Note" },
+  { id = "hidden", type = "text", label = "Hidden" },
+]
+
+[[filter]]
+field = "area"
+
+[[filter]]
+field = "asset_id"
+match = "equals"
+
+[[filter]]
+field = "pressure"
+
+[[filter]]
+field = "note"
+types = ["ROUND"]
+label = "Note text"
+
+[[filter]]
+field = "checked"
+
+[[filter]]
+field = "count"
+
+[[filter]]
+field = "seen"
+match = "equals"
+
+[[filter]]
+field = "due"

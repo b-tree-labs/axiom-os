@@ -1,0 +1,16 @@
+2026-11-25T23:55:49.6215444Z ##[group]Run echo "::error::Unit Shard result is failure; see the shard jobs."
+2026-11-25T23:55:49.6215895Z [36;1mecho "::error::Unit Shard result is failure; see the shard jobs."[0m
+2026-11-25T23:55:49.6216197Z [36;1mexit 1[0m
+2026-11-25T23:55:49.6233937Z shell: /usr/bin/bash -e {0}
+2026-11-25T23:55:49.6234157Z env:
+2026-11-25T23:55:49.6234351Z   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+2026-11-25T23:55:49.6234609Z   UNIT_SHARDED: true
+2026-11-25T23:55:49.6234866Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-25T23:55:49.6235234Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-25T23:55:49.6235587Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-25T23:55:49.6235914Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-25T23:55:49.6236242Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-25T23:55:49.6236568Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-25T23:55:49.6236868Z ##[endgroup]
+2026-11-25T23:55:49.6274069Z ##[error]Unit Shard result is failure; see the shard jobs.
+2026-11-25T23:55:49.6276565Z ##[error]Process completed with exit code 1.

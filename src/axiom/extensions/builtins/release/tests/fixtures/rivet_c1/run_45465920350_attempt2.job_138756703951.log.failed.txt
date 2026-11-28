@@ -1,0 +1,5 @@
+2026-11-24T20:53:32.1088261Z FAILED src/axiom/extensions/builtins/video/tests/test_diagnose_names_the_exact_fix.py::test_the_last_rung_is_a_real_frame - assert ('verify' == 'verify'
+2026-11-24T20:53:39.6461314Z Remove container network: github_network_8eaa83c7bee2480b94623a3884529983
+2026-11-24T20:53:39.6464902Z ##[command]/usr/bin/docker network rm github_network_8eaa83c7bee2480b94623a3884529983
+2026-11-24T20:53:39.7517218Z github_network_8eaa83c7bee2480b94623a3884529983
+2026-11-24T20:53:39.7589892Z Cleaning up orphan processes

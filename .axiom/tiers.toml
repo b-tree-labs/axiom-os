@@ -1,0 +1,134 @@
+# The tier map (ADR-257 D2, LOOP-S2): which tier each path is in.
+#
+# Tier 0: documents, tests and design assets.
+# Tier 1: extension and feature code whose effect a flag contains.
+# Tier 2: everything a flag cannot contain.
+#
+# A path's tier is the highest tier of every rule it matches; a path no rule
+# matches is `default`. A change is the highest tier of any path it touches.
+# Every path in CODEOWNERS is tier 2 (`codeowners_tier`).
+#
+# Read by the pre-push hook and the server check (both run `axi release guards`)
+# and by the lander's report. Phase 3 computes and reports the tier; nothing is
+# refused for it until commit signatures exist (phase 6).
+#
+# Patterns are anchored at the repository root. `*` stays inside one path
+# segment, `**` crosses segments, and a pattern also covers everything under a
+# directory it names. Changing this file is itself a tier 2 change.
+
+version = 1
+default = 1
+codeowners = ".github/CODEOWNERS"
+codeowners_tier = 2
+
+# -- tier 0 ---------------------------------------------------------------------
+
+[[rule]]
+tier = 0
+name = "documents"
+paths = ["docs/**", "**/*.md", "**/*.rst"]
+
+[[rule]]
+tier = 0
+name = "tests"
+paths = ["tests/**", "**/tests/**", "**/test_*.py", "**/*_test.py"]
+
+[[rule]]
+tier = 0
+name = "design assets"
+paths = ["**/*.png", "**/*.svg", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.webp"]
+
+# -- tier 2 ---------------------------------------------------------------------
+
+[[rule]]
+tier = 2
+name = "schema migrations"
+paths = ["**/migrations/**", "**/alembic/**", "**/*.sql"]
+
+[[rule]]
+tier = 2
+name = "authorization"
+paths = [
+  "src/axiom/policy/**",
+  "src/axiom/infra/auth/**",
+  "src/axiom/infra/authority*.py",
+  "src/axiom/infra/raci*.py",
+  "src/axiom/extensions/builtins/auth/**",
+  "src/axiom/extensions/builtins/authz/**",
+]
+
+[[rule]]
+tier = 2
+name = "secrets"
+paths = [
+  "src/axiom/extensions/builtins/secrets/**",
+  "src/axiom/extensions/builtins/vault/**",
+  "src/axiom/setup/secrets.py",
+]
+
+[[rule]]
+tier = 2
+name = "packaging and pins"
+paths = [
+  "**/pyproject.toml",
+  "**/*requirements*.txt",
+  "**/*.lock",
+  "**/package.json",
+  "**/package-lock.json",
+  "**/Dockerfile*",
+  "**/docker-compose*.yml",
+  "**/setup.py",
+  "**/setup.cfg",
+  "MANIFEST.in",
+]
+
+[[rule]]
+tier = 2
+name = "CI workflows and hooks"
+paths = [".github/**", "scripts/hooks/**", ".pre-commit-config.yaml", "Makefile"]
+
+[[rule]]
+tier = 2
+name = "the guards"
+paths = [
+  ".axiom/**",
+  "tests/test_axiom_names_no_domain.py",
+  "tests/test_mirror.py",
+  "tests/test_repo_hygiene.py",
+  "scripts/lint_adr_numbers.py",
+  "scripts/build_public_mirror.py",
+  "mirror/**",
+  "src/axiom/infra/secret_scan.py",
+  "src/axiom/extensions/builtins/release/guards.py",
+  "src/axiom/extensions/builtins/release/tiers.py",
+  "src/axiom/extensions/builtins/release/auto_revert.py",
+  "src/axiom/extensions/builtins/release/release_lock.py",
+]
+
+[[rule]]
+tier = 2
+name = "test setup"
+paths = ["conftest.py", "**/conftest.py", "tests/_isolation.py"]
+
+[[rule]]
+tier = 2
+name = "the flag system"
+paths = [
+  "src/axiom/extensions/builtins/features/**",
+  "src/axiom/extensions/builtins/flags/**",
+]
+
+# From the review-tier rules: documents that steer every agent and record a
+# decision go to the owner, not a peer.
+[[rule]]
+tier = 2
+name = "agent instructions and decisions"
+paths = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  ".cursor/**",
+  ".junie/**",
+  "docs/adrs/**",
+  "docs/prds/**",
+]

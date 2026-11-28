@@ -1,0 +1,37 @@
+{
+  "receipts": [
+    {
+      "type": "aeos.receipt",
+      "workload": "aeos:wl:39f713d0a644253f:01JDXK0000000000000000000B",
+      "seq": 1,
+      "state": "submitted",
+      "prev": null,
+      "at": "2026-11-23T22:00:00.000000Z",
+      "by": "@reviewer:alice",
+      "decision": "dec-0001",
+      "signatures": [
+        {
+          "protected": "eyJhZW9zIjoicmVjZWlwdCIsImFsZyI6IkVkRFNBIiwia2lkIjoiMjFmZTMxZGZhMTU0YTI2MSIsInR5cCI6ImFlb3MrandzIn0",
+          "signature": "ojn_8K5wr5_sCs2qgquqWpMmcacO-M0LWxf_kcjX6wxCGpOxeiOtjYwGgOqO7hdc8aV_mZQFbjWFgj1fy0wWAg"
+        }
+      ]
+    },
+    {
+      "type": "aeos.receipt",
+      "workload": "aeos:wl:39f713d0a644253f:01JDXK0000000000000000000B",
+      "seq": 2,
+      "state": "working",
+      "prev": "sha256:7f2b2e716745fe33fc0527cfae19b274c1d679978cf072926c9a74f404eee0cc",
+      "at": "2026-11-23T22:00:05.000000Z",
+      "by": "@reviewer:alice",
+      "decision": null,
+      "signatures": [
+        {
+          "protected": "eyJhZW9zIjoicmVjZWlwdCIsImFsZyI6IkVkRFNBIiwia2lkIjoiMjFmZTMxZGZhMTU0YTI2MSIsInR5cCI6ImFlb3MrandzIn0",
+          "signature": "gRNaPgtz0eCtnHzHtK_tLAyXNBs4wSwUhuI6zRiLglTQNp-le25vP86CjBbgDdd5xQTK-gxsA49Nq3TX5PRVAw"
+        }
+      ]
+    }
+  ],
+  "note": "prev is sha256 over the previous receipt's canonical bytes without signatures"
+}

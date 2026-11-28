@@ -1,0 +1,281 @@
+# KEEL — the one agent for the machine a node runs on (ADR-230).
+# Every surface (CLI, MCP, agent) routes through the skill registry, so a chat
+# question and `axi node inventory` run the same function and get the same answer.
+[extension]
+name = "node"
+version = "0.1.0"
+description = "The machine a node runs on, as one agent: what runs here, how it is doing, what is wrong and the fix, where configuration has drifted, and what can be reclaimed. Absorbs hygiene, diagnostics and the install doctor (ADR-230)."
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.2.0"
+chain_level = "B"
+builtin = true
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.70"
+
+# The skills are MCP tools on the platform's unified server (spec-builtin-mcp-server).
+[extension.mcp]
+enabled = true
+
+# On by default. A node with a role (a buoy: acquire + transmit) declares
+# `agents = "none"` in its node file and nothing here runs; that is the
+# formalization of "on for site nodes, off for buoys" (ADR-164, ADR-230).
+[agent]
+default_consent = "core"
+# "daemon", not "lazy": the Background Service only dispatches an always-on agent, and the
+# chain ledger treats a node with no fresh verdict as blind.
+startup = "daemon"
+# The soundings: every fifteen minutes KEEL reads the vitals; a breach alerts through HERALD.
+heartbeat_interval = 900
+heartbeat_command = "node vitals --alert --reap"
+
+[[extension.provides]]
+kind = "agent"
+name = "keel"
+entry = "axiom.extensions.builtins.node:keel_persona_path"
+persona = "agents/keel/persona.md"
+description = "KEEL — node steward: inventory, soundings, drift and upkeep for the machine a node runs on, including engines Axiom did not install."
+role = "node steward"
+domain = "engines, disks, drift"
+# AEOS 1.0 §3.11: a Steward (acts on resources) that is also a Sensor (observes vitals).
+classes = ["steward", "sensor"]
+namespaces = ["node"]
+asks = ["what is running on this node", "what is using the disk", "is anything drifting from its pin", "what is wrong here and how do I fix it", "give me the node report", "which tables grow without a bound", "why is the database growing"]
+
+[sender]
+display_name = "KEEL"
+
+# `axi node <verb>` — ADR-056: verbs are thin wrappers over the skills below.
+[[extension.provides]]
+kind = "cmd"
+noun = "node"
+entry = "axiom.extensions.builtins.node.commands:main"
+description = "Node: inventory / vitals / doctor / drift / report / declare / clean / window"
+tier = "core"
+intent_groups = ["maintain"]
+verb_overrides = { clean = { tier = "advanced" } }
+
+# Skills: declared once as SkillSpecs in skills/__init__.py (descriptions, risk,
+# preconditions, produces, next steps); the block below and each skills/<verb>/SKILL.md
+# are generated from them by `axi skills emit-md --ext node`.
+
+# BEGIN axi-skills-emit-md (generated — do not edit)
+[[extension.provides]]
+kind = "skill"
+name = "node.clean"
+entry = "axiom.extensions.builtins.node.skills.clean:run"
+path = "skills/clean"
+description = "What could be reclaimed on this machine, as a plan: models installed in Ollama that no role is pinned to, container images nothing uses, hot-tier directories that belong on the bulk tier. Plans only in this release; applying one is a separate approved step, and nothing measured is ever deleted. Answers 'what can we free up'. Not the harness's own /clear."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "confirm the headroom after the owner acts" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.data_apply"
+entry = "axiom.extensions.builtins.node.skills.data_retention:apply"
+path = "skills/data_apply"
+description = "Run an approved data-growth or retention plan: exactly its table and statements, only with the plan_hash a person approved, and only statements from KEEL's allowlist (add a retention or compression policy, drop an index concurrently, set a fillfactor). Closes the plan's CLERK follow-up with what ran. CHANGES THE DATABASE."
+risk = "destructive"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.data_growth", when = "ok", why = "confirm the finding is gone" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.data_growth"
+entry = "axiom.extensions.builtins.node.skills.data_growth:run"
+path = "skills/data_growth"
+description = "Which tables on this node's database grow without a bound, from the catalogue only (never a table's rows): per table its size, index size, live and dead rows, inserts and updates since the statistics reset, growth per day, hypertable, compression and retention; the database volume's free space and days until full. Judges the rule that a table growing with time is a compressed hypertable or declares a row limit or retention, and flags update churn, indexes larger than their data and overlapping indexes. Each finding carries its fix as a plan it never applies. With alert=true each broken rule reaches HERALD once. Answers 'what is growing in the database', 'when does the database disk fill'."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.data_apply", when = "ok", why = "apply a plan once a person approves it" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.data_growth_open"
+entry = "axiom.extensions.builtins.node.skills.data_growth:open_proposals"
+path = "skills/data_growth_open"
+description = "The data-growth fixes KEEL proposed that still wait on a person: open or approved, not yet applied, each with its rule, table, plan_hash and CLERK follow-up. Records an approval on the follow-up when the plan was approved since. What CLERK's weekly digest lists. Answers 'what database fixes are waiting on us'."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.data_apply", when = "ok", why = "apply a plan a person approved" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.data_retention"
+entry = "axiom.extensions.builtins.node.skills.data_retention:retention"
+path = "skills/data_retention"
+description = "Retention and archival for database tables that declare a bound: from PLINTH's storage rules and KEEL's measurements, per table what keeping to it takes (a hypertable retention policy, a batched delete of rows past their retain, a trim to max_rows), each as a plan a person approves. Answers 'are we keeping only what we declared'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.data_apply", when = "ok", why = "apply a plan once a person approves it" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.declare"
+entry = "axiom.extensions.builtins.node.skills.declare:run"
+path = "skills/declare"
+description = "Tell KEEL about what Axiom did not install so the inventory and drift can see it: an engine (kind=engine: name, unit, port, weights, owner), a storage tier (kind=tier: mount, hot or bulk, floor_gb), or a tracked file (kind=tracked: live path and its source). Writes the node's declarations durably; the change is returned and recorded."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "node.inventory", when = "ok", why = "see the declaration in place" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.dependency_declare"
+entry = "axiom.extensions.builtins.node.skills.dependency:declare"
+path = "skills/dependency_declare"
+description = "Declare a dependency this node's units wait for, and the one probe that says it is ready: an HTTP URL, a host:port, a command, or a file. Writes the node's declarations durably."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = [{ target = "node.wait_for", when = "ok", why = "check the probe answers" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.dependency_list"
+entry = "axiom.extensions.builtins.node.skills.dependency:list_declared"
+path = "skills/dependency_list"
+description = "The dependencies this node declares, each with its readiness probe and timeout. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = []
+
+[[extension.provides]]
+kind = "skill"
+name = "node.dependency_remove"
+entry = "axiom.extensions.builtins.node.skills.dependency:remove"
+path = "skills/dependency_remove"
+description = "Remove a declared dependency. The declaration is returned and recorded; nothing else changes."
+risk = "reversible-write"
+side_effects = true
+idempotent = true
+requires = []
+next_steps = []
+
+[[extension.provides]]
+kind = "skill"
+name = "node.doctor"
+entry = "axiom.extensions.builtins.node.skills.doctor:run"
+path = "skills/doctor"
+description = "What is wrong with this install and the exact fix for each finding: the platform's health checks (endpoints, models, memory store, services, GPU contention, package coherence) including whether the local model pins, the ensure unit and the serving env agree. Answers 'something is broken', 'check this node'. Makes no change and calls no model. Not the harness's own /doctor."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.drift", when = "ok", why = "see every place the node disagrees with itself" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.drift"
+entry = "axiom.extensions.builtins.node.skills.drift:run"
+path = "skills/drift"
+description = "Where the node has moved off course: the code's local-model pins vs the unit that pulls models vs the serving env (ADR-140); live configuration files that differ from their tracked source; hand-edited files with no tracked source. Each finding names the fix. Answers 'is anything drifting', 'does this node match what we decided'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.declare", when = "ok", why = "declare a live file's source so drift is measured, not suspected" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.inventory"
+entry = "axiom.extensions.builtins.node.skills.inventory:run"
+path = "skills/inventory"
+description = "What runs on this machine: model engines (detected from their processes, and declared when Axiom did not install them), the models each serves, systemd units, listening ports, GPU use, and disks by storage tier. Answers 'what is running here', 'which models are served and from where', 'what is on the GPU'. Reads only; a credential found on a command line is reported as exposed, never shown."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+produces = [{ kind = "engine", how_to_use = "an engine's name, port and unit; declare it with node.declare or check it with node.doctor", field = "engines" }]
+next_steps = [{ target = "node.drift", when = "ok", why = "see whether what runs matches what is pinned and tracked" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.reap_worktrees"
+entry = "axiom.extensions.builtins.node.skills.reap_worktrees:run"
+path = "skills/reap_worktrees"
+description = "Finished git worktrees, removed safely: only when the commits are on the default branch or the PR merged, nothing is uncommitted or untracked, no process is inside, it is not locked, no editable install points into it and its last git activity is old enough. Ignored state beyond regenerable caches is archived (tar.gz plus manifest) before removal, and a failed archive blocks removal. Branches are always kept. Plans by default and says why each other worktree was skipped; apply=true removes up to a batch."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "confirm the headroom after the worktrees are gone" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.report"
+entry = "axiom.extensions.builtins.node.skills.report:run"
+path = "skills/report"
+description = "The node in one document for handover or onboarding: identity, inventory, vitals, doctor findings and drift, as structured data and optionally Markdown. Answers 'give me the node report', 'what would the next operator need to know'. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "fleet.report", when = "ok", why = "push this node's report to the fleet console" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.vitals"
+entry = "axiom.extensions.builtins.node.skills.vitals:run"
+path = "skills/vitals"
+description = "How the machine is doing right now: free space per mount against its declared floor and tier, memory, load, GPU memory, and one verdict (even keel, pressure, critical, or blind when a reading came back empty, which is never room). Answers 'is the disk ok', 'how much headroom is there'. With alert=true a breach is handed to HERALD; this is what the fifteen-minute heartbeat does. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = [{ target = "node.clean", when = "ok", why = "see what could be reclaimed when a mount is under its floor" }]
+
+[[extension.provides]]
+kind = "skill"
+name = "node.wait_for"
+entry = "axiom.extensions.builtins.node.skills.wait_for:run"
+path = "skills/wait_for"
+description = "Wait, with a timeout, for a dependency this node declares to be ready, using the probe the dependency itself declares (HTTP, TCP, command or file). The gate a managed unit runs before it starts, so boot order follows what each unit needs. Reads only."
+risk = "read"
+side_effects = false
+idempotent = true
+requires = []
+next_steps = []
+
+[[extension.provides]]
+kind = "skill"
+name = "node.window"
+entry = "axiom.extensions.builtins.node.skills.window:run"
+path = "skills/window"
+description = "Maintenance windows on this node: who is working on what, until when. action=open (owner, scope, expect like 45m, note), extend, close (id, outcome), check (is a scope clear before a deploy or a long job), or status (the default). An overdue window keeps blocking until its owner closes it. Answers 'is anyone working on this node', 'can I deploy now'."
+risk = "reversible-write"
+side_effects = true
+idempotent = false
+requires = []
+next_steps = [{ target = "node.vitals", when = "ok", why = "a window over a heavy job: watch the headroom while it runs" }]
+# END axi-skills-emit-md
+
+# Daily data-growth check (PULSE runs it): reads the database catalogue, keeps a size sample,
+# and hands each broken rule to HERALD once. It never acts; fixes come back as plans.
+[[extension.schedule]]
+name = "node_data_growth_daily"
+description = "Report tables growing without a bound and the database volume's days to full; alert once per cause"
+cadence = { kind = "cron", cron = "20 6 * * *", tz = "UTC", jitter_seconds = 300 }
+action = "node.data_growth"
+params = { alert = true }
+classification_ceiling = "internal"
+raci_default = "autonomous"
+retry = { max_attempts = 1 }

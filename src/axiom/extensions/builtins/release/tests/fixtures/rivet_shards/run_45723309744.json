@@ -1,0 +1,12 @@
+{
+ "id": 45723309744,
+ "name": "CI",
+ "path": ".github/workflows/ci.yml",
+ "event": "push",
+ "status": "completed",
+ "conclusion": "cancelled",
+ "head_branch": "main",
+ "head_sha": "491b5258296d094d3af8e31c0ba8228a3ffba7b9",
+ "run_attempt": 2,
+ "created_at": "2026-11-25T23:41:41Z"
+}

@@ -1,0 +1,106 @@
+2026-11-25T20:15:06.7849770Z tests/federation_lifecycle/test_docker_skip_guard.py::test_an_unresponsive_probe_returns_a_reason_rather_than_raising[oserror-daemon-probe] PASSED [ 25%]
+2026-11-25T20:15:06.7913383Z tests/federation_lifecycle/test_docker_skip_guard.py::test_an_unresponsive_probe_returns_a_reason_rather_than_raising[oserror-compose-probe] PASSED [ 31%]
+2026-11-25T20:15:06.7973657Z tests/federation_lifecycle/test_docker_skip_guard.py::test_both_probes_answering_reports_available PASSED [ 37%]
+2026-11-25T20:15:06.8051489Z tests/federation_lifecycle/test_docker_skip_guard.py::test_a_missing_docker_cli_is_still_a_clean_skip PASSED [ 43%]
+2026-11-25T20:16:13.9294528Z tests/federation_lifecycle/test_happy_path_3_node.py::test_happy_path_3_node_federation PASSED [ 50%]
+2026-11-25T20:16:28.1535450Z tests/federation_lifecycle/test_hierarchical_3_level.py::test_hierarchical_3_level_federation PASSED [ 56%]
+2026-11-25T20:16:29.4102625Z tests/federation_lifecycle/test_hub_spoke_5_node.py::test_hub_spoke_5_node_peer_isolation FAILED [ 62%]
+2026-11-25T20:16:43.4736160Z tests/federation_lifecycle/test_peer_version_preflight.py::test_peer_version_preflight_refuses_old_peer PASSED [ 68%]
+2026-11-25T20:16:50.4587064Z tests/federation_lifecycle/test_tofu_key_rotation_refusal.py::test_tofu_key_rotation_refusal PASSED [ 75%]
+2026-11-25T20:16:53.4793863Z tests/federation_lifecycle/test_update_fail_stop.py::test_update_fail_stop_on_broken_deps PASSED [ 81%]
+2026-11-25T20:16:53.5412071Z tests/classroom_e2e/test_student_journey.py::TestCompleteStudentJourney::test_end_to_end_student_experience PASSED [ 87%]
+2026-11-25T20:16:53.5484307Z tests/classroom_e2e/test_student_journey.py::TestInstructorStudentInteraction::test_grade_push_and_enrollment_change_detection PASSED [ 93%]
+2026-11-25T20:16:53.6789264Z tests/classroom_e2e/test_student_journey.py::TestStudentStudentCrossPollination::test_promoted_finding_visible_to_peer PASSED [100%]
+2026-11-25T20:16:53.6790017Z 
+2026-11-25T20:16:53.6790196Z =================================== FAILURES ===================================
+2026-11-25T20:16:53.6790812Z _____________________ test_hub_spoke_5_node_peer_isolation _____________________
+2026-11-25T20:16:53.6791563Z tests/federation_lifecycle/test_hub_spoke_5_node.py:48: in test_hub_spoke_5_node_peer_isolation
+2026-11-25T20:16:53.6792162Z     fed.start()
+2026-11-25T20:16:53.6792541Z tests/federation_lifecycle/harness.py:126: in start
+2026-11-25T20:16:53.6793324Z     self._compose("up", "-d", "--build")
+2026-11-25T20:16:53.6793732Z tests/federation_lifecycle/harness.py:261: in _compose
+2026-11-25T20:16:53.6794121Z     raise HarnessError(
+2026-11-25T20:16:53.6794624Z E   tests.federation_lifecycle.harness.HarnessError: docker compose up -d --build failed:
+2026-11-25T20:16:53.6795246Z E     stdout=#1 [internal] load local bake definitions
+2026-11-25T20:16:53.6795627Z E   #1 reading from stdin 634B done
+2026-11-25T20:16:53.6795938Z E   #1 DONE 0.0s
+2026-11-25T20:16:53.6796169Z E   
+2026-11-25T20:16:53.6796470Z E   #2 [internal] load build definition from Dockerfile.node
+2026-11-25T20:16:53.6796884Z E   #2 transferring dockerfile: 2.35kB done
+2026-11-25T20:16:53.6797213Z E   #2 DONE 0.0s
+2026-11-25T20:16:53.6797452Z E   
+2026-11-25T20:16:53.6797796Z E   #3 [internal] load metadata for docker.io/library/python:3.12-slim
+2026-11-25T20:16:53.6798216Z E   #3 DONE 0.0s
+2026-11-25T20:16:53.6798462Z E   
+2026-11-25T20:16:53.6798714Z E   #4 [internal] load .dockerignore
+2026-11-25T20:16:53.6799036Z E   #4 transferring context: 2B done
+2026-11-25T20:16:53.6799336Z E   #4 DONE 0.0s
+2026-11-25T20:16:53.6799612Z E   
+2026-11-25T20:16:53.6799847Z E   #5 [internal] load build context
+2026-11-25T20:16:53.6800154Z E   #5 DONE 0.0s
+2026-11-25T20:16:53.6800376Z E   
+2026-11-25T20:16:53.6800941Z E   #6 [ 1/10] FROM docker.io/library/python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b
+2026-11-25T20:16:53.6801959Z E   #6 resolve docker.io/library/python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b 0.0s done
+2026-11-25T20:16:53.6802638Z E   #6 DONE 0.0s
+2026-11-25T20:16:53.6803151Z E   
+2026-11-25T20:16:53.6803384Z E   #5 [internal] load build context
+2026-11-25T20:16:53.6803729Z E   #5 transferring context: 506.00kB 0.2s done
+2026-11-25T20:16:53.6804071Z E   #5 DONE 0.2s
+2026-11-25T20:16:53.6804320Z E   
+2026-11-25T20:16:53.6804632Z E   #7 [ 5/10] COPY README.md /tmp/axi/README.md
+2026-11-25T20:16:53.6805035Z E   #7 CACHED
+2026-11-25T20:16:53.6805260Z E   
+2026-11-25T20:16:53.6806893Z E   #8 [ 7/10] RUN sed -ri         -e 's/^#?PermitRootLogin.*/PermitRootLogin no/'         -e 's/^#?PasswordAuthentication.*/PasswordAuthentication no/'         -e 's/^#?PubkeyAuthentication.*/PubkeyAuthentication yes/'         -e 's/^#?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/'         /etc/ssh/sshd_config     && echo "AcceptEnv PATH" >> /e
+2026-11-25T20:16:53.6808618Z E   #8 CACHED
+2026-11-25T20:16:53.6808845Z E   
+2026-11-25T20:16:53.6809286Z E   #9 [ 9/10] COPY tests/federation_lifecycle/node_entrypoint.sh /usr/local/bin/node_entrypoint.sh
+2026-11-25T20:16:53.6809828Z E   #9 CACHED
+2026-11-25T20:16:53.6810053Z E   
+2026-11-25T20:16:53.6811789Z E   #10 [ 2/10] RUN apt-get update && apt-get install -y --no-install-recommends         openssh-server         openssh-client         curl         ca-certificates         procps         iputils-ping         passwd         adduser     && rm -rf /var/lib/apt/lists/*     && mkdir -p /var/run/sshd     && /usr/sbin/useradd --uid 1000 --create-home --shell /bin/bash axiom
+2026-11-25T20:16:53.6813704Z E   #10 CACHED
+2026-11-25T20:16:53.6813932Z E   
+2026-11-25T20:16:53.6814298Z E   #11 [ 6/10] RUN pip install --no-cache-dir /tmp/axi cryptography && rm -rf /tmp/axi
+2026-11-25T20:16:53.6814760Z E   #11 CACHED
+2026-11-25T20:16:53.6814987Z E   
+2026-11-25T20:16:53.6815625Z E   #12 [ 8/10] RUN printf 'export PATH=/usr/local/bin:$PATH\n' > /home/axiom/.ssh_env     && mkdir -p /home/axiom/.ssh     && chown -R axiom:axiom /home/axiom
+2026-11-25T20:16:53.6816328Z E   #12 CACHED
+2026-11-25T20:16:53.6816548Z E   
+2026-11-25T20:16:53.6816834Z E   #13 [ 3/10] COPY pyproject.toml /tmp/axi/pyproject.toml
+2026-11-25T20:16:53.6817328Z E   #13 CACHED
+2026-11-25T20:16:53.6818096Z E   
+2026-11-25T20:16:53.6818548Z E   #14 [ 4/10] COPY src/ /tmp/axi/src/
+2026-11-25T20:16:53.6819126Z E   #14 CACHED
+2026-11-25T20:16:53.6819516Z E   
+2026-11-25T20:16:53.6820037Z E   #15 [10/10] RUN chmod +x /usr/local/bin/node_entrypoint.sh
+2026-11-25T20:16:53.6820618Z E   #15 CACHED
+2026-11-25T20:16:53.6820985Z E   
+2026-11-25T20:16:53.6821410Z E   #16 exporting to image
+2026-11-25T20:16:53.6836322Z E   #16 exporting layers done
+2026-11-25T20:16:53.6837066Z E   #16 exporting manifest sha256:2d39111f471fea4ec0677c8cdf47e8706c61b781532212334659608a8d41721b 0.0s done
+2026-11-25T20:16:53.6837925Z E   #16 exporting config sha256:8815b560427ceb6a6ae9bb4f588e6c7b4dcca6f057b74df4f20d70491094406d done
+2026-11-25T20:16:53.6838868Z E   #16 exporting attestation manifest sha256:4ac66a287aed0bb4ce9e26050b04ac26702b2ff3eecf977abd1877d5995bc1d2 0.0s done
+2026-11-25T20:16:53.6839813Z E   #16 exporting manifest list sha256:fd9fbc880498444a27fdb8d76c97a9cae053f5aedefb8f7790ea3646c16559a1 0.0s done
+2026-11-25T20:16:53.6840538Z E   #16 naming to docker.io/library/axiom-fed-node:dev done
+2026-11-25T20:16:53.6841019Z E   #16 unpacking to docker.io/library/axiom-fed-node:dev done
+2026-11-25T20:16:53.6842416Z E   #16 ERROR: failed to prepare extraction snapshot "extract-124093593-tI16 sha256:428cc894811d5e3c7433c7ebc2ba15ac9acdd9bd3711acfe76510d4af85b11ab": parent snapshot sha256:7c184a0de5805dfce100ad3e30c3270fe927da798a390fe743d8b4d501e64b80 does not exist: not found
+2026-11-25T20:16:53.6843939Z E   ------
+2026-11-25T20:16:53.6844193Z E    > exporting to image:
+2026-11-25T20:16:53.6844461Z E   ------
+2026-11-25T20:16:53.6844673Z E   
+2026-11-25T20:16:53.6845957Z E     stderr=failed to solve: failed to prepare extraction snapshot "extract-124093593-tI16 sha256:428cc894811d5e3c7433c7ebc2ba15ac9acdd9bd3711acfe76510d4af85b11ab": parent snapshot sha256:7c184a0de5805dfce100ad3e30c3270fe927da798a390fe743d8b4d501e64b80 does not exist: not found
+2026-11-25T20:16:53.6847515Z =========================== short test summary info ============================
+2026-11-25T20:16:53.6848617Z FAILED tests/federation_lifecycle/test_hub_spoke_5_node.py::test_hub_spoke_5_node_peer_isolation - tests.federation_lifecycle.harness.HarnessError: docker compose up -d --build failed:
+2026-11-25T20:16:53.6849620Z   stdout=#1 [internal] load local bake definitions
+2026-11-25T20:16:53.6850003Z #1 reading from stdin 634B done
+2026-11-25T20:16:53.6850304Z #1 DONE 0.0s
+2026-11-25T20:16:53.6850448Z 
+2026-11-25T20:16:53.6850625Z #2 [internal] load build definition from Dockerfile.node
+2026-11-25T20:16:53.6851028Z #2 transferring dockerfile: 2.35kB done
+2026-11-25T20:16:53.6851360Z #2 DONE 0.0s
+2026-11-25T20:16:53.6851497Z 
+2026-11-25T20:16:53.6851716Z #3 [internal] load metadata for docker.io/library/python:3.12-slim
+2026-11-25T20:16:53.6852135Z #3 DONE 0.0s
+2026-11-25T20:16:53.6852269Z 
+2026-11-25T20:16:53.6852383Z #4 [internal] load .dockerignore
+2026-11-25T20:16:53.6852791Z #4 transferring context: 2B done
+2026-11-25T20:16:53.6853219Z #4 DONE 0.0s

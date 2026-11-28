@@ -1,0 +1,56 @@
+{
+  "name": "Node A",
+  "description": "AEOS conformance test node",
+  "version": "1.0.0",
+  "supportedInterfaces": [
+    {
+      "url": "https://node-a.test/a2a",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "extensions": [
+      {
+        "uri": "urn:aeos:ext:federation:1",
+        "required": true,
+        "params": {
+          "node_id": "21fe31dfa154a261",
+          "owner": "@alice",
+          "aeos_version": "1.0.0",
+          "extensions": [],
+          "principals": [
+            "@reviewer:alice"
+          ],
+          "transports": [
+            "loopback"
+          ]
+        }
+      }
+    ]
+  },
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "workload:review.pr",
+      "name": "Review a pull request",
+      "description": "Test skill",
+      "tags": [
+        "workload"
+      ]
+    }
+  ],
+  "signatures": [
+    {
+      "protected": "eyJhZW9zIjoiY2FyZCIsImFsZyI6IkVkRFNBIiwia2lkIjoiMjFmZTMxZGZhMTU0YTI2MSIsInR5cCI6ImFlb3MrandzIn0",
+      "signature": "MTwQMEwtVupWjyfEA_kcpP0u_Z9FdNIoUfx8TrVaxWHECMowP1NzIHdyfVZ2YnKSzRcoCpLGeCFMYZ4ggS8aAw"
+    }
+  ]
+}

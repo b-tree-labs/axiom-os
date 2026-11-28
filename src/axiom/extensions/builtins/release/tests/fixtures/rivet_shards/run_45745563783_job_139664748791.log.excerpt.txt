@@ -1,0 +1,5 @@
+2026-11-26T03:16:51.3504302Z =========================== short test summary info ============================
+2026-11-26T03:16:51.3505157Z FAILED tests/infra/test_state_dir_has_one_spelling.py::test_no_module_spells_the_home_state_folder_itself - AssertionError: these build the user state folder by hand, so AXI_STATE_DIR does not reach them; use axiom.infra.paths.get_user_state_dir():
+2026-11-26T03:16:51.3506024Z     axiom/extensions/builtins/release/agreement/paths.py: lines [20]
+2026-11-26T03:16:51.3506437Z assert not {'axiom/extensions/builtins/release/agreement/paths.py': [20]}
+2026-11-26T03:16:51.3506921Z ==== 1 failed, 10829 passed, 198 skipped, 30 warnings in 493.83s (0:08:13) =====

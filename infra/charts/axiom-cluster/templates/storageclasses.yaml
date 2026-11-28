@@ -1,0 +1,21 @@
+{{- /* The two block-storage names the application chart uses (ADR-215). */ -}}
+{{- range $name, $c := dict "axiom-fast" .Values.storage.fast "axiom-standard" .Values.storage.standard }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $name }}
+  labels: {app.kubernetes.io/part-of: axiom-cluster}
+  {{- with $c.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+provisioner: {{ required (printf "storage provisioner for %s" $name) $c.provisioner }}
+{{- with $c.parameters }}
+parameters:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+reclaimPolicy: {{ default "Delete" $c.reclaimPolicy }}
+allowVolumeExpansion: {{ default false $c.allowVolumeExpansion }}
+volumeBindingMode: WaitForFirstConsumer
+{{- end }}

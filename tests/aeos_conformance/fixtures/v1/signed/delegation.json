@@ -1,0 +1,20 @@
+{
+  "type": "aeos.delegation",
+  "iss": "39f713d0a644253f",
+  "aud": "21fe31dfa154a261",
+  "sub": "@bob",
+  "act": "@claude:bob",
+  "scope": [
+    "agents.send",
+    "workloads.offer.read"
+  ],
+  "iat": "2026-11-23T22:00:00.000000Z",
+  "exp": "2026-11-24T22:00:00.000000Z",
+  "jti": "deleg-0001",
+  "signatures": [
+    {
+      "protected": "eyJhZW9zIjoiZGVsZWdhdGlvbiIsImFsZyI6IkVkRFNBIiwia2lkIjoiMzlmNzEzZDBhNjQ0MjUzZiIsInR5cCI6ImFlb3MrandzIn0",
+      "signature": "I74bqoIkPnQzGt5HJ4XdlznFIJB4S1ejUIJpe3p-HRqyjo7YvromOgjn6A5tR668ztXX1U0wHMTvMtTKsezfCg"
+    }
+  ]
+}

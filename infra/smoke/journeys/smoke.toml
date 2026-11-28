@@ -1,0 +1,12 @@
+# Smoke journeys per role (LOOP-S5, LOOP-S6; ADR-169).
+#
+# Each role lists the synthetic journeys that must pass against a release before
+# traffic moves to it (in the idle slot) and again after (on the front). That
+# deploy-time verdict is kept by commit, and the release cut reads it; no CI job
+# repeats it per commit. A journey's base_url is replaced by the address under test. A site adds its own roles and journeys in its own manifest.
+[smoke]
+description = "What the platform's serving role must pass before and after a switch"
+
+[[role]]
+name = "serve"
+journeys = ["serve-up.toml", "serve-gate-holds.toml"]

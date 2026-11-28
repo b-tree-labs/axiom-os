@@ -1,0 +1,86 @@
+[
+ {
+  "number": 1647,
+  "title": "\ud83d\udd34 CI incident on `v0.70.27` (first: 6bcec27)",
+  "state": "open",
+  "body": "<!-- ci-incident:branch=v0.70.27 -->\n## CI Incident (digest)\n\nRepeated CI failures on `v0.70.27` are collected here as occurrences\n(one ticket per branch per 6h window) rather than one issue per commit.\n\n### New occurrence \u2014 `6bcec27`\n\n| Field | Value |\n|---|---|\n| **Run** | [#42664039004](https://github.com/example-org/app/actions/runs/42664039004) |\n| **Commit** | `6bcec27` |\n| **Failed jobs** | unit-tests |\n| **At (UTC)** | 2026-11-09T17:43:49.830Z |\n\n### Action required\nInvestigate the failing run(s) above and push a fix. Close only once the\nroot cause is resolved and CI passes \u2014 new failures within the window will\nappend here.\n\n---\n*Auto-filed by CI \u00b7 digest mode (#460)*",
+  "created_at": "2026-11-09T17:43:50Z",
+  "updated_at": "2026-11-09T17:43:50Z",
+  "comments": 0,
+  "labels": [
+   {
+    "name": "ci-failure"
+   },
+   {
+    "name": "priority: high"
+   }
+  ],
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  }
+ },
+ {
+  "number": 1538,
+  "title": "\ud83d\udd34 CI incident on `v0.70.19` (first: 1de27a2)",
+  "state": "open",
+  "body": "<!-- ci-incident:branch=v0.70.19 -->\n## CI Incident (digest)\n\nRepeated CI failures on `v0.70.19` are collected here as occurrences\n(one ticket per branch per 6h window) rather than one issue per commit.\n\n### New occurrence \u2014 `1de27a2`\n\n| Field | Value |\n|---|---|\n| **Run** | [#41151888653](https://github.com/example-org/app/actions/runs/41151888653) |\n| **Commit** | `1de27a2` |\n| **Failed jobs** | install-path-tests |\n| **At (UTC)** | 2026-10-31T01:02:51.950Z |\n\n### Action required\nInvestigate the failing run(s) above and push a fix. Close only once the\nroot cause is resolved and CI passes \u2014 new failures within the window will\nappend here.\n\n---\n*Auto-filed by CI \u00b7 digest mode (#460)*",
+  "created_at": "2026-10-31T01:02:52Z",
+  "updated_at": "2026-10-31T01:31:52Z",
+  "comments": 1,
+  "labels": [
+   {
+    "name": "ci-failure"
+   },
+   {
+    "name": "priority: high"
+   }
+  ],
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  }
+ },
+ {
+  "number": 1389,
+  "title": "\ud83d\udd34 CI incident on `main` (first: f7a543e)",
+  "state": "open",
+  "body": "<!-- ci-incident:branch=main -->\n## CI Incident (digest)\n\nRepeated CI failures on `main` are collected here as occurrences\n(one ticket per branch per 6h window) rather than one issue per commit.\n\n### New occurrence \u2014 `f7a543e`\n\n| Field | Value |\n|---|---|\n| **Run** | [#40244837435](https://github.com/example-org/app/actions/runs/40244837435) |\n| **Commit** | `f7a543e` |\n| **Failed jobs** | unit-tests |\n| **At (UTC)** | 2026-10-26T00:22:51.016Z |\n\n### Action required\nInvestigate the failing run(s) above and push a fix. Close only once the\nroot cause is resolved and CI passes \u2014 new failures within the window will\nappend here.\n\n---\n*Auto-filed by CI \u00b7 digest mode (#460)*",
+  "created_at": "2026-10-26T00:22:51Z",
+  "updated_at": "2026-10-26T05:09:15Z",
+  "comments": 9,
+  "labels": [
+   {
+    "name": "ci-failure"
+   },
+   {
+    "name": "priority: high"
+   }
+  ],
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  }
+ },
+ {
+  "number": 1206,
+  "title": "\ud83d\udd34 CI incident on `main` (first: 6883c02)",
+  "state": "open",
+  "body": "<!-- ci-incident:branch=main -->\n## CI Incident (digest)\n\nRepeated CI failures on `main` are collected here as occurrences\n(one ticket per branch per 6h window) rather than one issue per commit.\n\n### New occurrence \u2014 `6883c02`\n\n| Field | Value |\n|---|---|\n| **Run** | [#37833293508](https://github.com/example-org/app/actions/runs/37833293508) |\n| **Commit** | `6883c02` |\n| **Failed jobs** | unit-tests |\n| **At (UTC)** | 2026-10-08T19:53:43.698Z |\n\n### Action required\nInvestigate the failing run(s) above and push a fix. Close only once the\nroot cause is resolved and CI passes \u2014 new failures within the window will\nappend here.\n\n---\n*Auto-filed by CI \u00b7 digest mode (#460)*",
+  "created_at": "2026-10-08T19:53:44Z",
+  "updated_at": "2026-10-09T02:18:34Z",
+  "comments": 5,
+  "labels": [
+   {
+    "name": "ci-failure"
+   },
+   {
+    "name": "priority: high"
+   }
+  ],
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  }
+ }
+]

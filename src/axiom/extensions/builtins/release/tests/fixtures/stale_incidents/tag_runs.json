@@ -1,0 +1,86 @@
+{
+ "v0.70.50": [
+  {
+   "id": 45750760608,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "success",
+   "head_branch": "v0.70.50",
+   "head_sha": "bf9ecc785c590414c38bfc99872b4e0decec52b2",
+   "run_attempt": 1,
+   "created_at": "2026-11-26T03:43:50Z"
+  }
+ ],
+ "v0.70.49": [
+  {
+   "id": 45745277431,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "success",
+   "head_branch": "v0.70.49",
+   "head_sha": "dfc0e654508bb5fd14202f8ae826f00bf8740f25",
+   "run_attempt": 1,
+   "created_at": "2026-11-26T02:52:27Z"
+  }
+ ],
+ "v0.70.48": [
+  {
+   "id": 45706601653,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "success",
+   "head_branch": "v0.70.48",
+   "head_sha": "3b6346985342f05ec45b3efca38965028556d140",
+   "run_attempt": 1,
+   "created_at": "2026-11-25T21:41:13Z"
+  }
+ ],
+ "v0.70.47": [
+  {
+   "id": 45471327703,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "success",
+   "head_branch": "v0.70.47",
+   "head_sha": "34cd7d6ede31301981e3b7c156c78fed1997fb87",
+   "run_attempt": 1,
+   "created_at": "2026-11-24T19:32:41Z"
+  }
+ ],
+ "v0.70.46": [
+  {
+   "id": 45444596361,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "failure",
+   "head_branch": "v0.70.46",
+   "head_sha": "4d5e96fd8df96e6d31808ea05d5534723b98ac03",
+   "run_attempt": 1,
+   "created_at": "2026-11-24T17:05:16Z"
+  }
+ ],
+ "v0.70.45": [
+  {
+   "id": 44958455279,
+   "name": "Publish to PyPI",
+   "path": ".github/workflows/publish.yml",
+   "event": "push",
+   "status": "completed",
+   "conclusion": "success",
+   "head_branch": "v0.70.45",
+   "head_sha": "d0959f9ae15c74d1b4decc1c915b8be992a52ee2",
+   "run_attempt": 1,
+   "created_at": "2026-11-21T22:46:24Z"
+  }
+ ]
+}

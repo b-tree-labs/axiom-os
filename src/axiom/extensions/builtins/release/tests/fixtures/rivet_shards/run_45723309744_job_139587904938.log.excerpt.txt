@@ -1,0 +1,40 @@
+2026-11-25T23:54:09.2472232Z =========================== short test summary info ============================
+2026-11-25T23:54:09.2473181Z FAILED tests/cli/ext/test_an_installed_extension_is_discovered.py::test_an_installed_extension_is_discovered - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.03s
+2026-11-25T23:54:09.2474542Z FAILED tests/cli/ext/test_an_installed_extension_is_discovered.py::test_a_working_copy_already_linked_is_kept_and_named - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:09.2475888Z FAILED tests/cli/ext/test_an_installed_extension_is_discovered.py::test_uninstall_removes_the_discovery_link - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:09.2477110Z FAILED tests/cli/ext/test_install.py::test_install_full_happy_path - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.01s
+2026-11-25T23:54:09.2478217Z FAILED tests/cli/ext/test_install.py::test_install_direct_api_returns_record - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.04s
+2026-11-25T23:54:09.2479392Z FAILED tests/cli/ext/test_install.py::test_install_at_version_syntax - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.08s
+2026-11-25T23:54:10.0814321Z FAILED tests/cli/ext/test_install.py::test_install_version_flag - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.06s
+2026-11-25T23:54:10.0815530Z FAILED tests/cli/ext/test_install.py::test_install_missing_version_errors - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.29s
+2026-11-25T23:54:10.0816788Z FAILED tests/cli/ext/test_install.py::test_install_same_version_twice_refuses_without_force - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0817934Z FAILED tests/cli/ext/test_install.py::test_install_force_allows_reinstall - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0819104Z FAILED tests/cli/ext/test_install.py::test_install_dry_run_leaves_state_untouched - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0820554Z FAILED tests/cli/ext/test_install.py::test_install_signature_failure_aborts - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0822039Z FAILED tests/cli/ext/test_install.py::test_install_pip_failure_rolls_back_state - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0823202Z FAILED tests/cli/ext/test_install.py::test_install_newer_version_replaces_old - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0824306Z FAILED tests/cli/ext/test_install.py::test_install_no_pip_env_var_honored - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0825435Z FAILED tests/cli/ext/test_install_batch.py::test_install_requirements_happy_path - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0826786Z FAILED tests/cli/ext/test_install_batch.py::test_install_requirements_continues_past_failure - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0827946Z FAILED tests/cli/ext/test_install_batch.py::test_install_requirements_dry_run - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.03s
+2026-11-25T23:54:10.0829206Z FAILED tests/cli/ext/test_install_verify_pypi.py::TestLocalExemption::test_registry_install_states_sigstore_exemption - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0830759Z FAILED tests/cli/ext/test_uninstall.py::test_uninstall_removes_state_and_directory - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0831938Z FAILED tests/cli/ext/test_uninstall.py::test_uninstall_direct_api_returns_version - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0833093Z FAILED tests/cli/ext/test_uninstall.py::test_uninstall_pip_failure_still_cleans_state - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0834221Z FAILED tests/cli/ext/test_uninstall.py::test_uninstall_no_pip_env_var_honored - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0835319Z FAILED tests/cli/ext/test_uninstall.py::test_uninstall_yes_flag_accepted - RuntimeError: validate failed — publish blocked. standard_tests: standard tests failed: 11 deselected in 0.02s
+2026-11-25T23:54:10.0836320Z FAILED tests/test_test_isolation_guard.py::test_with_no_database_chosen_the_default_is_a_refusing_address - AssertionError: 
+2026-11-25T23:54:10.0836841Z   1 deselected in 0.04s
+2026-11-25T23:54:10.0837052Z   
+2026-11-25T23:54:10.0837825Z assert 'DB=***127.0.0.1:9/axiom_db' in '\n1 deselected in 0.04s\n'
+2026-11-25T23:54:10.0838321Z FAILED tests/test_test_isolation_guard.py::test_an_explicit_database_is_left_alone - AssertionError: 
+2026-11-25T23:54:10.0838736Z   1 deselected in 0.04s
+2026-11-25T23:54:10.0838929Z   
+2026-11-25T23:54:10.0839362Z assert 'DB=***db.example.invalid:5432/chosen' in '\n1 deselected in 0.04s\n'
+2026-11-25T23:54:10.0840714Z  +  where '\n1 deselected in 0.04s\n' = CompletedProcess(args=['<work>/.venv/bin/python', '-m', 'pytest', '<work>/tests/_isolation_probe_tmp2/test_probe.py', '-q', '-s', '-p', 'no:cacheprovider', '-m', '', '-n', '0'], returncode=5, stdout='\n1 deselected in 0.04s\n', stderr='').stdout
+2026-11-25T23:54:10.0842126Z FAILED tests/test_test_isolation_guard.py::test_a_test_cannot_reach_the_real_triage_queue_through_the_state_dir_helpers - AssertionError: 
+2026-11-25T23:54:10.0842637Z   1 deselected in 0.06s
+2026-11-25T23:54:10.0842833Z   
+2026-11-25T23:54:10.0843002Z assert 5 == 0
+2026-11-25T23:54:10.0844091Z  +  where 5 = CompletedProcess(args=['<work>/.venv/bin/python', '-m', 'pytest', '<work>/tests/_isolation_probe_tmp3/test_probe.py', '-q', '-s', '-p', 'no:cacheprovider', '-m', '', '-n', '0'], returncode=5, stdout='\n1 deselected in 0.06s\n', stderr='').returncode
+2026-11-25T23:54:10.0845260Z = 27 failed, 12717 passed, 146 skipped, 1 xfailed, 45 warnings in 474.82s (0:07:54) =

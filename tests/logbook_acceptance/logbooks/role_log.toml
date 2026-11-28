@@ -1,0 +1,14 @@
+# A small logbook for the role-spelling tests (unit O1). One type that only a shift lead signs.
+# No domain words.
+[logbook]
+id = "role_log"
+version = "1"
+display = "Role Log"
+signed = true
+assurance = { posture = "sso" }
+
+[[type]]
+id = "ROUND_CHECK"
+meanings = ["performed"]
+roles = ["shift_lead"]
+fields = [{ id = "ok", type = "attest_checkbox", label = "All in order", required = true }]

@@ -1,0 +1,33 @@
+{
+ "sha": "661241c902343aae1b8d9f8f685154bf8705ddc2",
+ "message": "Merge pull request #2476 from example-org/feat/rivet-chat-agreement-shadow",
+ "author": "benjaminbooth",
+ "parents": [
+  "0a5f06422d8c55a84eddc3a11c2d97efde3bcc1c",
+  "cd86bb2d1633a673380fdaf83baed4d1ac2fec28"
+ ],
+ "files": [
+  "docs/adrs/adr-291-rivet-lands-work-the-owner-agreed-to-in-chat-when-the-harness-record-proves-it.md",
+  "docs/guides/rivet-chat-agreement.md",
+  "docs/prds/prd-rivet.md",
+  "src/axiom/extensions/builtins/release/agreement/__init__.py",
+  "src/axiom/extensions/builtins/release/agreement/__main__.py",
+  "src/axiom/extensions/builtins/release/agreement/affirm.py",
+  "src/axiom/extensions/builtins/release/agreement/cli.py",
+  "src/axiom/extensions/builtins/release/agreement/hook.py",
+  "src/axiom/extensions/builtins/release/agreement/paths.py",
+  "src/axiom/extensions/builtins/release/agreement/shadow.py",
+  "src/axiom/extensions/builtins/release/agreement/store.py",
+  "src/axiom/extensions/builtins/release/agreement/transcript.py",
+  "src/axiom/extensions/builtins/release/agreement/verify.py",
+  "src/axiom/extensions/builtins/release/axiom-extension.toml",
+  "src/axiom/extensions/builtins/release/cli.py",
+  "src/axiom/extensions/builtins/release/lander/actor.py",
+  "src/axiom/extensions/builtins/release/tests/_agreement_helpers.py",
+  "src/axiom/extensions/builtins/release/tests/fixtures/agreement/real_shapes.jsonl",
+  "src/axiom/extensions/builtins/release/tests/test_agreement_cli.py",
+  "src/axiom/extensions/builtins/release/tests/test_agreement_hook.py",
+  "src/axiom/extensions/builtins/release/tests/test_agreement_shadow.py",
+  "src/axiom/extensions/builtins/release/tests/test_agreement_verifier.py"
+ ]
+}

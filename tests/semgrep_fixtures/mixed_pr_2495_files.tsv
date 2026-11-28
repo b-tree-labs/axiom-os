@@ -1,0 +1,14 @@
+modified	.github/PULL_REQUEST_TEMPLATE.md
+added	.github/workflows/ci-full-label.yml
+modified	.github/workflows/ci.yml
+added	scripts/ci_full_label.py
+added	scripts/ci_full_paths.json
+modified	src/axiom/extensions/builtins/release/lander/actor.py
+modified	src/axiom/extensions/builtins/release/lander/adapters.py
+modified	src/axiom/extensions/builtins/release/lander/checks.py
+added	tests/release/data/main_check_runs_full_run.json
+added	tests/release/data/pr_rollup_narrowed_2488.json
+added	tests/release/test_lander_full_run_evidence.py
+modified	tests/test_ci_fails_fast.py
+added	tests/test_ci_full_label_paths.py
+added	tests/test_ci_full_run_label.py

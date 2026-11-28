@@ -1,0 +1,10 @@
+{
+  "capture": "pi -p against local ollama qwen2.5:7b (models.json), PI_CODING_AGENT_DIR + HOME throwaway",
+  "files": {
+    "2026-10-08T19-34-10-068Z_01a11d02-438d-76a0-be7b-a51040a15d15.jsonl": ".pi/agent/sessions/--sandbox-work--/2026-10-08T19-34-10-068Z_01a11d02-438d-76a0-be7b-a51040a15d15.jsonl"
+  },
+  "harness": "pi",
+  "kind": "file",
+  "session_id": "01a11d02-438d-76a0-be7b-a51040a15d15",
+  "version": "0.73.1"
+}

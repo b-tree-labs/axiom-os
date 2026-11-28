@@ -1,0 +1,14 @@
+2026-11-25T23:55:04.7206749Z =========================== short test summary info ============================
+2026-11-25T23:55:04.7207604Z FAILED tests/test_a_creator_can_test_an_extension_from_a_released_install.py::test_ext_test_runs_the_creators_tests_when_the_standard_suite_is_absent - AssertionError: standard AEOS tests: NOT RUN. They need axiom-tests, which is development
+2026-11-25T23:55:04.7208550Z   infrastructure and is not on PyPI; CI re-checks them when this extension is
+2026-11-25T23:55:04.7208912Z   reviewed. Your own tests run below.
+2026-11-25T23:55:04.7209149Z   
+2026-11-25T23:55:04.7209313Z assert 5 == 0
+2026-11-25T23:55:04.7209706Z FAILED tests/cli/ext/test_test_verb.py::test_run_pytest_returns_zero_on_empty_tree_with_a_trivial_test - assert 5 == 0
+2026-11-25T23:55:04.7210311Z FAILED tests/cli/ext/test_test_verb.py::test_test_provider_forwards_pytest_args - assert 5 == 0
+2026-11-25T23:55:04.7211129Z FAILED src/axiom/extensions/builtins/app/tests/test_acceptance_harness.py::test_running_the_tagged_python_tests_records_their_results - KeyError: 'tests/test_a.py::test_rail'
+2026-11-25T23:55:04.7212151Z FAILED src/axiom/extensions/builtins/app/tests/test_acceptance_harness.py::TestSurfaces::test_the_skill_reads_the_cache_the_cli_run_wrote - AssertionError: assert 'unproven' == 'pass'
+2026-11-25T23:55:04.7212782Z   
+2026-11-25T23:55:04.7212943Z   - pass
+2026-11-25T23:55:04.7213115Z   + unproven
+2026-11-25T23:55:04.7213479Z = 5 failed, 11208 passed, 212 skipped, 9 xfailed, 33 warnings in 538.28s (0:08:58) =

@@ -1,0 +1,384 @@
+name: "RIVET land"
+description: >-
+  RIVET, the pull-request lander. Reports on a pull request, lands a green,
+  unprotected, non-draft one per the repo's RACI config, keeps one sticky
+  comment per held pull request and one "RIVET: needs <owner>" issue, and
+  honours /rivet commands from the owner only.
+author: "B-Tree Labs"
+
+# One action, every repo. The caller checks the repository out first (the
+# config file is read from the working tree) and grants the permissions in
+# caller-example.yml. Landing is per the config's [raci] auto_allowed; the
+# `act` input only switches it off. AXIOM_LANDER_KILL=1 (repo variable)
+# stops every merge and still lets the report and comments run.
+
+inputs:
+  axiom-version:
+    description: "Pinned axiom-os-lm release installed from PyPI."
+    required: false
+    default: "0.70.51"
+  config:
+    description: "Path to the repo's RIVET config, relative to the repo root."
+    required: false
+    default: ".axiom/release-lander.toml"
+  github-token:
+    description: "Token for gh. A fine-grained PAT is needed for merges to start other workflows."
+    required: false
+    default: ${{ github.token }}
+  owner:
+    description: >-
+      GitHub login who gets the "RIVET: needs <owner>" issue and whose /rivet
+      commands are honoured. Overrides [reminders] assignee in the config.
+    required: true
+  act:
+    description: "true lands per the config's RACI. false reports only: nothing is merged."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python used to run RIVET."
+    required: false
+    default: "3.11"
+  kill-switch:
+    description: >-
+      "1" stops every merge; the report and comments still run. Pass
+      vars.AXIOM_LANDER_KILL: a composite action cannot read vars itself.
+    required: false
+    default: ""
+  release-lock:
+    description: "Pass vars.AXIOM_RELEASE_LOCK. A held lock arms nothing."
+    required: false
+    default: ""
+  openrouter-api-key:
+    description: >-
+      Tier-1 fixer key (pass secrets.OPENROUTER_API_KEY). Empty leaves the fixer
+      off: blockers the mechanical rules cannot fix go to the owner. Set the
+      account's OpenRouter privacy to no training and zero data retention.
+    required: false
+    default: ""
+  fixer-model:
+    description: "OpenRouter model id for the tier-1 fixer."
+    required: false
+    default: "z-ai/glm-5.3"
+  fixer-routing-tier:
+    description: >-
+      Data tier this provider is cleared for. A repo whose [fixer] routing_tier
+      is export_controlled finds no provider here and the fixer stays off.
+    required: false
+    default: "public"
+  app-id:
+    description: >-
+      RIVET GitHub App id (pass vars.RIVET_APP_ID). With app-private-key, RIVET acts
+      as the App: its merges start main's own CI, which merges made with the Actions
+      token never do. Empty keeps github-token.
+    required: false
+    default: ""
+  app-private-key:
+    description: "RIVET GitHub App private key (pass secrets.RIVET_APP_PRIVATE_KEY)."
+    required: false
+    default: ""
+
+  skip-unchanged:
+    description: >-
+      "true" skips a scheduled or workflow_run evaluation when nothing changed since the
+      last full one: same open pull requests, heads, checks, labels, reviews, needs issue,
+      inputs, config and action files, inside the same time window. "false" always evaluates.
+    required: false
+    default: "true"
+  force-full:
+    description: >-
+      "true" reads neither cache for this run: the unchanged lookup is skipped and pip downloads
+      its wheels. Wire it to a workflow_dispatch input to bust both caches for one run.
+    required: false
+    default: "false"
+  unchanged-max-age-hours:
+    description: >-
+      The time window of the unchanged skip, in hours (1 to 999). A full evaluation happens at
+      least this often, so rules that depend on the clock (reminders, stale sweeps, claim
+      expiry) still run. The default, 6, matches the lander's own window_hours. With a cron at or slower than this, scheduled runs never skip.
+    required: false
+    default: "6"
+
+runs:
+  using: composite
+  steps:
+    # Decide first, for almost nothing: no checkout, no Python, no install. With no
+    # open pull request there is nothing to evaluate, so every later step is skipped.
+    # Any doubt (call failed, odd answer) means not idle and the full path runs.
+    - name: Is there any work
+      id: idle
+      continue-on-error: true
+      shell: bash
+      env:
+        # Read-only, and before the App token exists, so it uses github-token. Every
+        # step that writes uses the resolved token.
+        IDLE_READ_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: bash "${{ github.action_path }}/scripts/rivet_idle.sh"
+
+    # Has anything changed since the last full evaluation? One GraphQL read of the open pull
+    # requests and the needs issue, hashed with the inputs, the config, this action's files and
+    # a time bucket. Any doubt leaves the key empty and the full path runs.
+    - name: Read the state
+      id: state
+      if: steps.idle.outputs.idle != 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        IDLE_READ_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        ACTION_DIR: ${{ github.action_path }}
+        SKIP_ENABLED: ${{ inputs.skip-unchanged }}
+        SKIP_MAX_AGE_HOURS: ${{ inputs.unchanged-max-age-hours }}
+        SKIP_KILL: ${{ inputs.kill-switch }}
+        SKIP_LOCK: ${{ inputs.release-lock }}
+        SKIP_ACT: ${{ inputs.act }}
+        SKIP_VERSION: ${{ inputs.axiom-version }}
+        SKIP_OWNER: ${{ inputs.owner }}
+        SKIP_CONFIG: ${{ inputs.config }}
+        SKIP_FORCE: ${{ inputs.force-full }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: bash "${{ github.action_path }}/scripts/rivet_state.sh"
+
+    # lookup-only: asks whether the key exists and downloads nothing. A hit means this exact
+    # state was already evaluated in full. No restore-keys: only an exact match counts.
+    - name: Seen this state before
+      id: seen
+      if: steps.idle.outputs.idle != 'true' && steps.state.outputs.lookup == 'true'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.state.outputs.path }}
+        key: ${{ steps.state.outputs.key }}
+        lookup-only: true
+
+    - name: Say nothing changed
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        line="RIVET lander: nothing changed since the last full evaluation (open pull requests, checks, labels, reviews, inputs); skipped."
+        echo "$line"
+        echo "$line" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Name this repository for the App token
+      id: repo
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && inputs.app-id != '' && inputs.app-private-key != ''
+      shell: bash
+      run: echo "name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+    - name: Mint the RIVET App token
+      id: app
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && inputs.app-id != '' && inputs.app-private-key != ''
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ steps.repo.outputs.name }}
+
+    - name: Choose the token
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true'
+      id: token
+      shell: bash
+      env:
+        APP_TOKEN: ${{ steps.app.outputs.token }}
+        FALLBACK: ${{ inputs.github-token }}
+      run: |
+        if [ -n "${APP_TOKEN}" ]; then
+          echo "RIVET acts as its GitHub App."
+          echo "value=${APP_TOKEN}" >> "$GITHUB_OUTPUT"
+        else
+          echo "RIVET acts with github-token; its merges will not start other workflows."
+          echo "value=${FALLBACK}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Python
+      if: >-
+        steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && (
+          github.event_name != 'issue_comment' || github.event.issue.pull_request
+        )
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    # A /rivet command: owner only, enforced again in the script.
+    - name: Act on a /rivet command
+      if: >-
+        steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && (
+          github.event_name == 'pull_request_review' ||
+          (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+        )
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.token.outputs.value }}
+        REPO: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        OWNER: ${{ inputs.owner }}
+        RIVET_CONFIG: ${{ inputs.config }}
+      run: python "${{ github.action_path }}/scripts/rivet_remind.py" --config "${RIVET_CONFIG}"
+
+    # pip's wheel cache. Exact key only (never restore-keys, which would mix versions): the
+    # pinned release is immutable, and the ISO week refreshes transitive dependencies every
+    # week, so a fixed dependency is picked up within 7 days and a bad entry cannot outlive
+    # that. A miss installs exactly as before.
+    - name: Week for the pip cache
+      id: week
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true'
+      shell: bash
+      run: echo "iso=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache pip wheels
+      if: >-
+        inputs.force-full != 'true' && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && (
+          github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+          github.event_name == 'workflow_run' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        )
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/pip
+        key: rivet-pip-${{ runner.os }}-py${{ inputs.python-version }}-axiom${{ inputs.axiom-version }}-${{ steps.week.outputs.iso }}
+
+    - name: Install axiom-os-lm
+      id: install
+      if: >-
+        steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && (
+          github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+          github.event_name == 'workflow_run' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        )
+      shell: bash
+      env:
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+        RIVET_CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+        python -m pip install --disable-pip-version-check "axiom-os-lm==${AXIOM_OS_LM_VERSION}"
+        python "${{ github.action_path }}/scripts/verify_config.py" "${RIVET_CONFIG}"
+        echo "ready=true" >> "$GITHUB_OUTPUT"
+
+    - name: Configure the tier-1 fixer
+      id: fixer
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.install.outputs.ready == 'true' && inputs.openrouter-api-key != ''
+      shell: bash
+      env:
+        MODEL: ${{ inputs.fixer-model }}
+        TIER: ${{ inputs.fixer-routing-tier }}
+      run: |
+        set -euo pipefail
+        dir="${RUNNER_TEMP}/rivet-llm"
+        mkdir -p "$dir"
+        cat > "$dir/llm-providers.toml" <<EOF
+        [gateway]
+        format = "openai"
+
+        [[gateway.providers]]
+        name = "rivet-fixer"
+        endpoint = "https://openrouter.ai/api/v1"
+        model = "${MODEL}"
+        api_key_env = "OPENROUTER_API_KEY"
+        priority = 1
+        routing_tier = "${TIER}"
+        use_for = ["release_fix"]
+        EOF
+        echo "config_dir=$dir" >> "$GITHUB_OUTPUT"
+
+    - name: RIVET land
+      id: land
+      if: steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.install.outputs.ready == 'true'
+      shell: bash
+      env:
+        AXIOM_LANDER_KILL: ${{ inputs.kill-switch }}
+        AXIOM_RELEASE_LOCK: ${{ inputs.release-lock }}
+        GH_TOKEN: ${{ steps.token.outputs.value }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+        EVENT_NAME: ${{ github.event_name }}
+        OWNER: ${{ inputs.owner }}
+        RIVET_CONFIG: ${{ inputs.config }}
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+        PIN_READY: ${{ steps.install.outputs.ready }}
+        LANDER_OUTPUT_FILE: ${{ runner.temp }}/lander.txt
+        ACT: ${{ inputs.act }}
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        AXIOM_RIVET_LLM_CONFIG: ${{ steps.fixer.outputs.config_dir }}
+      run: |
+        set -o pipefail
+        flag=""
+        if [ "${ACT}" = "true" ]; then flag="--act"; fi
+        python "${{ github.action_path }}/scripts/rivet_remind.py" ${flag} --config "${RIVET_CONFIG}"
+        # People see the plain-English lines. The JSON stays in the file.
+        python "${{ github.action_path }}/scripts/rivet_warn_comment.py" --stdout-only
+
+    - name: Upload lander record
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.install.outputs.ready == 'true'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: rivet-lander-output
+        path: ${{ runner.temp }}/lander.txt
+        if-no-files-found: ignore
+
+    - name: Hold check
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.install.outputs.ready == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.token.outputs.value }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      run: python "${{ github.action_path }}/scripts/rivet_hold_check.py"
+
+    - name: Warn comment
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.install.outputs.ready == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.token.outputs.value }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        LANDER_OUTPUT_FILE: ${{ runner.temp }}/lander.txt
+        PIN_READY: ${{ steps.install.outputs.ready }}
+        AXIOM_OS_LM_VERSION: ${{ inputs.axiom-version }}
+      run: python "${{ github.action_path }}/scripts/rivet_warn_comment.py"
+
+    # After a full run that finished normally, remember the state it evaluated (the key read
+    # before it) and the state it left (RIVET's own comments and labels change the pull
+    # requests, so the next unchanged run should find the key for what it left).
+    - name: Read the state after the run
+      id: state_after
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.land.outcome == 'success' && steps.state.outputs.key != ''
+      continue-on-error: true
+      shell: bash
+      env:
+        IDLE_READ_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        EVENT_NAME: ${{ github.event_name }}
+        ACTION_DIR: ${{ github.action_path }}
+        SKIP_ENABLED: ${{ inputs.skip-unchanged }}
+        SKIP_MAX_AGE_HOURS: ${{ inputs.unchanged-max-age-hours }}
+        SKIP_KILL: ${{ inputs.kill-switch }}
+        SKIP_LOCK: ${{ inputs.release-lock }}
+        SKIP_ACT: ${{ inputs.act }}
+        SKIP_VERSION: ${{ inputs.axiom-version }}
+        SKIP_OWNER: ${{ inputs.owner }}
+        SKIP_CONFIG: ${{ inputs.config }}
+        SKIP_FORCE: ${{ inputs.force-full }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: bash "${{ github.action_path }}/scripts/rivet_state.sh"
+
+    - name: Remember the state evaluated
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.land.outcome == 'success' && steps.state.outputs.key != ''
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.state.outputs.path }}
+        key: ${{ steps.state.outputs.key }}
+
+    - name: Remember the state left
+      if: always() && steps.idle.outputs.idle != 'true' && steps.seen.outputs.cache-hit != 'true' && steps.land.outcome == 'success' && steps.state_after.outputs.key != '' && steps.state_after.outputs.key != steps.state.outputs.key
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.state.outputs.path }}
+        key: ${{ steps.state_after.outputs.key }}

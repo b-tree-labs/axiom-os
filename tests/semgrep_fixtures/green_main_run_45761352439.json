@@ -1,0 +1,2716 @@
+{
+ "version": "1.182.0",
+ "results": [],
+ "errors": [
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/connect/deploy/helm/templates/deployment.yaml:32:\n (approximate error location; error nearby after) error calling parser: could not find expected ':' character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/connect/deploy/helm/templates/deployment.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/node-identity.yaml:4:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/node-identity.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/data_platform/deploy/helm/templates/pvc.yaml:8:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/data_platform/deploy/helm/templates/pvc.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/langfuse-web.yaml:4:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/langfuse-web.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/langfuse-worker.yaml:4:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/langfuse-worker.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/secrets.yaml:4:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/secrets.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/secrets/deploy/helm/templates/service.yaml:7:\n (approximate error location; error nearby after) error calling parser: did not find expected key character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/secrets/deploy/helm/templates/service.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/ingressclass.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/ingressclass.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/issuer.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/issuer.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/objectstore.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/objectstore.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/runtimeclass.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/runtimeclass.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/secretstore.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/secretstore.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-cluster/templates/storageclasses.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-cluster/templates/storageclasses.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/bluegreen.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/bluegreen.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/edgepull.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/edgepull.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/externalsecrets.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/externalsecrets.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/ingress.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/ingress.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/jobs.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/jobs.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/medallion.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/medallion.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/partnerhealth.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/partnerhealth.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/priorityclasses.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/priorityclasses.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/roles.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/roles.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/services.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/services.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/sharedvolumes.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/sharedvolumes.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line infra/charts/axiom-node/templates/wheelhouse.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "infra/charts/axiom-node/templates/wheelhouse.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/data_platform/deploy/helm/templates/connectors-configmap.yaml:6:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/data_platform/deploy/helm/templates/connectors-configmap.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/data_platform/deploy/helm/templates/database.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/data_platform/deploy/helm/templates/database.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/clickhouse.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/clickhouse.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/ingress.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/ingress.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/observability/deploy/helm/templates/postgres.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/observability/deploy/helm/templates/postgres.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/secrets/deploy/helm/templates/configmap.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/secrets/deploy/helm/templates/configmap.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/secrets/deploy/helm/templates/serviceaccount.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/secrets/deploy/helm/templates/serviceaccount.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/secrets/deploy/helm/templates/statefulset.yaml:6:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/secrets/deploy/helm/templates/statefulset.yaml"
+  },
+  {
+   "code": 2,
+   "level": "warn",
+   "type": "Other syntax error",
+   "message": "Other syntax error at line src/axiom/extensions/builtins/secrets/deploy/helm/templates/token-secret.yaml:1:\n (approximate error location; error nearby after) error calling parser: did not find expected node content character 0 position 0 returned: 0",
+   "path": "src/axiom/extensions/builtins/secrets/deploy/helm/templates/token-secret.yaml"
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci-python-compat.yml",
+      "start": {
+       "line": 167,
+       "col": 85,
+       "offset": 6663
+      },
+      "end": {
+       "line": 167,
+       "col": 110,
+       "offset": 6688
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci-python-compat.yml:167:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ needs.unit-tests.result` was unexpected",
+   "path": ".github/workflows/ci-python-compat.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci-python-compat.yml",
+     "start": {
+      "line": 167,
+      "col": 85,
+      "offset": 6663
+     },
+     "end": {
+      "line": 167,
+      "col": 110,
+      "offset": 6688
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci-python-compat.yml",
+      "start": {
+       "line": 167,
+       "col": 85,
+       "offset": 6663
+      },
+      "end": {
+       "line": 167,
+       "col": 110,
+       "offset": 6688
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci-python-compat.yml:167:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ needs.unit-tests.result` was unexpected",
+   "path": ".github/workflows/ci-python-compat.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci-python-compat.yml",
+     "start": {
+      "line": 167,
+      "col": 85,
+      "offset": 6663
+     },
+     "end": {
+      "line": 167,
+      "col": 110,
+      "offset": 6688
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 181,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 181,
+       "col": 42,
+       "offset": 8838
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 185,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 185,
+       "col": 45,
+       "offset": 8841
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 186,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 186,
+       "col": 45,
+       "offset": 8841
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:181:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.event.pull_request.draft` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 181,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 181,
+      "col": 42,
+      "offset": 8838
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 185,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 185,
+      "col": 45,
+      "offset": 8841
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 186,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 186,
+      "col": 45,
+      "offset": 8841
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 181,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 181,
+       "col": 42,
+       "offset": 8838
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 185,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 185,
+       "col": 45,
+       "offset": 8841
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 186,
+       "col": 9,
+       "offset": 8805
+      },
+      "end": {
+       "line": 186,
+       "col": 45,
+       "offset": 8841
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:181:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.event.pull_request.draft` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 181,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 181,
+      "col": 42,
+      "offset": 8838
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 185,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 185,
+      "col": 45,
+      "offset": 8841
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 186,
+      "col": 9,
+      "offset": 8805
+     },
+     "end": {
+      "line": 186,
+      "col": 45,
+      "offset": 8841
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 364,
+       "col": 49,
+       "offset": 19658
+      },
+      "end": {
+       "line": 364,
+       "col": 61,
+       "offset": 19670
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:364:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.sha` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 364,
+      "col": 49,
+      "offset": 19658
+     },
+     "end": {
+      "line": 364,
+      "col": 61,
+      "offset": 19670
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 364,
+       "col": 49,
+       "offset": 19658
+      },
+      "end": {
+       "line": 364,
+       "col": 61,
+       "offset": 19670
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:364:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.sha` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 364,
+      "col": 49,
+      "offset": 19658
+     },
+     "end": {
+      "line": 364,
+      "col": 61,
+      "offset": 19670
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 391,
+       "col": 109,
+       "offset": 21400
+      },
+      "end": {
+       "line": 391,
+       "col": 122,
+       "offset": 21413
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:391:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ runner.temp` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 391,
+      "col": 109,
+      "offset": 21400
+     },
+     "end": {
+      "line": 391,
+      "col": 122,
+      "offset": 21413
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 391,
+       "col": 109,
+       "offset": 21400
+      },
+      "end": {
+       "line": 391,
+       "col": 122,
+       "offset": 21413
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:391:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ runner.temp` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 391,
+      "col": 109,
+      "offset": 21400
+     },
+     "end": {
+      "line": 391,
+      "col": 122,
+      "offset": 21413
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 486,
+       "col": 41,
+       "offset": 26602
+      },
+      "end": {
+       "line": 486,
+       "col": 61,
+       "offset": 26622
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 486,
+       "col": 79,
+       "offset": 26602
+      },
+      "end": {
+       "line": 486,
+       "col": 98,
+       "offset": 26621
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:486:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ needs.smoke.result` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 486,
+      "col": 41,
+      "offset": 26602
+     },
+     "end": {
+      "line": 486,
+      "col": 61,
+      "offset": 26622
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 486,
+      "col": 79,
+      "offset": 26602
+     },
+     "end": {
+      "line": 486,
+      "col": 98,
+      "offset": 26621
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 486,
+       "col": 41,
+       "offset": 26602
+      },
+      "end": {
+       "line": 486,
+       "col": 61,
+       "offset": 26622
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 486,
+       "col": 79,
+       "offset": 26602
+      },
+      "end": {
+       "line": 486,
+       "col": 98,
+       "offset": 26621
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:486:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ needs.smoke.result` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 486,
+      "col": 41,
+      "offset": 26602
+     },
+     "end": {
+      "line": 486,
+      "col": 61,
+      "offset": 26622
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 486,
+      "col": 79,
+      "offset": 26602
+     },
+     "end": {
+      "line": 486,
+      "col": 98,
+      "offset": 26621
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 561,
+       "col": 9,
+       "offset": 31083
+      },
+      "end": {
+       "line": 561,
+       "col": 28,
+       "offset": 31102
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 562,
+       "col": 51,
+       "offset": 31083
+      },
+      "end": {
+       "line": 562,
+       "col": 87,
+       "offset": 31119
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 563,
+       "col": 32,
+       "offset": 31083
+      },
+      "end": {
+       "line": 563,
+       "col": 68,
+       "offset": 31119
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 565,
+       "col": 51,
+       "offset": 31083
+      },
+      "end": {
+       "line": 565,
+       "col": 63,
+       "offset": 31095
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:561:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.event_name` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 561,
+      "col": 9,
+      "offset": 31083
+     },
+     "end": {
+      "line": 561,
+      "col": 28,
+      "offset": 31102
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 562,
+      "col": 51,
+      "offset": 31083
+     },
+     "end": {
+      "line": 562,
+      "col": 87,
+      "offset": 31119
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 563,
+      "col": 32,
+      "offset": 31083
+     },
+     "end": {
+      "line": 563,
+      "col": 68,
+      "offset": 31119
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 565,
+      "col": 51,
+      "offset": 31083
+     },
+     "end": {
+      "line": 565,
+      "col": 63,
+      "offset": 31095
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 561,
+       "col": 9,
+       "offset": 31083
+      },
+      "end": {
+       "line": 561,
+       "col": 28,
+       "offset": 31102
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 562,
+       "col": 51,
+       "offset": 31083
+      },
+      "end": {
+       "line": 562,
+       "col": 87,
+       "offset": 31119
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 563,
+       "col": 32,
+       "offset": 31083
+      },
+      "end": {
+       "line": 563,
+       "col": 68,
+       "offset": 31119
+      }
+     },
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 565,
+       "col": 51,
+       "offset": 31083
+      },
+      "end": {
+       "line": 565,
+       "col": 63,
+       "offset": 31095
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:561:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.event_name` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 561,
+      "col": 9,
+      "offset": 31083
+     },
+     "end": {
+      "line": 561,
+      "col": 28,
+      "offset": 31102
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 562,
+      "col": 51,
+      "offset": 31083
+     },
+     "end": {
+      "line": 562,
+      "col": 87,
+      "offset": 31119
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 563,
+      "col": 32,
+      "offset": 31083
+     },
+     "end": {
+      "line": 563,
+      "col": 68,
+      "offset": 31119
+     }
+    },
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 565,
+      "col": 51,
+      "offset": 31083
+     },
+     "end": {
+      "line": 565,
+      "col": 63,
+      "offset": 31095
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 582,
+       "col": 1,
+       "offset": 32212
+      },
+      "end": {
+       "line": 670,
+       "col": 41,
+       "offset": 36834
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:582:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `logical=$(.venv/bin/python -c 'import os; print(os.cpu_count() or 1)')\naffinity=$(.venv/bin/python -c 'import os; print(len(os.sched_getaffinity(0)))')\nworkers=$(( affinity * 2 ))\nif [ \"$logical\" -gt \"$workers\" ]; then workers=$logical; fi\n# Cap 4 on the 2-core hosted runner; 8 on a self-hosted gcp-8 VM.\ncap=4\nif [ \"${RUNNER_ENVIRONMENT:-github-hosted}\" = \"self-hosted\" ]; then cap=8; fi\nif [ \"$workers\" -gt \"$cap\" ]; then workers=$cap; fi\nif [ \"$workers\" -lt 1 ]; then workers=1; fi\necho \"workers=${workers}\" >> \"$GITHUB_ENV\"\necho \"pytest workers=${workers} (logical=${logical} affinity=${affinity})\"\n# A pull request runs only the tests the cached map says this diff\n# can affect, and only while that set stays under the cap. Past the\n# cap, or with no map, this is one full run. main and the merge\n# queue always run every test and refresh the map.\n#\n# addopts carries -m. Testmon turns selection off when a mark\n# expression is set, so plain --testmon collects the whole suite\n# and the count blows the cap. --testmon-forceselect keeps the\n# marker and the selection. The map itself is written by the full\n# run under xdist; those fingerprints are content hashes and a\n# second run on the same tree selects nothing.\n#\n# scripts/testmon_blast_radius.py --decide makes the choice and logs\n# it in one \"testmon decision:\" line. It runs every test when there\n# is no map, when the tree cannot be diffed against the map's commit,\n# when anything testmon cannot see changed since that commit\n# (conftest, pyproject, lock or requirements files, fixture data),\n# or when the selection is past a third of the suite.\n# Early stop: a pull request stops at its first few real failures, because\n# the author fixes those and reruns, and every minute after the first\n# failure only buries it. main and the merge queue always run every test\n# and refresh the map, so their maxfail is 0, which pytest reads as no\n# limit (#2441).\nmaxfail=0\nif... (truncated 2707 more characters)",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 582,
+      "col": 1,
+      "offset": 32212
+     },
+     "end": {
+      "line": 670,
+      "col": 41,
+      "offset": 36834
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 582,
+       "col": 1,
+       "offset": 32212
+      },
+      "end": {
+       "line": 670,
+       "col": 41,
+       "offset": 36834
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:582:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `logical=$(.venv/bin/python -c 'import os; print(os.cpu_count() or 1)')\naffinity=$(.venv/bin/python -c 'import os; print(len(os.sched_getaffinity(0)))')\nworkers=$(( affinity * 2 ))\nif [ \"$logical\" -gt \"$workers\" ]; then workers=$logical; fi\n# Cap 4 on the 2-core hosted runner; 8 on a self-hosted gcp-8 VM.\ncap=4\nif [ \"${RUNNER_ENVIRONMENT:-github-hosted}\" = \"self-hosted\" ]; then cap=8; fi\nif [ \"$workers\" -gt \"$cap\" ]; then workers=$cap; fi\nif [ \"$workers\" -lt 1 ]; then workers=1; fi\necho \"workers=${workers}\" >> \"$GITHUB_ENV\"\necho \"pytest workers=${workers} (logical=${logical} affinity=${affinity})\"\n# A pull request runs only the tests the cached map says this diff\n# can affect, and only while that set stays under the cap. Past the\n# cap, or with no map, this is one full run. main and the merge\n# queue always run every test and refresh the map.\n#\n# addopts carries -m. Testmon turns selection off when a mark\n# expression is set, so plain --testmon collects the whole suite\n# and the count blows the cap. --testmon-forceselect keeps the\n# marker and the selection. The map itself is written by the full\n# run under xdist; those fingerprints are content hashes and a\n# second run on the same tree selects nothing.\n#\n# scripts/testmon_blast_radius.py --decide makes the choice and logs\n# it in one \"testmon decision:\" line. It runs every test when there\n# is no map, when the tree cannot be diffed against the map's commit,\n# when anything testmon cannot see changed since that commit\n# (conftest, pyproject, lock or requirements files, fixture data),\n# or when the selection is past a third of the suite.\n# Early stop: a pull request stops at its first few real failures, because\n# the author fixes those and reruns, and every minute after the first\n# failure only buries it. main and the merge queue always run every test\n# and refresh the map, so their maxfail is 0, which pytest reads as no\n# limit (... (truncated 2727 more characters)",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 582,
+      "col": 1,
+      "offset": 32212
+     },
+     "end": {
+      "line": 670,
+      "col": 41,
+      "offset": 36834
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 762,
+       "col": 149,
+       "offset": 44849
+      },
+      "end": {
+       "line": 762,
+       "col": 162,
+       "offset": 44862
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:762:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ runner.temp` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 762,
+      "col": 149,
+      "offset": 44849
+     },
+     "end": {
+      "line": 762,
+      "col": 162,
+      "offset": 44862
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 762,
+       "col": 149,
+       "offset": 44849
+      },
+      "end": {
+       "line": 762,
+       "col": 162,
+       "offset": 44862
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:762:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ runner.temp` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 762,
+      "col": 149,
+      "offset": 44849
+     },
+     "end": {
+      "line": 762,
+      "col": 162,
+      "offset": 44862
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 797,
+       "col": 53,
+       "offset": 47242
+      },
+      "end": {
+       "line": 797,
+       "col": 79,
+       "offset": 47268
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:797:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ needs.unit-shards.result` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 797,
+      "col": 53,
+      "offset": 47242
+     },
+     "end": {
+      "line": 797,
+      "col": 79,
+      "offset": 47268
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/ci.yml",
+      "start": {
+       "line": 797,
+       "col": 53,
+       "offset": 47242
+      },
+      "end": {
+       "line": 797,
+       "col": 79,
+       "offset": 47268
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/ci.yml:797:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ needs.unit-shards.result` was unexpected",
+   "path": ".github/workflows/ci.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/ci.yml",
+     "start": {
+      "line": 797,
+      "col": 53,
+      "offset": 47242
+     },
+     "end": {
+      "line": 797,
+      "col": 79,
+      "offset": 47268
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 49,
+       "col": 25,
+       "offset": 1395
+      },
+      "end": {
+       "line": 49,
+       "col": 44,
+       "offset": 1414
+      }
+     },
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 53,
+       "col": 25,
+       "offset": 1395
+      },
+      "end": {
+       "line": 53,
+       "col": 44,
+       "offset": 1414
+      }
+     },
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 62,
+       "col": 11,
+       "offset": 1395
+      },
+      "end": {
+       "line": 62,
+       "col": 30,
+       "offset": 1414
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/issue-snapshot.yml:49:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.repository` was unexpected",
+   "path": ".github/workflows/issue-snapshot.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 49,
+      "col": 25,
+      "offset": 1395
+     },
+     "end": {
+      "line": 49,
+      "col": 44,
+      "offset": 1414
+     }
+    },
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 53,
+      "col": 25,
+      "offset": 1395
+     },
+     "end": {
+      "line": 53,
+      "col": 44,
+      "offset": 1414
+     }
+    },
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 62,
+      "col": 11,
+      "offset": 1395
+     },
+     "end": {
+      "line": 62,
+      "col": 30,
+      "offset": 1414
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 49,
+       "col": 25,
+       "offset": 1395
+      },
+      "end": {
+       "line": 49,
+       "col": 44,
+       "offset": 1414
+      }
+     },
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 53,
+       "col": 25,
+       "offset": 1395
+      },
+      "end": {
+       "line": 53,
+       "col": 44,
+       "offset": 1414
+      }
+     },
+     {
+      "path": ".github/workflows/issue-snapshot.yml",
+      "start": {
+       "line": 62,
+       "col": 11,
+       "offset": 1395
+      },
+      "end": {
+       "line": 62,
+       "col": 30,
+       "offset": 1414
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/issue-snapshot.yml:49:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.repository` was unexpected",
+   "path": ".github/workflows/issue-snapshot.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 49,
+      "col": 25,
+      "offset": 1395
+     },
+     "end": {
+      "line": 49,
+      "col": 44,
+      "offset": 1414
+     }
+    },
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 53,
+      "col": 25,
+      "offset": 1395
+     },
+     "end": {
+      "line": 53,
+      "col": 44,
+      "offset": 1414
+     }
+    },
+    {
+     "file": ".github/workflows/issue-snapshot.yml",
+     "start": {
+      "line": 62,
+      "col": 11,
+      "offset": 1395
+     },
+     "end": {
+      "line": 62,
+      "col": 30,
+      "offset": 1414
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 49,
+       "col": 15,
+       "offset": 2257
+      },
+      "end": {
+       "line": 72,
+       "col": 4,
+       "offset": 3497
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:49:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `set -euo pipefail\n# The nightly proof is cheap on the GCP runners and about 80 hosted\n# minutes without them, so it runs the heavy jobs only on GCP.\nif [ \"${{ github.event_name }}\" = \"schedule\" ] && [ \"${{ vars.CI_RUNNER }}\" != \"gcp\" ]; then\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Nightly without the GCP runners: light jobs only.\"; exit 0\nfi\nif [ \"${{ github.event_name }}\" != \"pull_request\" ]; then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"; exit 0\nfi\nif [ \"${{ github.event.pull_request.draft }}\" = \"true\" ]; then\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Draft pull request; the heavy jobs run when it is marked ready.\"; exit 0\nfi\n# Fails open: if the diff cannot be computed, the heavy jobs run.\nif ! files=$(git diff --name-only \"${{ github.event.pull_request.base.sha }}\" \"${{ github.sha }}\"); then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"; exit 0\nfi\nif printf '%s\\n' \"$files\" | grep -qE '^(infra/charts/|infra/images/|infra/smoke/|src/axiom/infra/deploy/|src/axiom/setup/docker-compose\\.yml$|\\.github/workflows/node-chart\\.yml$)'; then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"\nelse\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Only migrations or generator tests changed; the heavy jobs run nightly and on main.\"\nfi\n` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 49,
+      "col": 15,
+      "offset": 2257
+     },
+     "end": {
+      "line": 72,
+      "col": 4,
+      "offset": 3497
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 49,
+       "col": 15,
+       "offset": 2257
+      },
+      "end": {
+       "line": 72,
+       "col": 4,
+       "offset": 3497
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:49:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `set -euo pipefail\n# The nightly proof is cheap on the GCP runners and about 80 hosted\n# minutes without them, so it runs the heavy jobs only on GCP.\nif [ \"${{ github.event_name }}\" = \"schedule\" ] && [ \"${{ vars.CI_RUNNER }}\" != \"gcp\" ]; then\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Nightly without the GCP runners: light jobs only.\"; exit 0\nfi\nif [ \"${{ github.event_name }}\" != \"pull_request\" ]; then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"; exit 0\nfi\nif [ \"${{ github.event.pull_request.draft }}\" = \"true\" ]; then\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Draft pull request; the heavy jobs run when it is marked ready.\"; exit 0\nfi\n# Fails open: if the diff cannot be computed, the heavy jobs run.\nif ! files=$(git diff --name-only \"${{ github.event.pull_request.base.sha }}\" \"${{ github.sha }}\"); then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"; exit 0\nfi\nif printf '%s\\n' \"$files\" | grep -qE '^(infra/charts/|infra/images/|infra/smoke/|src/axiom/infra/deploy/|src/axiom/setup/docker-compose\\.yml$|\\.github/workflows/node-chart\\.yml$)'; then\n  echo \"heavy=true\" >> \"$GITHUB_OUTPUT\"\nelse\n  echo \"heavy=false\" >> \"$GITHUB_OUTPUT\"\n  echo \"Only migrations or generator tests changed; the heavy jobs run nightly and on main.\"\nfi\n` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 49,
+      "col": 15,
+      "offset": 2257
+     },
+     "end": {
+      "line": 72,
+      "col": 4,
+      "offset": 3497
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 195,
+       "col": 35,
+       "offset": 10404
+      },
+      "end": {
+       "line": 195,
+       "col": 38,
+       "offset": 10407
+      }
+     },
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 195,
+       "col": 137,
+       "offset": 10404
+      },
+      "end": {
+       "line": 195,
+       "col": 140,
+       "offset": 10407
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:195:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 195,
+      "col": 35,
+      "offset": 10404
+     },
+     "end": {
+      "line": 195,
+      "col": 38,
+      "offset": 10407
+     }
+    },
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 195,
+      "col": 137,
+      "offset": 10404
+     },
+     "end": {
+      "line": 195,
+      "col": 140,
+      "offset": 10407
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 195,
+       "col": 35,
+       "offset": 10404
+      },
+      "end": {
+       "line": 195,
+       "col": 38,
+       "offset": 10407
+      }
+     },
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 195,
+       "col": 137,
+       "offset": 10404
+      },
+      "end": {
+       "line": 195,
+       "col": 140,
+       "offset": 10407
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:195:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 195,
+      "col": 35,
+      "offset": 10404
+     },
+     "end": {
+      "line": 195,
+      "col": 38,
+      "offset": 10407
+     }
+    },
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 195,
+      "col": 137,
+      "offset": 10404
+     },
+     "end": {
+      "line": 195,
+      "col": 140,
+      "offset": 10407
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 227,
+       "col": 87,
+       "offset": 12239
+      },
+      "end": {
+       "line": 227,
+       "col": 90,
+       "offset": 12242
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:227:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 227,
+      "col": 87,
+      "offset": 12239
+     },
+     "end": {
+      "line": 227,
+      "col": 90,
+      "offset": 12242
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 227,
+       "col": 87,
+       "offset": 12239
+      },
+      "end": {
+       "line": 227,
+       "col": 90,
+       "offset": 12242
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:227:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 227,
+      "col": 87,
+      "offset": 12239
+     },
+     "end": {
+      "line": 227,
+      "col": 90,
+      "offset": 12242
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 269,
+       "col": 78,
+       "offset": 14479
+      },
+      "end": {
+       "line": 269,
+       "col": 92,
+       "offset": 14493
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:269:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.actor` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 269,
+      "col": 78,
+      "offset": 14479
+     },
+     "end": {
+      "line": 269,
+      "col": 92,
+      "offset": 14493
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 269,
+       "col": 78,
+       "offset": 14479
+      },
+      "end": {
+       "line": 269,
+       "col": 92,
+       "offset": 14493
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:269:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.actor` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 269,
+      "col": 78,
+      "offset": 14479
+     },
+     "end": {
+      "line": 269,
+      "col": 92,
+      "offset": 14493
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 287,
+       "col": 78,
+       "offset": 15448
+      },
+      "end": {
+       "line": 287,
+       "col": 92,
+       "offset": 15462
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:287:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.actor` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 287,
+      "col": 78,
+      "offset": 15448
+     },
+     "end": {
+      "line": 287,
+      "col": 92,
+      "offset": 15462
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 287,
+       "col": 78,
+       "offset": 15448
+      },
+      "end": {
+       "line": 287,
+       "col": 92,
+       "offset": 15462
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:287:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.actor` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 287,
+      "col": 78,
+      "offset": 15448
+     },
+     "end": {
+      "line": 287,
+      "col": 92,
+      "offset": 15462
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 329,
+       "col": 68,
+       "offset": 17604
+      },
+      "end": {
+       "line": 329,
+       "col": 71,
+       "offset": 17607
+      }
+     },
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 329,
+       "col": 89,
+       "offset": 17604
+      },
+      "end": {
+       "line": 329,
+       "col": 92,
+       "offset": 17607
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:329:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 329,
+      "col": 68,
+      "offset": 17604
+     },
+     "end": {
+      "line": 329,
+      "col": 71,
+      "offset": 17607
+     }
+    },
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 329,
+      "col": 89,
+      "offset": 17604
+     },
+     "end": {
+      "line": 329,
+      "col": 92,
+      "offset": 17607
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 329,
+       "col": 68,
+       "offset": 17604
+      },
+      "end": {
+       "line": 329,
+       "col": 71,
+       "offset": 17607
+      }
+     },
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 329,
+       "col": 89,
+       "offset": 17604
+      },
+      "end": {
+       "line": 329,
+       "col": 92,
+       "offset": 17607
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:329:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 329,
+      "col": 68,
+      "offset": 17604
+     },
+     "end": {
+      "line": 329,
+      "col": 71,
+      "offset": 17607
+     }
+    },
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 329,
+      "col": 89,
+      "offset": 17604
+     },
+     "end": {
+      "line": 329,
+      "col": 92,
+      "offset": 17607
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 362,
+       "col": 102,
+       "offset": 19325
+      },
+      "end": {
+       "line": 362,
+       "col": 105,
+       "offset": 19328
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:362:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 362,
+      "col": 102,
+      "offset": 19325
+     },
+     "end": {
+      "line": 362,
+      "col": 105,
+      "offset": 19328
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/node-chart.yml",
+      "start": {
+       "line": 362,
+       "col": 102,
+       "offset": 19325
+      },
+      "end": {
+       "line": 362,
+       "col": 105,
+       "offset": 19328
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/node-chart.yml:362:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `${{` was unexpected",
+   "path": ".github/workflows/node-chart.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/node-chart.yml",
+     "start": {
+      "line": 362,
+      "col": 102,
+      "offset": 19325
+     },
+     "end": {
+      "line": 362,
+      "col": 105,
+      "offset": 19328
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 338,
+       "col": 65,
+       "offset": 14965
+      },
+      "end": {
+       "line": 338,
+       "col": 79,
+       "offset": 14979
+      }
+     },
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 339,
+       "col": 9,
+       "offset": 14965
+      },
+      "end": {
+       "line": 339,
+       "col": 31,
+       "offset": 14987
+      }
+     },
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 339,
+       "col": 72,
+       "offset": 14965
+      },
+      "end": {
+       "line": 339,
+       "col": 86,
+       "offset": 14979
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:338:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.actor` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 338,
+      "col": 65,
+      "offset": 14965
+     },
+     "end": {
+      "line": 338,
+      "col": 79,
+      "offset": 14979
+     }
+    },
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 339,
+      "col": 9,
+      "offset": 14965
+     },
+     "end": {
+      "line": 339,
+      "col": 31,
+      "offset": 14987
+     }
+    },
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 339,
+      "col": 72,
+      "offset": 14965
+     },
+     "end": {
+      "line": 339,
+      "col": 86,
+      "offset": 14979
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 338,
+       "col": 65,
+       "offset": 14965
+      },
+      "end": {
+       "line": 338,
+       "col": 79,
+       "offset": 14979
+      }
+     },
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 339,
+       "col": 9,
+       "offset": 14965
+      },
+      "end": {
+       "line": 339,
+       "col": 31,
+       "offset": 14987
+      }
+     },
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 339,
+       "col": 72,
+       "offset": 14965
+      },
+      "end": {
+       "line": 339,
+       "col": 86,
+       "offset": 14979
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:338:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.actor` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 338,
+      "col": 65,
+      "offset": 14965
+     },
+     "end": {
+      "line": 338,
+      "col": 79,
+      "offset": 14979
+     }
+    },
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 339,
+      "col": 9,
+      "offset": 14965
+     },
+     "end": {
+      "line": 339,
+      "col": 31,
+      "offset": 14987
+     }
+    },
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 339,
+      "col": 72,
+      "offset": 14965
+     },
+     "end": {
+      "line": 339,
+      "col": 86,
+      "offset": 14979
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 352,
+       "col": 19,
+       "offset": 15300
+      },
+      "end": {
+       "line": 352,
+       "col": 28,
+       "offset": 15309
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:352:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `sha256:*)` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 352,
+      "col": 19,
+      "offset": 15300
+     },
+     "end": {
+      "line": 352,
+      "col": 28,
+      "offset": 15309
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 352,
+       "col": 19,
+       "offset": 15300
+      },
+      "end": {
+       "line": 352,
+       "col": 28,
+       "offset": 15309
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:352:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `sha256:*)` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 352,
+      "col": 19,
+      "offset": 15300
+     },
+     "end": {
+      "line": 352,
+      "col": 28,
+      "offset": 15309
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 376,
+       "col": 19,
+       "offset": 16196
+      },
+      "end": {
+       "line": 376,
+       "col": 28,
+       "offset": 16205
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:376:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `sha256:*)` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 376,
+      "col": 19,
+      "offset": 16196
+     },
+     "end": {
+      "line": 376,
+      "col": 28,
+      "offset": 16205
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 376,
+       "col": 19,
+       "offset": 16196
+      },
+      "end": {
+       "line": 376,
+       "col": 28,
+       "offset": 16205
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:376:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `sha256:*)` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 376,
+      "col": 19,
+      "offset": 16196
+     },
+     "end": {
+      "line": 376,
+      "col": 28,
+      "offset": 16205
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 426,
+       "col": 78,
+       "offset": 19774
+      },
+      "end": {
+       "line": 426,
+       "col": 92,
+       "offset": 19788
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:426:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.actor` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 426,
+      "col": 78,
+      "offset": 19774
+     },
+     "end": {
+      "line": 426,
+      "col": 92,
+      "offset": 19788
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": ".github/workflows/publish.yml",
+      "start": {
+       "line": 426,
+       "col": 78,
+       "offset": 19774
+      },
+      "end": {
+       "line": 426,
+       "col": 92,
+       "offset": 19788
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line .github/workflows/publish.yml:426:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.actor` was unexpected",
+   "path": ".github/workflows/publish.yml",
+   "spans": [
+    {
+     "file": ".github/workflows/publish.yml",
+     "start": {
+      "line": 426,
+      "col": 78,
+      "offset": 19774
+     },
+     "end": {
+      "line": 426,
+      "col": 92,
+      "offset": 19788
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 259,
+       "col": 11,
+       "offset": 11045
+      },
+      "end": {
+       "line": 259,
+       "col": 31,
+       "offset": 11065
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line actions/rivet-land/action.yml:259:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.action_path` was unexpected",
+   "path": "actions/rivet-land/action.yml",
+   "spans": [
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 259,
+      "col": 11,
+      "offset": 11045
+     },
+     "end": {
+      "line": 259,
+      "col": 31,
+      "offset": 11065
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 259,
+       "col": 11,
+       "offset": 11045
+      },
+      "end": {
+       "line": 259,
+       "col": 31,
+       "offset": 11065
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line actions/rivet-land/action.yml:259:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.action_path` was unexpected",
+   "path": "actions/rivet-land/action.yml",
+   "spans": [
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 259,
+      "col": 11,
+      "offset": 11045
+     },
+     "end": {
+      "line": 259,
+      "col": 31,
+      "offset": 11065
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 311,
+       "col": 11,
+       "offset": 13082
+      },
+      "end": {
+       "line": 311,
+       "col": 31,
+       "offset": 13102
+      }
+     },
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 313,
+       "col": 11,
+       "offset": 13082
+      },
+      "end": {
+       "line": 313,
+       "col": 31,
+       "offset": 13102
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line actions/rivet-land/action.yml:311:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ github.action_path` was unexpected",
+   "path": "actions/rivet-land/action.yml",
+   "spans": [
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 311,
+      "col": 11,
+      "offset": 13082
+     },
+     "end": {
+      "line": 311,
+      "col": 31,
+      "offset": 13102
+     }
+    },
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 313,
+      "col": 11,
+      "offset": 13082
+     },
+     "end": {
+      "line": 313,
+      "col": 31,
+      "offset": 13102
+     }
+    }
+   ]
+  },
+  {
+   "code": 3,
+   "level": "warn",
+   "type": [
+    "PartialParsing",
+    [
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 311,
+       "col": 11,
+       "offset": 13082
+      },
+      "end": {
+       "line": 311,
+       "col": 31,
+       "offset": 13102
+      }
+     },
+     {
+      "path": "actions/rivet-land/action.yml",
+      "start": {
+       "line": 313,
+       "col": 11,
+       "offset": 13082
+      },
+      "end": {
+       "line": 313,
+       "col": 31,
+       "offset": 13102
+      }
+     }
+    ]
+   ],
+   "message": "Syntax error at line actions/rivet-land/action.yml:311:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ github.action_path` was unexpected",
+   "path": "actions/rivet-land/action.yml",
+   "spans": [
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 311,
+      "col": 11,
+      "offset": 13082
+     },
+     "end": {
+      "line": 311,
+      "col": 31,
+      "offset": 13102
+     }
+    },
+    {
+     "file": "actions/rivet-land/action.yml",
+     "start": {
+      "line": 313,
+      "col": 11,
+      "offset": 13082
+     },
+     "end": {
+      "line": 313,
+      "col": 31,
+      "offset": 13102
+     }
+    }
+   ]
+  }
+ ],
+ "engine_requested": "OSS",
+ "skipped_rules": []
+}

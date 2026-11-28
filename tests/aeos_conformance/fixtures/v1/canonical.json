@@ -1,0 +1,102 @@
+{
+  "vectors": [
+    {
+      "id": "jcs-key-order",
+      "description": "members sorted at every level",
+      "input": {
+        "b": 1,
+        "a": {
+          "d": [
+            3,
+            2
+          ],
+          "c": null
+        },
+        "A": true
+      },
+      "signer_nfc": false,
+      "canonical_utf8": "{\"A\":true,\"a\":{\"c\":null,\"d\":[3,2]},\"b\":1}",
+      "canonical_hex": "7b2241223a747275652c2261223a7b2263223a6e756c6c2c2264223a5b332c325d7d2c2262223a317d"
+    },
+    {
+      "id": "jcs-u2028",
+      "description": "U+2028 and U+2029 are written as themselves, never escaped",
+      "input": {
+        "text": "line sep para"
+      },
+      "signer_nfc": false,
+      "canonical_utf8": "{\"text\":\"line sep para\"}",
+      "canonical_hex": "7b2274657874223a226c696e65e280a8736570e280a970617261227d"
+    },
+    {
+      "id": "jcs-controls",
+      "description": "control characters use short escapes or lowercase \\u00xx",
+      "input": {
+        "text": "tab\there\nnew\u0001\u001f\"q\"\\"
+      },
+      "signer_nfc": false,
+      "canonical_utf8": "{\"text\":\"tab\\there\\nnew\\u0001\\u001f\\\"q\\\"\\\\\"}",
+      "canonical_hex": "7b2274657874223a227461625c74686572655c6e6e65775c75303030315c75303031665c22715c225c5c227d"
+    },
+    {
+      "id": "jcs-non-bmp",
+      "description": "a non-BMP character is written as itself",
+      "input": {
+        "text": "soil 🌱"
+      },
+      "signer_nfc": false,
+      "canonical_utf8": "{\"text\":\"soil 🌱\"}",
+      "canonical_hex": "7b2274657874223a22736f696c20f09f8cb1227d"
+    },
+    {
+      "id": "jcs-nfc-signer",
+      "description": "the signer normalises to NFC before canonicalising (e + combining acute becomes U+00E9)",
+      "input": {
+        "name": "José"
+      },
+      "signer_nfc": true,
+      "canonical_utf8": "{\"name\":\"José\"}",
+      "canonical_hex": "7b226e616d65223a224a6f73c3a9227d"
+    },
+    {
+      "id": "jcs-int-limits",
+      "description": "integers at the I-JSON limits",
+      "input": {
+        "max": 9007199254740991,
+        "min": -9007199254740991,
+        "zero": 0
+      },
+      "signer_nfc": false,
+      "canonical_utf8": "{\"max\":9007199254740991,\"min\":-9007199254740991,\"zero\":0}",
+      "canonical_hex": "7b226d6178223a393030373139393235343734303939312c226d696e223a2d393030373139393235343734303939312c227a65726f223a307d"
+    },
+    {
+      "id": "jcs-neg-float",
+      "description": "floats are refused in signed AEOS objects",
+      "input_json_text": "{\"score\": 0.5}",
+      "refused": true,
+      "reason": "$.score: float"
+    },
+    {
+      "id": "jcs-neg-big-int",
+      "description": "integers beyond 2^53 - 1 are refused",
+      "input_json_text": "{\"n\": 9007199254740992}",
+      "refused": true,
+      "reason": "$.n: integer out of range"
+    },
+    {
+      "id": "jcs-neg-non-ascii-name",
+      "description": "member names must be ASCII",
+      "input_json_text": "{\"caf\\u00e9\": 1}",
+      "refused": true,
+      "reason": "$: non-ASCII member name 'café'"
+    },
+    {
+      "id": "jcs-neg-lone-surrogate",
+      "description": "lone surrogates are refused",
+      "input_json_text": "{\"text\": \"\\ud800\"}",
+      "refused": true,
+      "reason": "$.text: lone surrogate"
+    }
+  ]
+}

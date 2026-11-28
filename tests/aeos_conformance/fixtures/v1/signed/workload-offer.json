@@ -1,0 +1,30 @@
+{
+  "type": "aeos.workload",
+  "id": "aeos:wl:39f713d0a644253f:01JDXK0000000000000000000B",
+  "kind": "review.pr",
+  "owner": "@bob",
+  "steward": "@reviewer:alice",
+  "origin": "39f713d0a644253f",
+  "parent": null,
+  "root": "aeos:wl:39f713d0a644253f:01JDXK0000000000000000000B",
+  "idempotency_key": "pr-1-review",
+  "tier": "read",
+  "state": "submitted",
+  "reason": null,
+  "deadline": "2026-11-24T22:00:00.000000Z",
+  "priority": "normal",
+  "inputs": [
+    {
+      "ref": "pr://example/app/1",
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "artifacts": [],
+  "receipts": [],
+  "signatures": [
+    {
+      "protected": "eyJhZW9zIjoib2ZmZXIiLCJhbGciOiJFZERTQSIsImtpZCI6IjM5ZjcxM2QwYTY0NDI1M2YiLCJ0eXAiOiJhZW9zK2p3cyJ9",
+      "signature": "yCj7dxsQhZGSdeEYPu-e-aFDFx-PIC2Ba7GavsXDpWjFHCTbz23GYGvAjX52U1jV8H8uLY5tP5i2jVWzLeRCAA"
+    }
+  ]
+}

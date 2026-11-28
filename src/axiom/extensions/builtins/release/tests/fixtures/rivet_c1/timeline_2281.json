@@ -1,0 +1,1 @@
+{"data":{"repository":{"pullRequest":{"isDraft":false,"createdAt":"2026-11-22T20:44:02Z","mergedAt":null,"headRefOid":"fbafc8c3ded528335d8729eead5fbf82937044ac","timelineItems":{"nodes":[{"__typename":"ReadyForReviewEvent","createdAt":"2026-11-23T18:20:12Z"}]}}}}}

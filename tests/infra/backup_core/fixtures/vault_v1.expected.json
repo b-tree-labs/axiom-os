@@ -1,0 +1,19 @@
+{
+ "ids": [
+  "vb-20261008T221803-c0a0ef",
+  "vb-20261008T221803-44a8b5",
+  "vb-20261008T221803-9dd378"
+ ],
+ "passphrase": "fixture passphrase, protects nothing 31",
+ "passphrase_id": "vb-20261008T221803-9dd378",
+ "values_at": {
+  "vb-20261008T221803-44a8b5": {
+   "fixture-alpha": "FIXTURE-VALUE-ALPHA-0003",
+   "fixture-bravo": "FIXTURE-VALUE-BRAVO-0002"
+  },
+  "vb-20261008T221803-c0a0ef": {
+   "fixture-alpha": "FIXTURE-VALUE-ALPHA-0001",
+   "fixture-bravo": "FIXTURE-VALUE-BRAVO-0002"
+  }
+ }
+}

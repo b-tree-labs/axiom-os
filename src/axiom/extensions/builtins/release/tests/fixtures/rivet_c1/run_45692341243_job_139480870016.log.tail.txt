@@ -1,0 +1,30 @@
+2026-11-25T20:11:53.6552046Z  
+2026-11-25T20:11:53.6552425Z  /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+2026-11-25T20:11:53.6552881Z  
+2026-11-25T20:11:53.6553291Z  waiting for server to shut down...2026-11-25 20:11:12.479 UTC [48] LOG:  received fast shutdown request
+2026-11-25T20:11:53.6553909Z  .2026-11-25 20:11:12.481 UTC [48] LOG:  aborting any active transactions
+2026-11-25T20:11:53.6554582Z  2026-11-25 20:11:12.482 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+2026-11-25T20:11:53.6555186Z  2026-11-25 20:11:12.482 UTC [49] LOG:  shutting down
+2026-11-25T20:11:53.6555794Z  2026-11-25 20:11:12.484 UTC [49] LOG:  checkpoint starting: shutdown immediate
+2026-11-25T20:11:53.6557292Z  2026-11-25 20:11:12.513 UTC [49] LOG:  checkpoint complete: wrote 931 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.015 s, sync=0.011 s, total=0.031 s; sync files=301, longest=0.002 s, average=0.001 s; distance=4328 kB, estimate=4328 kB; lsn=0/1935FE0, redo lsn=0/1935FE0
+2026-11-25T20:11:53.6558543Z  2026-11-25 20:11:12.519 UTC [48] LOG:  database system is shut down
+2026-11-25T20:11:53.6558932Z   done
+2026-11-25T20:11:53.6559146Z  server stopped
+2026-11-25T20:11:53.6559373Z  
+2026-11-25T20:11:53.6559657Z  PostgreSQL init process complete; ready for start up.
+2026-11-25T20:11:53.6560015Z  
+2026-11-25T20:11:53.6560355Z  2026-11-25 20:11:12.603 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-25T20:11:53.6560973Z  2026-11-25 20:11:12.606 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-25T20:11:53.6561629Z  2026-11-25 20:11:12.610 UTC [64] LOG:  database system was shut down at 2026-11-25 20:11:12 UTC
+2026-11-25T20:11:53.6562301Z  2026-11-25 20:11:12.615 UTC [1] LOG:  database system is ready to accept connections
+2026-11-25T20:11:53.6562840Z  2026-11-25 20:11:21.666 UTC [75] FATAL:  database "axiom" does not exist
+2026-11-25T20:11:53.6563327Z  2026-11-25 20:11:31.729 UTC [83] FATAL:  database "axiom" does not exist
+2026-11-25T20:11:53.6563811Z  2026-11-25 20:11:41.794 UTC [91] FATAL:  database "axiom" does not exist
+2026-11-25T20:11:53.6564306Z  2026-11-25 20:11:51.856 UTC [100] FATAL:  database "axiom" does not exist
+2026-11-25T20:11:53.6569849Z Stop and remove container: b1540c6843204627b07c4ce1b5610347_pgvectorpgvectorpg16_40436d
+2026-11-25T20:11:53.6575676Z ##[command]/usr/bin/docker rm --force 57e86b5cfb89d4f0627b1699ccfe27cec462fb535deddae1d0179c643e02ffbc
+2026-11-25T20:12:04.6116916Z 57e86b5cfb89d4f0627b1699ccfe27cec462fb535deddae1d0179c643e02ffbc
+2026-11-25T20:12:04.6149440Z Remove container network: github_network_de1aff578c854542899491a0f8e38f6a
+2026-11-25T20:12:04.6153050Z ##[command]/usr/bin/docker network rm github_network_de1aff578c854542899491a0f8e38f6a
+2026-11-25T20:12:04.6990792Z github_network_de1aff578c854542899491a0f8e38f6a
+2026-11-25T20:12:04.7081270Z Cleaning up orphan processes

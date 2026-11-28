@@ -1,0 +1,8 @@
+${header}
+Page ${page}
+
+${rows}
+
+${footer}
+Chain head: ${chain_head}
+Verification: ${verification}

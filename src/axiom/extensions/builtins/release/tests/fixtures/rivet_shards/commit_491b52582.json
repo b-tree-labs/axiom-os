@@ -1,0 +1,16 @@
+{
+ "sha": "491b5258296d094d3af8e31c0ba8228a3ffba7b9",
+ "message": "Merge pull request #2464 from example-org/ci/rivet-land-cheap-when-idle",
+ "author": "benjaminbooth",
+ "parents": [
+  "f7e72feb7c689bc86642916cd21ec3d77602d2b5",
+  "b42afa760f7e831f9f3218e16791244517b21e1c"
+ ],
+ "files": [
+  "actions/rivet-land/README.md",
+  "actions/rivet-land/action.yml",
+  "actions/rivet-land/caller-example.yml",
+  "actions/rivet-land/scripts/rivet_idle.sh",
+  "actions/rivet-land/tests/test_rivet_idle.py"
+ ]
+}

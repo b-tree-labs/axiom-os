@@ -1,0 +1,26 @@
+{
+  "messageId": "msg-0001",
+  "role": "ROLE_AGENT",
+  "contextId": "aeos:conv:21fe31dfa154a261:01JDXK0000000000000000000A",
+  "parts": [
+    {
+      "text": "Review is ready. Line two."
+    }
+  ],
+  "metadata": {
+    "urn:aeos:ext:federation:1": {
+      "from": "@reviewer:alice",
+      "to": [
+        "@claude:bob"
+      ],
+      "conversation": "aeos:conv:21fe31dfa154a261:01JDXK0000000000000000000A",
+      "sent_at": "2026-11-23T22:00:00.000000Z",
+      "signatures": [
+        {
+          "protected": "eyJhZW9zIjoibWVzc2FnZSIsImFsZyI6IkVkRFNBIiwia2lkIjoiMjFmZTMxZGZhMTU0YTI2MSIsInR5cCI6ImFlb3MrandzIn0",
+          "signature": "QH3dBDxS7supIJKI6N3aByT66aGfxz2kQp3HDzZxPTjNPFUbXwKqQTRFINiClixe_ur7ombHPMJJfwPrsg9yCQ"
+        }
+      ]
+    }
+  }
+}

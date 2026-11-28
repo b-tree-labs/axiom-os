@@ -1,0 +1,5 @@
+2026-11-26T03:17:17.4330109Z =========================== short test summary info ============================
+2026-11-26T03:17:17.4330763Z FAILED tests/infra/test_cli_name_branding.py::test_no_new_hardcoded_axi_in_operator_facing_text - AssertionError: operator-facing text hardcodes the platform CLI name:
+2026-11-26T03:17:17.4331459Z     extensions/builtins/release/agreement/cli.py:24: 'axi release agreement'
+2026-11-26T03:17:17.4332123Z assert not ["extensions/builtins/release/agreement/cli.py:24: 'axi release agreement'"]
+2026-11-26T03:17:17.4332596Z = 1 failed, 11271 passed, 212 skipped, 9 xfailed, 33 warnings in 518.20s (0:08:38) =

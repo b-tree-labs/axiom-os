@@ -1,0 +1,24 @@
+# Copyright (c) 2026 The University of Texas at Austin
+# Copyright (c) 2026 B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[extension]
+name = "example_logbook"
+version = "0.1.0"
+description = "An example log: a period, a check with an observed value, a note, and a cadence"
+license = "Apache-2.0"
+owner = "b-tree-labs"
+aeos_version = "0.1.0"
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.10"
+
+# The log this extension declares. The attest extension finds it here,
+# validates the file when the node loads it, and refuses a key it does not know.
+[[extension.provides]]
+kind = "logbook"
+id = "example_log"
+file = "logbook/example_log.toml"
+display = "Example Log"
+description = "A domain-free example log to copy when you build your own"
